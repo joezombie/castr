@@ -1,0 +1,6 @@
+#!/bin/bash
+# Quick wrapper for .github/assign-to-copilot.sh
+# Usage: ./assign-issue 4
+#        ./assign-issue 4 --agent api-dev --follow
+
+exec "$(dirname "$0")/.github/assign-to-copilot.sh" "$@"

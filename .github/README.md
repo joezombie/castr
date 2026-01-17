@@ -4,6 +4,34 @@ This directory contains GitHub-specific configuration files for Copilot, workflo
 
 ## Files
 
+### GitHub Copilot Workflow
+
+#### `assign-to-copilot.sh`
+Shell script for assigning GitHub issues to Copilot coding agent. Features:
+- Automatic issue context fetching
+- Custom agent support
+- Real-time log following
+- Additional instruction support
+- Multi-repository support
+
+**Quick Start:**
+```bash
+.github/assign-to-copilot.sh 4              # Assign issue #4
+.github/assign-to-copilot.sh 4 --follow     # Assign and follow logs
+.github/assign-to-copilot.sh 4 --agent api-dev --follow  # With custom agent
+```
+
+See `COPILOT_WORKFLOW.md` for complete documentation.
+
+#### `COPILOT_WORKFLOW.md`
+Comprehensive workflow guide covering:
+- Prerequisites and setup
+- Usage examples for all issue types
+- Agent selection guide
+- Monitoring and troubleshooting
+- Best practices
+- CI/CD integration
+
 ### GitHub Copilot Configuration
 
 #### `copilot-instructions.md`
