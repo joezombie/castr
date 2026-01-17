@@ -50,12 +50,41 @@ foreach (var (feedName, feedConfig) in config.Value.Feeds)
     if (string.IsNullOrWhiteSpace(feedConfig.Title))
         throw new InvalidOperationException($"Feed {feedName}: Title is required");
     
-    // Create directory if it doesn't exist
-    if (!Directory.Exists(feedConfig.Directory))
+    // Validate directory path for security issues
+    try
     {
-        logger.LogInformation("Creating directory for feed {FeedName}: {Directory}", 
-            feedName, feedConfig.Directory);
-        Directory.CreateDirectory(feedConfig.Directory);
+        // Check for path traversal patterns before resolving the path
+        if (feedConfig.Directory.Contains("..") || 
+            feedConfig.Directory.Contains("~"))
+        {
+            throw new InvalidOperationException($"Feed {feedName}: Directory path contains invalid characters");
+        }
+        
+        var fullPath = Path.GetFullPath(feedConfig.Directory);
+    }
+    catch (Exception ex) when (ex is not InvalidOperationException)
+    {
+        throw new InvalidOperationException($"Feed {feedName}: Invalid directory path: {feedConfig.Directory}", ex);
+    }
+    
+    // Create directory if it doesn't exist
+    // Note: Directory.CreateDirectory is safe to call on existing directories
+    try
+    {
+        var directoryInfo = Directory.CreateDirectory(feedConfig.Directory);
+        if (directoryInfo.Exists)
+        {
+            logger.LogDebug("Directory ready for feed {FeedName}: {Directory}", 
+                feedName, feedConfig.Directory);
+        }
+    }
+    catch (UnauthorizedAccessException ex)
+    {
+        throw new InvalidOperationException($"Feed {feedName}: Access denied when creating directory: {feedConfig.Directory}", ex);
+    }
+    catch (Exception ex)
+    {
+        throw new InvalidOperationException($"Feed {feedName}: Failed to create directory: {feedConfig.Directory}", ex);
     }
     
     try
