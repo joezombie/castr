@@ -313,7 +313,8 @@ def reverse_list_file(input_path, output_path=None, in_place=False):
         logger.info("  First line: %s", reversed_lines[0] if reversed_lines else '(empty)')
         logger.info("  Last line:  %s", reversed_lines[-1] if reversed_lines else '(empty)')
     else:
-        # Print to stdout
+        # Print to stdout (not logger) - this is the actual data output
+        # when no output file is specified, allowing pipe redirection
         for line in reversed_lines:
             print(line)
 
