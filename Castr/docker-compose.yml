@@ -1,0 +1,52 @@
+services:
+  castr:
+    # Use pre-built image from registry (recommended for production)
+    image: reg.ht2.io/castr:latest
+    # Or build locally (for development):
+    # build:
+    #   context: .
+    #   dockerfile: Dockerfile
+    container_name: castr
+    expose:
+      - "8080"
+    # Uncomment if not using Traefik:
+    # ports:
+    #   - "5000:8080"
+    volumes:
+      # Mount your media directories here
+      - /mnt/user/Stuff/Podcasts:/Podcasts:rw
+      # Add additional podcast directories as needed:
+      # - /path/to/podcast:/path/to/podcast:ro
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      # Configure forwarded headers for reverse proxy
+      - ASPNETCORE_FORWARDEDHEADERS_ENABLED=true
+    networks:
+      - traefik
+    labels:
+      # Enable Traefik for this container
+      - "traefik.enable=true"
+
+      # HTTP router configuration
+      - "traefik.http.routers.castr.rule=Host(`podcast.example.com`)"
+      - "traefik.http.routers.castr.entrypoints=websecure"
+      - "traefik.http.routers.castr.tls=true"
+      - "traefik.http.routers.castr.tls.certresolver=letsencrypt"
+
+      # Service configuration
+      - "traefik.http.services.castr.loadbalancer.server.port=8080"
+
+      # Optional: Middleware for additional security
+      # - "traefik.http.routers.castr.middlewares=castr-headers"
+      # - "traefik.http.middlewares.castr-headers.headers.customResponseHeaders.X-Robots-Tag=noindex,nofollow"
+
+      # Optional: HTTP to HTTPS redirect
+      - "traefik.http.routers.castr-http.rule=Host(`podcast.example.com`)"
+      - "traefik.http.routers.castr-http.entrypoints=web"
+      - "traefik.http.routers.castr-http.middlewares=redirect-to-https"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+    restart: unless-stopped
+
+networks:
+  traefik:
+    external: true

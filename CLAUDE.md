@@ -34,14 +34,14 @@ python3 match_episodes.py script
 - `playlist-bulletized1.txt` - YouTube playlist titles in JSON array format
 - `matched_episodes.json` - Output mapping with order, names, scores, indices
 
-## PodcastFeedApi (.NET)
+## Castr (.NET)
 
 ASP.NET Core Web API that serves podcast RSS feeds from local MP3 directories.
 
 ### Commands
 
 ```bash
-cd PodcastFeedApi
+cd Castr
 
 # Build
 ~/.dotnet/dotnet build

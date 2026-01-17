@@ -3,7 +3,7 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
 # Copy project file and restore dependencies
-COPY PodcastFeedApi.csproj .
+COPY Castr.csproj .
 RUN dotnet restore
 
 # Copy source code and build
@@ -23,4 +23,4 @@ EXPOSE 8080
 # Set environment variables
 ENV ASPNETCORE_URLS=http://+:8080
 
-ENTRYPOINT ["dotnet", "PodcastFeedApi.dll"]
+ENTRYPOINT ["dotnet", "Castr.dll"]
