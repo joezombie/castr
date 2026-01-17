@@ -43,6 +43,21 @@ logger.LogInformation("Initializing databases for {Count} configured feed(s)", c
 
 foreach (var (feedName, feedConfig) in config.Value.Feeds)
 {
+    // Validate configuration
+    if (string.IsNullOrWhiteSpace(feedConfig.Directory))
+        throw new InvalidOperationException($"Feed {feedName}: Directory is required");
+    
+    if (string.IsNullOrWhiteSpace(feedConfig.Title))
+        throw new InvalidOperationException($"Feed {feedName}: Title is required");
+    
+    // Create directory if it doesn't exist
+    if (!Directory.Exists(feedConfig.Directory))
+    {
+        logger.LogInformation("Creating directory for feed {FeedName}: {Directory}", 
+            feedName, feedConfig.Directory);
+        Directory.CreateDirectory(feedConfig.Directory);
+    }
+    
     try
     {
         logger.LogDebug("Initializing database for feed: {FeedName}", feedName);
