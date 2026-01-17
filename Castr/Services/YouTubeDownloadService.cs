@@ -104,11 +104,16 @@ public class YouTubeDownloadService : IYouTubeDownloadService
                 video.Title, videoId, outputPath);
 
             var downloadStart = DateTime.UtcNow;
+            
+            // Add timeout to prevent indefinitely hung downloads
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            cts.CancelAfter(TimeSpan.FromMinutes(30)); // 30 min timeout
+            
             await _youtube.Videos.DownloadAsync(
                 videoId,
                 outputPath,
                 o => o.SetContainer("mp3").SetPreset(ConversionPreset.Medium),
-                cancellationToken: cancellationToken);
+                cancellationToken: cts.Token);
 
             var downloadElapsed = DateTime.UtcNow - downloadStart;
             var fileInfo = new FileInfo(outputPath);

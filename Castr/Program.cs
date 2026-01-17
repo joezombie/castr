@@ -46,6 +46,47 @@ logger.LogInformation("Initializing databases for {Count} configured feed(s)", c
 
 foreach (var (feedName, feedConfig) in config.Value.Feeds)
 {
+    // Validate configuration
+    // Note: 'required' keyword ensures non-null, but we also check for empty/whitespace
+    if (string.IsNullOrWhiteSpace(feedConfig.Directory))
+        throw new InvalidOperationException($"Feed {feedName}: Directory cannot be empty");
+    
+    if (string.IsNullOrWhiteSpace(feedConfig.Title))
+        throw new InvalidOperationException($"Feed {feedName}: Title cannot be empty");
+    
+    // Validate directory path
+    try
+    {
+        var fullPath = Path.GetFullPath(feedConfig.Directory);
+        // Path.GetFullPath normalizes the path and validates it
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "Feed {FeedName}: Invalid directory path: {Directory}", feedName, feedConfig.Directory);
+        throw new InvalidOperationException($"Feed {feedName}: Invalid directory path: {feedConfig.Directory}", ex);
+    }
+    
+    // Create directory if it doesn't exist
+    if (!Directory.Exists(feedConfig.Directory))
+    {
+        try
+        {
+            Directory.CreateDirectory(feedConfig.Directory);
+            logger.LogInformation("Created directory for feed {FeedName}: {Directory}", 
+                feedName, feedConfig.Directory);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            logger.LogError(ex, "Feed {FeedName}: Access denied for directory: {Directory}", feedName, feedConfig.Directory);
+            throw new InvalidOperationException($"Feed {feedName}: Access denied when creating directory: {feedConfig.Directory}", ex);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Feed {FeedName}: Failed to create directory: {Directory}", feedName, feedConfig.Directory);
+            throw new InvalidOperationException($"Feed {feedName}: Failed to create directory: {feedConfig.Directory}", ex);
+        }
+    }
+    
     try
     {
         logger.LogDebug("Initializing database for feed: {FeedName}", feedName);
