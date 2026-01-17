@@ -44,31 +44,26 @@ logger.LogInformation("Initializing databases for {Count} configured feed(s)", c
 foreach (var (feedName, feedConfig) in config.Value.Feeds)
 {
     // Validate configuration
+    // Note: 'required' keyword ensures non-null, but we also check for empty/whitespace
     if (string.IsNullOrWhiteSpace(feedConfig.Directory))
-        throw new InvalidOperationException($"Feed {feedName}: Directory is required");
+        throw new InvalidOperationException($"Feed {feedName}: Directory cannot be empty");
     
     if (string.IsNullOrWhiteSpace(feedConfig.Title))
-        throw new InvalidOperationException($"Feed {feedName}: Title is required");
+        throw new InvalidOperationException($"Feed {feedName}: Title cannot be empty");
     
     // Validate directory path for security issues
-    try
+    // Check for obvious path traversal patterns
+    if (feedConfig.Directory.Contains("..") || feedConfig.Directory.Contains("~"))
     {
-        // Check for obvious path traversal patterns first
-        if (feedConfig.Directory.Contains("..") || 
-            feedConfig.Directory.Contains("~"))
-        {
-            throw new InvalidOperationException($"Feed {feedName}: Directory path contains invalid characters");
-        }
-        
-        // Validate that the path is rooted (absolute path)
-        if (!Path.IsPathRooted(feedConfig.Directory))
-        {
-            throw new InvalidOperationException($"Feed {feedName}: Directory path must be an absolute path");
-        }
+        logger.LogError("Feed {FeedName} has invalid directory path: {Directory}", feedName, feedConfig.Directory);
+        throw new InvalidOperationException($"Feed {feedName}: Directory path contains invalid characters");
     }
-    catch (Exception ex) when (ex is not InvalidOperationException)
+    
+    // Validate that the path is rooted (absolute path)
+    if (!Path.IsPathRooted(feedConfig.Directory))
     {
-        throw new InvalidOperationException($"Feed {feedName}: Invalid directory path: {feedConfig.Directory}", ex);
+        logger.LogError("Feed {FeedName} has relative directory path: {Directory}", feedName, feedConfig.Directory);
+        throw new InvalidOperationException($"Feed {feedName}: Directory path must be an absolute path");
     }
     
     // Create directory if it doesn't exist
@@ -81,10 +76,12 @@ foreach (var (feedName, feedConfig) in config.Value.Feeds)
     }
     catch (UnauthorizedAccessException ex)
     {
+        logger.LogError(ex, "Feed {FeedName}: Access denied for directory: {Directory}", feedName, feedConfig.Directory);
         throw new InvalidOperationException($"Feed {feedName}: Access denied when creating directory: {feedConfig.Directory}", ex);
     }
     catch (Exception ex)
     {
+        logger.LogError(ex, "Feed {FeedName}: Failed to create directory: {Directory}", feedName, feedConfig.Directory);
         throw new InvalidOperationException($"Feed {feedName}: Failed to create directory: {feedConfig.Directory}", ex);
     }
     
