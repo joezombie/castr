@@ -49,6 +49,7 @@ public class PodcastDatabaseService : IPodcastDatabaseService
     private readonly ILogger<PodcastDatabaseService> _logger;
     private readonly SemaphoreSlim _dbLock = new(1, 1);
     private readonly Dictionary<string, bool> _initialized = new();
+    private static readonly Regex WhitespaceRegex = new(@"\s+", RegexOptions.Compiled);
 
     public PodcastDatabaseService(
         IOptions<PodcastFeedsConfig> config,
@@ -691,7 +692,7 @@ public class PodcastDatabaseService : IPodcastDatabaseService
             .ToLowerInvariant()
             .Trim();
 
-        normalized = Regex.Replace(normalized, @"\s+", " ");
+        normalized = WhitespaceRegex.Replace(normalized, " ");
 
         return normalized;
     }

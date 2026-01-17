@@ -43,6 +43,7 @@ public class YouTubeDownloadService : IYouTubeDownloadService
 {
     private readonly YoutubeClient _youtube;
     private readonly ILogger<YouTubeDownloadService> _logger;
+    private static readonly Regex WhitespaceRegex = new(@"\s+", RegexOptions.Compiled);
 
     public YouTubeDownloadService(ILogger<YouTubeDownloadService> logger)
     {
@@ -254,7 +255,7 @@ public class YouTubeDownloadService : IYouTubeDownloadService
             .Trim();
 
         // Remove extra whitespace
-        normalized = Regex.Replace(normalized, @"\s+", " ");
+        normalized = WhitespaceRegex.Replace(normalized, " ");
 
         return normalized;
     }
