@@ -39,11 +39,13 @@ public class VideoDetails
     public DateTime? UploadDate { get; set; }
 }
 
-public class YouTubeDownloadService : IYouTubeDownloadService
+public partial class YouTubeDownloadService : IYouTubeDownloadService
 {
     private readonly YoutubeClient _youtube;
     private readonly ILogger<YouTubeDownloadService> _logger;
-    private static readonly Regex WhitespaceRegex = new(@"\s+", RegexOptions.Compiled);
+
+    [GeneratedRegex(@"\s+", RegexOptions.Compiled)]
+    private static partial Regex WhitespaceRegex();
 
     public YouTubeDownloadService(ILogger<YouTubeDownloadService> logger)
     {
@@ -255,7 +257,7 @@ public class YouTubeDownloadService : IYouTubeDownloadService
             .Trim();
 
         // Remove extra whitespace
-        normalized = WhitespaceRegex.Replace(normalized, " ");
+        normalized = WhitespaceRegex().Replace(normalized, " ");
 
         return normalized;
     }

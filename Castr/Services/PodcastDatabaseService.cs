@@ -43,13 +43,15 @@ public class PlaylistVideoInfo
     public int PlaylistIndex { get; set; }
 }
 
-public class PodcastDatabaseService : IPodcastDatabaseService
+public partial class PodcastDatabaseService : IPodcastDatabaseService
 {
     private readonly IOptions<PodcastFeedsConfig> _config;
     private readonly ILogger<PodcastDatabaseService> _logger;
     private readonly SemaphoreSlim _dbLock = new(1, 1);
     private readonly Dictionary<string, bool> _initialized = new();
-    private static readonly Regex WhitespaceRegex = new(@"\s+", RegexOptions.Compiled);
+
+    [GeneratedRegex(@"\s+", RegexOptions.Compiled)]
+    private static partial Regex WhitespaceRegex();
 
     public PodcastDatabaseService(
         IOptions<PodcastFeedsConfig> config,
@@ -692,7 +694,7 @@ public class PodcastDatabaseService : IPodcastDatabaseService
             .ToLowerInvariant()
             .Trim();
 
-        normalized = WhitespaceRegex.Replace(normalized, " ");
+        normalized = WhitespaceRegex().Replace(normalized, " ");
 
         return normalized;
     }
