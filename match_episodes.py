@@ -206,7 +206,10 @@ def rename_files(json_path='matched_episodes.json', files1_path='files1.txt',
 
     logger.info("\n" + "=" * 80)
     logger.info("Summary:")
-    logger.info("  Would rename: %d" if dry_run else "  Renamed: %d", renamed_count)
+    if dry_run:
+        logger.info("  Would rename: %d", renamed_count)
+    else:
+        logger.info("  Renamed: %d", renamed_count)
     logger.info("  Skipped (already prefixed): %d", skipped_count)
     logger.info("  Errors: %d", error_count)
 
