@@ -183,11 +183,10 @@ if [ -n "$REPO" ]; then
     REPO_FLAG="--repo $REPO"
 fi
 
-ISSUE_DATA=$(gh issue view "$ISSUE_NUMBER" $REPO_FLAG --json title,body,labels,url)
-ISSUE_TITLE=$(echo "$ISSUE_DATA" | jq -r '.title')
-ISSUE_BODY=$(echo "$ISSUE_DATA" | jq -r '.body // ""')
-ISSUE_URL=$(echo "$ISSUE_DATA" | jq -r '.url')
-ISSUE_LABELS=$(echo "$ISSUE_DATA" | jq -r '.labels[].name' | tr '\n' ',' | sed 's/,$//')
+ISSUE_TITLE=$(gh issue view "$ISSUE_NUMBER" $REPO_FLAG --json title --jq '.title')
+ISSUE_BODY=$(gh issue view "$ISSUE_NUMBER" $REPO_FLAG --json body --jq '.body // ""')
+ISSUE_URL=$(gh issue view "$ISSUE_NUMBER" $REPO_FLAG --json url --jq '.url')
+ISSUE_LABELS=$(gh issue view "$ISSUE_NUMBER" $REPO_FLAG --json labels --jq '.labels[].name' | tr '\n' ',' | sed 's/,$//')
 
 if [ -z "$ISSUE_TITLE" ]; then
     echo -e "${RED}Error: Could not fetch issue #${ISSUE_NUMBER}${NC}"
