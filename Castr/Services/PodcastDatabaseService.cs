@@ -44,6 +44,12 @@ public class PlaylistVideoInfo
 
 public class PodcastDatabaseService : IPodcastDatabaseService
 {
+    /// <summary>
+    /// Maximum time to wait for database lock acquisition.
+    /// 30 seconds is chosen to balance between allowing legitimate long-running operations
+    /// and preventing indefinite hangs. Timeouts may occur during high contention scenarios
+    /// when multiple concurrent requests attempt to modify the same feed's database.
+    /// </summary>
     private static readonly TimeSpan DatabaseLockTimeout = TimeSpan.FromSeconds(30);
     
     private readonly IOptions<PodcastFeedsConfig> _config;
@@ -71,6 +77,18 @@ public class PodcastDatabaseService : IPodcastDatabaseService
         return $"Data Source={GetDatabasePath(feedName)}";
     }
 
+    /// <summary>
+    /// Acquires the database lock with a timeout to prevent indefinite blocking.
+    /// </summary>
+    /// <param name="feedName">The name of the feed for logging purposes.</param>
+    /// <exception cref="TimeoutException">
+    /// Thrown when the lock cannot be acquired within the timeout period.
+    /// This typically indicates high contention or a deadlock scenario.
+    /// </exception>
+    /// <remarks>
+    /// Uses a semaphore to ensure only one thread can access the database at a time.
+    /// The timeout prevents indefinite blocking and improves system reliability.
+    /// </remarks>
     private async Task AcquireDatabaseLockAsync(string feedName)
     {
         if (!await _dbLock.WaitAsync(DatabaseLockTimeout))
