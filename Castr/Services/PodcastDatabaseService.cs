@@ -48,7 +48,7 @@ public class PodcastDatabaseService : IPodcastDatabaseService
     private readonly ILogger<PodcastDatabaseService> _logger;
     private readonly SemaphoreSlim _dbLock = new(1, 1);
     private readonly Dictionary<string, bool> _initialized = new();
-    private bool _disposed;
+    private int _disposed;
 
     public PodcastDatabaseService(
         IOptions<PodcastFeedsConfig> config,
@@ -728,10 +728,11 @@ public class PodcastDatabaseService : IPodcastDatabaseService
 
     public void Dispose()
     {
-        if (_disposed)
+        // Thread-safe disposal to prevent multiple threads from disposing simultaneously
+        if (Interlocked.CompareExchange(ref _disposed, 1, 0) != 0)
             return;
 
         _dbLock?.Dispose();
-        _disposed = true;
+        GC.SuppressFinalize(this);
     }
 }
