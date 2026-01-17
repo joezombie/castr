@@ -52,11 +52,12 @@ foreach (var (feedName, feedConfig) in config.Value.Feeds)
         throw new InvalidOperationException($"Feed {feedName}: Title cannot be empty");
     
     // Validate directory path for security issues
-    // Check for obvious path traversal patterns
+    // Note: This is a simple check for common path traversal patterns.
+    // For production use, consider using Path.GetFullPath() comparison for more robust validation.
     if (feedConfig.Directory.Contains("..") || feedConfig.Directory.Contains("~"))
     {
-        logger.LogError("Feed {FeedName} has invalid directory path: {Directory}", feedName, feedConfig.Directory);
-        throw new InvalidOperationException($"Feed {feedName}: Directory path contains invalid characters");
+        logger.LogError("Feed {FeedName} has unsafe directory path: {Directory}", feedName, feedConfig.Directory);
+        throw new InvalidOperationException($"Feed {feedName}: Directory path contains unsafe navigation patterns (.. or ~)");
     }
     
     // Validate that the path is rooted (absolute path)
