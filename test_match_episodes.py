@@ -217,7 +217,8 @@ class TestSimilarityScore(unittest.TestCase):
 class TestExtractFilenameFromLsLine(unittest.TestCase):
     """Test the extract_filename_from_ls_line function."""
     
-    # Helper constant for typical ls -l output format
+    # Standard ls -l output format template for creating test lines
+    # Format: permissions user group size date time
     LS_FORMAT = "-rw-r--r-- 1 user group 12345 Jan 1 12:00"
 
     def _make_ls_line(self, path):
