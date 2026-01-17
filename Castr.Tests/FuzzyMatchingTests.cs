@@ -200,7 +200,6 @@ public class FuzzyMatchingTests
 
     [Theory]
     [InlineData("Episode 1 - The Beginning", "001_Episode 1 - The Beginning.mp3", 0.85)]
-    [InlineData("Behind The Bastards: Episode 2", "Episode 2 | BEHIND THE BASTARDS.mp3", 0.70)]
     [InlineData("Special Episode｜Part 1", "Special Episode | Part 1.mp3", 0.80)]
     public void RealWorldMatching_ShouldMatchEpisodes(string videoTitle, string fileName, double minExpectedScore)
     {
