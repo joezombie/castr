@@ -177,9 +177,13 @@ def rename_files(json_path='matched_episodes.json', files1_path='files1.txt',
     logger.info("Found %d matched episodes", len(matches))
 
     if dry_run:
-        logger.info("\n*** DRY RUN - No files will be renamed ***\n")
+        logger.info("")
+        logger.info("*** DRY RUN - No files will be renamed ***")
+        logger.info("")
     else:
-        logger.info("\n*** LIVE RUN - Files will be renamed ***\n")
+        logger.info("")
+        logger.info("*** LIVE RUN - Files will be renamed ***")
+        logger.info("")
 
     renamed_count = 0
     skipped_count = 0
@@ -226,9 +230,12 @@ def rename_files(json_path='matched_episodes.json', files1_path='files1.txt',
         else:
             renamed_count += 1
 
-    logger.info("\n" + "=" * 80)
+    logger.info("=" * 80)
     logger.info("Summary:")
-    logger.info("  Would rename: %d" if dry_run else "  Renamed: %d", renamed_count)
+    if dry_run:
+        logger.info("  Would rename: %d", renamed_count)
+    else:
+        logger.info("  Renamed: %d", renamed_count)
     logger.info("  Skipped (already prefixed): %d", skipped_count)
     logger.info("  Errors: %d", error_count)
 
@@ -432,7 +439,8 @@ def do_matching():
     logger.info("Found %d playlist entries (excluding private videos)", len(playlist))
 
     # Match playlist entries to MP3 files
-    logger.info("\nMatching playlist entries to MP3 files...")
+    logger.info("")
+    logger.info("Matching playlist entries to MP3 files...")
     logger.info("=" * 80)
 
     matches = []
@@ -451,16 +459,20 @@ def do_matching():
                 'file_index': match_idx
             })
 
-            logger.info("\n%d. %s", i, playlist_entry)
+            logger.info("")
+            logger.info("%d. %s", i, playlist_entry)
             logger.info("   → %s", best_match)
             logger.info("   (match score: %.2f%%)", score * 100)
         else:
-            logger.info("\n%d. %s", i, playlist_entry)
+            logger.info("")
+            logger.info("%d. %s", i, playlist_entry)
             logger.info("   → NO MATCH FOUND")
 
     # Save results to JSON
-    logger.info("\n" + "=" * 80)
-    logger.info("\nSaving results to matched_episodes.json...")
+    logger.info("")
+    logger.info("=" * 80)
+    logger.info("")
+    logger.info("Saving results to matched_episodes.json...")
     try:
         with open('matched_episodes.json', 'w', encoding='utf-8') as f:
             json.dump(matches, f, indent=2, ensure_ascii=False)
@@ -480,8 +492,10 @@ def do_matching():
         return
 
     # Statistics
-    logger.info("\n" + "=" * 80)
-    logger.info("\nStatistics:")
+    logger.info("")
+    logger.info("=" * 80)
+    logger.info("")
+    logger.info("Statistics:")
     logger.info("  Total playlist entries: %d", len(playlist))
     logger.info("  Total MP3 files: %d", len(mp3_files))
     logger.info("  Successful matches: %d", len(matches))
@@ -492,13 +506,15 @@ def do_matching():
 
     low_confidence = [m for m in matches if m['match_score'] < 0.7]
     if low_confidence:
-        logger.warning("\n  ⚠️  %d matches have low confidence (< 70%%):", len(low_confidence))
+        logger.warning("")
+        logger.warning("  ⚠️  %d matches have low confidence (< 70%%):", len(low_confidence))
         for m in low_confidence[:5]:  # Show first 5
             logger.warning("     - %s → %s (%.2f%%)", m['playlist_name'], m['mp3_file'], m['match_score'] * 100)
         if len(low_confidence) > 5:
             logger.warning("     ... and %d more", len(low_confidence) - 5)
 
-    logger.info("\nDone! Results saved to:")
+    logger.info("")
+    logger.info("Done! Results saved to:")
     logger.info("  - matched_episodes.json (detailed JSON)")
     logger.info("  - episode_mapping.txt (human-readable)")
 
