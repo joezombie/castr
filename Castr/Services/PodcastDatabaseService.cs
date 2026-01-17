@@ -4,7 +4,7 @@ using Castr.Models;
 
 namespace Castr.Services;
 
-public interface IPodcastDatabaseService
+public interface IPodcastDatabaseService : IDisposable
 {
     Task InitializeDatabaseAsync(string feedName);
     Task<List<EpisodeRecord>> GetEpisodesAsync(string feedName);
@@ -48,6 +48,7 @@ public class PodcastDatabaseService : IPodcastDatabaseService
     private readonly ILogger<PodcastDatabaseService> _logger;
     private readonly SemaphoreSlim _dbLock = new(1, 1);
     private readonly Dictionary<string, bool> _initialized = new();
+    private bool _disposed;
 
     public PodcastDatabaseService(
         IOptions<PodcastFeedsConfig> config,
@@ -723,5 +724,14 @@ public class PodcastDatabaseService : IPodcastDatabaseService
         }
 
         return dp[m, n];
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+
+        _dbLock?.Dispose();
+        _disposed = true;
     }
 }
