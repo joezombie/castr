@@ -1,4 +1,3 @@
-using System.Threading;
 using YoutubeExplode;
 using YoutubeExplode.Common;
 using YoutubeExplode.Converter;
