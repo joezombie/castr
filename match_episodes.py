@@ -6,11 +6,20 @@ Preserves the order of the playlist while finding the best matching MP3 file for
 
 import argparse
 import json
+import logging
 import os
 import re
 import shutil
 from difflib import SequenceMatcher
 from pathlib import Path
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+logger = logging.getLogger(__name__)
 
 
 def extract_filename_from_ls_line(line):
@@ -139,16 +148,16 @@ def get_full_path_for_mp3(mp3_filename, files1_path='files1.txt'):
 def rename_files(json_path='matched_episodes.json', files1_path='files1.txt',
                  dry_run=True, pad_width=3):
     """Rename MP3 files to include order prefix based on matched_episodes.json."""
-    print(f"Loading matches from {json_path}...")
+    logger.info("Loading matches from %s...", json_path)
     with open(json_path, 'r', encoding='utf-8') as f:
         matches = json.load(f)
 
-    print(f"Found {len(matches)} matched episodes")
+    logger.info("Found %d matched episodes", len(matches))
 
     if dry_run:
-        print("\n*** DRY RUN - No files will be renamed ***\n")
+        logger.info("\n*** DRY RUN - No files will be renamed ***\n")
     else:
-        print("\n*** LIVE RUN - Files will be renamed ***\n")
+        logger.info("\n*** LIVE RUN - Files will be renamed ***\n")
 
     renamed_count = 0
     skipped_count = 0
@@ -161,14 +170,14 @@ def rename_files(json_path='matched_episodes.json', files1_path='files1.txt',
 
         # Check if file already has order prefix
         if re.match(r'^\d{' + str(pad_width) + r'}_', mp3_file):
-            print(f"SKIP: {mp3_file} (already has order prefix)")
+            logger.info("SKIP: %s (already has order prefix)", mp3_file)
             skipped_count += 1
             continue
 
         # Get the full path
         full_path = get_full_path_for_mp3(mp3_file, files1_path)
         if not full_path:
-            print(f"ERROR: Could not find path for {mp3_file}")
+            logger.error("Could not find path for %s", mp3_file)
             error_count += 1
             continue
 
@@ -177,29 +186,29 @@ def rename_files(json_path='matched_episodes.json', files1_path='files1.txt',
         new_filename = f"{order_prefix}_{mp3_file}"
         new_path = os.path.join(directory, new_filename)
 
-        print(f"{order:3d}. {mp3_file}")
-        print(f"     → {new_filename}")
+        logger.info("%3d. %s", order, mp3_file)
+        logger.info("     → %s", new_filename)
 
         if not dry_run:
             try:
                 if os.path.exists(full_path):
                     shutil.move(full_path, new_path)
-                    print(f"     ✓ Renamed successfully")
+                    logger.info("     ✓ Renamed successfully")
                     renamed_count += 1
                 else:
-                    print(f"     ✗ Source file not found!")
+                    logger.error("     ✗ Source file not found!")
                     error_count += 1
             except Exception as e:
-                print(f"     ✗ Error: {e}")
+                logger.error("     ✗ Error: %s", e)
                 error_count += 1
         else:
             renamed_count += 1
 
-    print("\n" + "=" * 80)
-    print("Summary:")
-    print(f"  Would rename: {renamed_count}" if dry_run else f"  Renamed: {renamed_count}")
-    print(f"  Skipped (already prefixed): {skipped_count}")
-    print(f"  Errors: {error_count}")
+    logger.info("\n" + "=" * 80)
+    logger.info("Summary:")
+    logger.info("  Would rename: %d" if dry_run else "  Renamed: %d", renamed_count)
+    logger.info("  Skipped (already prefixed): %d", skipped_count)
+    logger.info("  Errors: %d", error_count)
 
     return renamed_count, skipped_count, error_count
 
@@ -207,11 +216,11 @@ def rename_files(json_path='matched_episodes.json', files1_path='files1.txt',
 def generate_rename_script(json_path='matched_episodes.json', files1_path='files1.txt',
                            output_path='rename_episodes.sh', pad_width=3):
     """Generate a bash script with rename commands."""
-    print(f"Loading matches from {json_path}...")
+    logger.info("Loading matches from %s...", json_path)
     with open(json_path, 'r', encoding='utf-8') as f:
         matches = json.load(f)
 
-    print(f"Found {len(matches)} matched episodes")
+    logger.info("Found %d matched episodes", len(matches))
 
     commands = ['#!/bin/bash', '', '# Rename MP3 files with order prefix', '']
 
@@ -243,19 +252,19 @@ def generate_rename_script(json_path='matched_episodes.json', files1_path='files
     with open(output_path, 'w', encoding='utf-8') as f:
         f.write('\n'.join(commands) + '\n')
 
-    print(f"Rename script saved to {output_path}")
-    print(f"Review the script, then run: bash {output_path}")
+    logger.info("Rename script saved to %s", output_path)
+    logger.info("Review the script, then run: bash %s", output_path)
 
     return output_path
 
 
 def generate_map_file(json_path='matched_episodes.json', output_path='episode_order.txt'):
     """Generate a map file for the podcast feed API defining episode order."""
-    print(f"Loading matches from {json_path}...")
+    logger.info("Loading matches from %s...", json_path)
     with open(json_path, 'r', encoding='utf-8') as f:
         matches = json.load(f)
 
-    print(f"Found {len(matches)} matched episodes")
+    logger.info("Found %d matched episodes", len(matches))
 
     # Sort by order and write filenames
     sorted_matches = sorted(matches, key=lambda m: m['order'])
@@ -264,9 +273,9 @@ def generate_map_file(json_path='matched_episodes.json', output_path='episode_or
         for match in sorted_matches:
             f.write(match['mp3_file'] + '\n')
 
-    print(f"Map file saved to {output_path}")
-    print(f"Contains {len(sorted_matches)} episodes in playlist order")
-    print(f"\nUse this file with the PodcastFeedApi by setting MapFile in appsettings.json")
+    logger.info("Map file saved to %s", output_path)
+    logger.info("Contains %d episodes in playlist order", len(sorted_matches))
+    logger.info("\nUse this file with the PodcastFeedApi by setting MapFile in appsettings.json")
 
     return output_path
 
@@ -279,12 +288,12 @@ def reverse_list_file(input_path, output_path=None, in_place=False):
         output_path: Path to output file (if None and not in_place, prints to stdout)
         in_place: If True, modifies the input file directly
     """
-    print(f"Reading {input_path}...")
+    logger.info("Reading %s...", input_path)
 
     with open(input_path, 'r', encoding='utf-8') as f:
         lines = [line.rstrip('\n\r') for line in f if line.strip()]
 
-    print(f"Found {len(lines)} lines")
+    logger.info("Found %d lines", len(lines))
 
     # Reverse the list
     reversed_lines = list(reversed(lines))
@@ -297,9 +306,9 @@ def reverse_list_file(input_path, output_path=None, in_place=False):
         with open(output_path, 'w', encoding='utf-8') as f:
             for line in reversed_lines:
                 f.write(line + '\n')
-        print(f"Reversed list saved to {output_path}")
-        print(f"  First line: {reversed_lines[0] if reversed_lines else '(empty)'}")
-        print(f"  Last line:  {reversed_lines[-1] if reversed_lines else '(empty)'}")
+        logger.info("Reversed list saved to %s", output_path)
+        logger.info("  First line: %s", reversed_lines[0] if reversed_lines else '(empty)')
+        logger.info("  Last line:  %s", reversed_lines[-1] if reversed_lines else '(empty)')
     else:
         # Print to stdout
         for line in reversed_lines:
@@ -311,7 +320,7 @@ def reverse_list_file(input_path, output_path=None, in_place=False):
 def do_matching():
     """Run the fuzzy matching process."""
     # Read the files list
-    print("Reading files1.txt...")
+    logger.info("Reading files1.txt...")
     with open('files1.txt', 'r', encoding='utf-8') as f:
         lines = f.readlines()
 
@@ -323,10 +332,10 @@ def do_matching():
             mp3_files.append(filename)
             mp3_paths.append(line.strip())
 
-    print(f"Found {len(mp3_files)} MP3 files")
+    logger.info("Found %d MP3 files", len(mp3_files))
 
     # Read the playlist
-    print("Reading playlist-bulletized1.txt...")
+    logger.info("Reading playlist-bulletized1.txt...")
     with open('playlist-bulletized1.txt', 'r', encoding='utf-8') as f:
         lines = f.readlines()
 
@@ -338,11 +347,11 @@ def do_matching():
         if entry and entry != "Private video":
             playlist.append(entry)
 
-    print(f"Found {len(playlist)} playlist entries (excluding private videos)")
+    logger.info("Found %d playlist entries (excluding private videos)", len(playlist))
 
     # Match playlist entries to MP3 files
-    print("\nMatching playlist entries to MP3 files...")
-    print("=" * 80)
+    logger.info("\nMatching playlist entries to MP3 files...")
+    logger.info("=" * 80)
 
     matches = []
     used_indices = set()
@@ -360,48 +369,48 @@ def do_matching():
                 'file_index': match_idx
             })
 
-            print(f"\n{i}. {playlist_entry}")
-            print(f"   → {best_match}")
-            print(f"   (match score: {score:.2%})")
+            logger.info("\n%d. %s", i, playlist_entry)
+            logger.info("   → %s", best_match)
+            logger.info("   (match score: %.2f%%)", score * 100)
         else:
-            print(f"\n{i}. {playlist_entry}")
-            print(f"   → NO MATCH FOUND")
+            logger.info("\n%d. %s", i, playlist_entry)
+            logger.info("   → NO MATCH FOUND")
 
     # Save results to JSON
-    print("\n" + "=" * 80)
-    print(f"\nSaving results to matched_episodes.json...")
+    logger.info("\n" + "=" * 80)
+    logger.info("\nSaving results to matched_episodes.json...")
     with open('matched_episodes.json', 'w', encoding='utf-8') as f:
         json.dump(matches, f, indent=2, ensure_ascii=False)
 
     # Create a simple mapping file
-    print("Saving simple mapping to episode_mapping.txt...")
+    logger.info("Saving simple mapping to episode_mapping.txt...")
     with open('episode_mapping.txt', 'w', encoding='utf-8') as f:
         for match in matches:
             f.write(f"{match['order']}. {match['playlist_name']}\n")
             f.write(f"   → {match['mp3_file']}\n\n")
 
     # Statistics
-    print("\n" + "=" * 80)
-    print("\nStatistics:")
-    print(f"  Total playlist entries: {len(playlist)}")
-    print(f"  Total MP3 files: {len(mp3_files)}")
-    print(f"  Successful matches: {len(matches)}")
-    print(f"  Unmatched MP3 files: {len(mp3_files) - len(used_indices)}")
+    logger.info("\n" + "=" * 80)
+    logger.info("\nStatistics:")
+    logger.info("  Total playlist entries: %d", len(playlist))
+    logger.info("  Total MP3 files: %d", len(mp3_files))
+    logger.info("  Successful matches: %d", len(matches))
+    logger.info("  Unmatched MP3 files: %d", len(mp3_files) - len(used_indices))
 
     avg_score = sum(m['match_score'] for m in matches) / len(matches) if matches else 0
-    print(f"  Average match score: {avg_score:.2%}")
+    logger.info("  Average match score: %.2f%%", avg_score * 100)
 
     low_confidence = [m for m in matches if m['match_score'] < 0.7]
     if low_confidence:
-        print(f"\n  ⚠️  {len(low_confidence)} matches have low confidence (< 70%):")
+        logger.warning("\n  ⚠️  %d matches have low confidence (< 70%%):", len(low_confidence))
         for m in low_confidence[:5]:  # Show first 5
-            print(f"     - {m['playlist_name']} → {m['mp3_file']} ({m['match_score']:.2%})")
+            logger.warning("     - %s → %s (%.2f%%)", m['playlist_name'], m['mp3_file'], m['match_score'] * 100)
         if len(low_confidence) > 5:
-            print(f"     ... and {len(low_confidence) - 5} more")
+            logger.warning("     ... and %d more", len(low_confidence) - 5)
 
-    print("\nDone! Results saved to:")
-    print("  - matched_episodes.json (detailed JSON)")
-    print("  - episode_mapping.txt (human-readable)")
+    logger.info("\nDone! Results saved to:")
+    logger.info("  - matched_episodes.json (detailed JSON)")
+    logger.info("  - episode_mapping.txt (human-readable)")
 
 
 def main():
