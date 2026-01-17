@@ -20,14 +20,24 @@ python3 match_episodes.py rename --execute
 
 # Generate bash script for manual review/execution
 python3 match_episodes.py script
+
+# Delete duplicate files between two folders (dry run)
+python3 match_episodes.py dedup /folder/A /folder/B
+
+# Delete duplicate files (execute deletion)
+python3 match_episodes.py dedup /folder/A /folder/B --execute
+
+# Use higher similarity threshold (90%)
+python3 match_episodes.py dedup /folder/A /folder/B --threshold 0.90
 ```
 
 ## Architecture
 
-**match_episodes.py** - Single-file Python script with three modes:
+**match_episodes.py** - Single-file Python script with multiple modes:
 - `match` - Fuzzy matches playlist titles (from `playlist-bulletized1.txt`) to MP3 filenames (from `files1.txt`) using `difflib.SequenceMatcher`. Handles multi-part episodes by extracting/comparing part numbers. Outputs `matched_episodes.json` and `episode_mapping.txt`.
 - `rename` - Renames MP3 files to add zero-padded order prefix (e.g., `001_filename.mp3`)
 - `script` - Generates `rename_episodes.sh` for review before execution
+- `dedup` - Matches files from folder A (reference) to folder B (target) using fuzzy matching and deletes matched duplicates in folder B. Default 80% similarity threshold, configurable with `--threshold`. Supports dry-run mode for safety.
 
 **Key data files:**
 - `files1.txt` - `ls -l` output of MP3 files (paths with escaped spaces)
