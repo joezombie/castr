@@ -199,10 +199,10 @@ ASP.NET Core applies configuration in this order (later sources override earlier
 
 1. `appsettings.json`
 2. `appsettings.{Environment}.json` (e.g., `appsettings.Production.json`)
-3. **Environment variables** ← Highest priority
-4. Command-line arguments
+3. Environment variables
+4. **Command-line arguments** ← Highest priority
 
-This means environment variables will always override values in JSON files.
+This means environment variables will override values in JSON files, but command-line arguments have the final say.
 
 ## Common Configuration Scenarios
 
@@ -234,14 +234,14 @@ export Logging__LogLevel__PodcastFeedApi=Trace
 
 ### Complete Configuration Schema
 
-See [appsettings.json](appsettings.json) for the complete configuration schema with all available options and default values.
+See `appsettings.json` for the complete configuration schema with all available options and default values.
 
 ### Related Documentation
 
 - [BUILD.md](BUILD.md) - Building and deploying with Docker
 - [TRAEFIK.md](TRAEFIK.md) - Reverse proxy configuration
-- [CODE_REVIEW.md](../CODE_REVIEW.md) - Configuration recommendations (Issue #2)
-- [RECOMMENDATIONS.md](../RECOMMENDATIONS.md) - Priority 3, Item 2
+- [CODE_REVIEW.md](../CODE_REVIEW.md) - Configuration recommendations
+- [RECOMMENDATIONS.md](../RECOMMENDATIONS.md) - Additional implementation recommendations
 
 ### Configuration Model Structure
 
