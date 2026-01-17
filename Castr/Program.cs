@@ -51,39 +51,37 @@ foreach (var (feedName, feedConfig) in config.Value.Feeds)
     if (string.IsNullOrWhiteSpace(feedConfig.Title))
         throw new InvalidOperationException($"Feed {feedName}: Title cannot be empty");
     
-    // Validate directory path for security issues
-    // Note: This is a simple check for common path traversal patterns.
-    // For production use, consider using Path.GetFullPath() comparison for more robust validation.
-    if (feedConfig.Directory.Contains("..") || feedConfig.Directory.Contains("~"))
-    {
-        logger.LogError("Feed {FeedName} has unsafe directory path: {Directory}", feedName, feedConfig.Directory);
-        throw new InvalidOperationException($"Feed {feedName}: Directory path contains unsafe navigation patterns (.. or ~)");
-    }
-    
-    // Validate that the path is rooted (absolute path)
-    if (!Path.IsPathRooted(feedConfig.Directory))
-    {
-        logger.LogError("Feed {FeedName} has relative directory path: {Directory}", feedName, feedConfig.Directory);
-        throw new InvalidOperationException($"Feed {feedName}: Directory path must be an absolute path");
-    }
-    
-    // Create directory if it doesn't exist
-    // Note: Directory.CreateDirectory is safe to call on existing directories
+    // Validate directory path
     try
     {
-        Directory.CreateDirectory(feedConfig.Directory);
-        logger.LogDebug("Directory ready for feed {FeedName}: {Directory}", 
-            feedName, feedConfig.Directory);
-    }
-    catch (UnauthorizedAccessException ex)
-    {
-        logger.LogError(ex, "Feed {FeedName}: Access denied for directory: {Directory}", feedName, feedConfig.Directory);
-        throw new InvalidOperationException($"Feed {feedName}: Access denied when creating directory: {feedConfig.Directory}", ex);
+        var fullPath = Path.GetFullPath(feedConfig.Directory);
+        // Path.GetFullPath normalizes the path and validates it
     }
     catch (Exception ex)
     {
-        logger.LogError(ex, "Feed {FeedName}: Failed to create directory: {Directory}", feedName, feedConfig.Directory);
-        throw new InvalidOperationException($"Feed {feedName}: Failed to create directory: {feedConfig.Directory}", ex);
+        logger.LogError(ex, "Feed {FeedName}: Invalid directory path: {Directory}", feedName, feedConfig.Directory);
+        throw new InvalidOperationException($"Feed {feedName}: Invalid directory path: {feedConfig.Directory}", ex);
+    }
+    
+    // Create directory if it doesn't exist
+    if (!Directory.Exists(feedConfig.Directory))
+    {
+        try
+        {
+            Directory.CreateDirectory(feedConfig.Directory);
+            logger.LogInformation("Created directory for feed {FeedName}: {Directory}", 
+                feedName, feedConfig.Directory);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            logger.LogError(ex, "Feed {FeedName}: Access denied for directory: {Directory}", feedName, feedConfig.Directory);
+            throw new InvalidOperationException($"Feed {feedName}: Access denied when creating directory: {feedConfig.Directory}", ex);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Feed {FeedName}: Failed to create directory: {Directory}", feedName, feedConfig.Directory);
+            throw new InvalidOperationException($"Feed {feedName}: Failed to create directory: {feedConfig.Directory}", ex);
+        }
     }
     
     try
