@@ -387,13 +387,163 @@ def reverse_list_file(input_path, output_path=None, in_place=False):
     return reversed_lines
 
 
+def delete_duplicates(folder_a, folder_b, threshold=0.80, dry_run=True, extensions=None):
+    """
+    Match files from folder A to files in folder B and delete matched files in folder B.
+
+    Args:
+        folder_a: Reference folder (files here are kept)
+        folder_b: Target folder (duplicates here will be deleted)
+        threshold: Similarity threshold for matching (default: 0.80 = 80%)
+        dry_run: If True, only preview what would be deleted (default: True)
+        extensions: List of file extensions to consider (default: ['.mp3'])
+
+    Returns:
+        Tuple of (matched_count, deleted_count, error_count)
+    """
+    if extensions is None:
+        extensions = ['.mp3']
+
+    # Validate folders exist
+    if not os.path.exists(folder_a):
+        logger.error("Folder A not found: %s", folder_a)
+        return 0, 0, 1
+
+    if not os.path.exists(folder_b):
+        logger.error("Folder B not found: %s", folder_b)
+        return 0, 0, 1
+
+    logger.info("=" * 80)
+    logger.info("Duplicate File Deletion")
+    logger.info("=" * 80)
+    logger.info("")
+    logger.info("Reference folder (keep): %s", folder_a)
+    logger.info("Target folder (delete):  %s", folder_b)
+    logger.info("Match threshold:         %.0f%%", threshold * 100)
+    logger.info("Extensions:              %s", ', '.join(extensions))
+
+    if dry_run:
+        logger.info("")
+        logger.info("*** DRY RUN - No files will be deleted ***")
+    else:
+        logger.info("")
+        logger.warning("*** LIVE RUN - Files will be PERMANENTLY deleted! ***")
+
+    logger.info("")
+
+    # Scan folder A
+    logger.info("Scanning reference folder (A)...")
+    files_a = []
+    for ext in extensions:
+        pattern = f"*{ext}"
+        files_a.extend([f.name for f in Path(folder_a).glob(pattern)])
+
+    logger.info("Found %d files in folder A", len(files_a))
+
+    # Scan folder B
+    logger.info("Scanning target folder (B)...")
+    files_b = []
+    for ext in extensions:
+        pattern = f"*{ext}"
+        files_b.extend([f.name for f in Path(folder_b).glob(pattern)])
+
+    logger.info("Found %d files in folder B", len(files_b))
+
+    if not files_a:
+        logger.error("No files found in folder A")
+        return 0, 0, 1
+
+    if not files_b:
+        logger.warning("No files found in folder B")
+        return 0, 0, 0
+
+    # Match files from B to files in A
+    logger.info("")
+    logger.info("=" * 80)
+    logger.info("Matching files...")
+    logger.info("=" * 80)
+    logger.info("")
+
+    matched_count = 0
+    deleted_count = 0
+    error_count = 0
+
+    for file_b in files_b:
+        # Find best match in folder A
+        best_match = None
+        best_score = 0
+
+        # Normalize file from B for comparison
+        file_b_norm = normalize_title(Path(file_b).stem).lower()
+
+        for file_a in files_a:
+            # Normalize file from A for comparison
+            file_a_norm = normalize_title(Path(file_a).stem).lower()
+
+            # Calculate similarity
+            score = SequenceMatcher(None, file_a_norm, file_b_norm).ratio()
+
+            if score > best_score:
+                best_score = score
+                best_match = file_a
+
+        # If match exceeds threshold, mark for deletion
+        if best_score >= threshold:
+            matched_count += 1
+            logger.info("MATCH: %s", file_b)
+            logger.info("    → %s (%.1f%% similar)", best_match, best_score * 100)
+
+            # Delete file in folder B
+            file_b_path = os.path.join(folder_b, file_b)
+
+            if not dry_run:
+                try:
+                    os.remove(file_b_path)
+                    logger.info("    ✓ DELETED")
+                    deleted_count += 1
+                except (IOError, OSError, PermissionError) as e:
+                    logger.error("    ✗ Error deleting: %s", e)
+                    error_count += 1
+            else:
+                logger.info("    → Would delete")
+                deleted_count += 1
+
+            logger.info("")
+        else:
+            logger.debug("NO MATCH: %s (best: %.1f%% vs %s)",
+                        file_b, best_score * 100, best_match if best_match else "none")
+
+    # Summary
+    logger.info("=" * 80)
+    logger.info("Summary:")
+    logger.info("=" * 80)
+    logger.info("Files in folder A (reference): %d", len(files_a))
+    logger.info("Files in folder B (target):    %d", len(files_b))
+    logger.info("Matched (>= %.0f%% similar):    %d", threshold * 100, matched_count)
+    logger.info("Unmatched:                     %d", len(files_b) - matched_count)
+
+    if dry_run:
+        logger.info("")
+        logger.info("Would delete: %d files", deleted_count)
+        logger.info("")
+        logger.info("Run with --execute to actually delete files")
+    else:
+        logger.info("")
+        logger.info("Deleted:      %d files", deleted_count)
+        logger.info("Errors:       %d", error_count)
+
+    logger.info("=" * 80)
+
+    return matched_count, deleted_count, error_count
+
+
 def do_matching():
     """Run the fuzzy matching process."""
     # Validate input files exist
     if not os.path.exists('files1.txt'):
         logger.error("files1.txt not found")
         return
-    
+
     if not os.path.exists('playlist-bulletized1.txt'):
         logger.error("playlist-bulletized1.txt not found")
         return
@@ -530,6 +680,9 @@ Examples:
   %(prog)s mapfile                  # Generate map file for podcast feed API
   %(prog)s reverse episode_order.txt --in-place  # Reverse file in place
   %(prog)s reverse input.txt -o output.txt       # Reverse to new file
+  %(prog)s dedup /folder/A /folder/B              # Preview duplicate deletion
+  %(prog)s dedup /folder/A /folder/B --execute    # Delete duplicates in B
+  %(prog)s dedup /folder/A /folder/B --threshold 0.90  # Higher match threshold
         """
     )
 
@@ -576,6 +729,17 @@ Examples:
     reverse_parser.add_argument('--in-place', action='store_true',
                                 help='Modify the input file in place')
 
+    # Dedup command
+    dedup_parser = subparsers.add_parser('dedup', help='Delete duplicate files by comparing two folders')
+    dedup_parser.add_argument('folder_a', help='Reference folder (files here are kept)')
+    dedup_parser.add_argument('folder_b', help='Target folder (duplicates here will be deleted)')
+    dedup_parser.add_argument('--threshold', type=float, default=0.80,
+                             help='Similarity threshold for matching (0.0-1.0, default: 0.80)')
+    dedup_parser.add_argument('--execute', action='store_true',
+                             help='Actually delete files (default is dry-run)')
+    dedup_parser.add_argument('--extensions', nargs='+', default=['.mp3'],
+                             help='File extensions to consider (default: .mp3)')
+
     args = parser.parse_args()
 
     if args.command == 'match':
@@ -591,6 +755,11 @@ Examples:
         generate_map_file(json_path=args.json, output_path=args.output)
     elif args.command == 'reverse':
         reverse_list_file(args.input, output_path=args.output, in_place=args.in_place)
+    elif args.command == 'dedup':
+        dry_run = not args.execute
+        delete_duplicates(args.folder_a, args.folder_b,
+                         threshold=args.threshold, dry_run=dry_run,
+                         extensions=args.extensions)
     else:
         # Default to matching if no command specified
         parser.print_help()
