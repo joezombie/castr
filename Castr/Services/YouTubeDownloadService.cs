@@ -3,6 +3,7 @@ using YoutubeExplode.Common;
 using YoutubeExplode.Converter;
 using YoutubeExplode.Playlists;
 using YoutubeExplode.Videos.Streams;
+using System.Text.RegularExpressions;
 
 namespace Castr.Services;
 
@@ -253,7 +254,7 @@ public class YouTubeDownloadService : IYouTubeDownloadService
             .Trim();
 
         // Remove extra whitespace
-        normalized = System.Text.RegularExpressions.Regex.Replace(normalized, @"\s+", " ");
+        normalized = Regex.Replace(normalized, @"\s+", " ");
 
         return normalized;
     }

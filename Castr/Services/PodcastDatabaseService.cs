@@ -1,6 +1,7 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Options;
 using Castr.Models;
+using System.Text.RegularExpressions;
 
 namespace Castr.Services;
 
@@ -690,7 +691,7 @@ public class PodcastDatabaseService : IPodcastDatabaseService
             .ToLowerInvariant()
             .Trim();
 
-        normalized = System.Text.RegularExpressions.Regex.Replace(normalized, @"\s+", " ");
+        normalized = Regex.Replace(normalized, @"\s+", " ");
 
         return normalized;
     }
