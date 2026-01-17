@@ -1,4 +1,6 @@
 using System.Xml.Linq;
+using System.Security.Cryptography;
+using System.Text;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Caching.Memory;
 using Castr.Models;
@@ -38,8 +40,8 @@ public class PodcastFeedService
             return null;
         }
 
-        // Generate cache key based on feed name and base URL
-        var cacheKey = $"feed_{feedName}_{baseUrl}";
+        // Generate cache key using hash to handle special characters in feed name and base URL
+        var cacheKey = GenerateCacheKey(feedName, baseUrl);
 
         // Try to get cached feed
         if (_cache.TryGetValue<string>(cacheKey, out var cachedFeed))
@@ -53,16 +55,32 @@ public class PodcastFeedService
         // Generate new feed XML
         var feed = await GenerateFeedXmlAsync(feedName, feedConfig, baseUrl);
 
-        // Cache the generated feed for 5 minutes
-        var cacheOptions = new MemoryCacheEntryOptions
+        // Only cache valid, non-empty feeds
+        if (!string.IsNullOrWhiteSpace(feed))
         {
-            AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5)
-        };
+            // Use configurable cache duration
+            var cacheOptions = new MemoryCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(_config.CacheDurationMinutes)
+            };
 
-        _cache.Set(cacheKey, feed, cacheOptions);
-        _logger.LogDebug("Cached feed {FeedName} for 5 minutes", feedName);
+            _cache.Set(cacheKey, feed, cacheOptions);
+            _logger.LogDebug("Cached feed {FeedName} for {Minutes} minutes", feedName, _config.CacheDurationMinutes);
+        }
+        else
+        {
+            _logger.LogWarning("Feed {FeedName} generated empty or null content, not caching", feedName);
+        }
 
         return feed;
+    }
+
+    private static string GenerateCacheKey(string feedName, string baseUrl)
+    {
+        // Use SHA256 hash to create a consistent cache key that handles special characters
+        var input = $"{feedName}|{baseUrl}";
+        var hashBytes = SHA256.HashData(Encoding.UTF8.GetBytes(input));
+        return $"feed_{Convert.ToHexString(hashBytes)}";
     }
 
     private async Task<string> GenerateFeedXmlAsync(string feedName, PodcastFeedConfig config, string baseUrl)
