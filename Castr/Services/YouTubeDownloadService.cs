@@ -253,8 +253,7 @@ public class YouTubeDownloadService : IYouTubeDownloadService
             .Trim();
 
         // Remove extra whitespace
-        while (normalized.Contains("  "))
-            normalized = normalized.Replace("  ", " ");
+        normalized = System.Text.RegularExpressions.Regex.Replace(normalized, @"\s+", " ");
 
         return normalized;
     }

@@ -690,8 +690,7 @@ public class PodcastDatabaseService : IPodcastDatabaseService
             .ToLowerInvariant()
             .Trim();
 
-        while (normalized.Contains("  "))
-            normalized = normalized.Replace("  ", " ");
+        normalized = System.Text.RegularExpressions.Regex.Replace(normalized, @"\s+", " ");
 
         return normalized;
     }
