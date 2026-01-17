@@ -3,6 +3,11 @@ namespace Castr.Models;
 public class PodcastFeedsConfig
 {
     public Dictionary<string, PodcastFeedConfig> Feeds { get; set; } = new();
+    
+    /// <summary>
+    /// RSS feed cache duration in minutes. Default: 5 minutes.
+    /// </summary>
+    public int CacheDurationMinutes { get; set; } = 5;
 }
 
 public class PodcastFeedConfig

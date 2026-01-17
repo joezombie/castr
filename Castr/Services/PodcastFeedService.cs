@@ -1,5 +1,8 @@
 using System.Xml.Linq;
+using System.Security.Cryptography;
+using System.Text;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Caching.Memory;
 using Castr.Models;
 using TagLib;
 
@@ -9,6 +12,7 @@ public class PodcastFeedService
 {
     private readonly PodcastFeedsConfig _config;
     private readonly IPodcastDatabaseService _database;
+    private readonly IMemoryCache _cache;
     private readonly ILogger<PodcastFeedService> _logger;
 
     private static readonly XNamespace Itunes = "http://www.itunes.com/dtds/podcast-1.0.dtd";
@@ -16,10 +20,12 @@ public class PodcastFeedService
     public PodcastFeedService(
         IOptions<PodcastFeedsConfig> config,
         IPodcastDatabaseService database,
+        IMemoryCache cache,
         ILogger<PodcastFeedService> logger)
     {
         _config = config.Value;
         _database = database;
+        _cache = cache;
         _logger = logger;
     }
 
@@ -34,7 +40,47 @@ public class PodcastFeedService
             return null;
         }
 
-        return await GenerateFeedXmlAsync(feedName, feedConfig, baseUrl);
+        // Generate cache key using hash to handle special characters in feed name and base URL
+        var cacheKey = GenerateCacheKey(feedName, baseUrl);
+
+        // Try to get cached feed
+        if (_cache.TryGetValue<string>(cacheKey, out var cachedFeed))
+        {
+            _logger.LogDebug("Cache hit for feed {FeedName}", feedName);
+            return cachedFeed;
+        }
+
+        _logger.LogDebug("Cache miss for feed {FeedName}, generating new feed", feedName);
+
+        // Generate new feed XML
+        var feed = await GenerateFeedXmlAsync(feedName, feedConfig, baseUrl);
+
+        // Only cache valid, non-empty feeds
+        if (!string.IsNullOrWhiteSpace(feed))
+        {
+            // Use configurable cache duration
+            var cacheOptions = new MemoryCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(_config.CacheDurationMinutes)
+            };
+
+            _cache.Set(cacheKey, feed, cacheOptions);
+            _logger.LogDebug("Cached feed {FeedName} for {Minutes} minutes", feedName, _config.CacheDurationMinutes);
+        }
+        else
+        {
+            _logger.LogWarning("Feed {FeedName} generated empty or null content, not caching", feedName);
+        }
+
+        return feed;
+    }
+
+    private static string GenerateCacheKey(string feedName, string baseUrl)
+    {
+        // Use SHA256 hash to create a consistent cache key that handles special characters
+        var input = $"{feedName}|{baseUrl}";
+        var hashBytes = SHA256.HashData(Encoding.UTF8.GetBytes(input));
+        return $"feed_{Convert.ToHexString(hashBytes)}";
     }
 
     private async Task<string> GenerateFeedXmlAsync(string feedName, PodcastFeedConfig config, string baseUrl)
