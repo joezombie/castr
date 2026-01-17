@@ -5,7 +5,7 @@ using System.Text.RegularExpressions;
 
 namespace Castr.Services;
 
-public interface IPodcastDatabaseService
+public interface IPodcastDatabaseService : IDisposable
 {
     Task InitializeDatabaseAsync(string feedName);
     Task<List<EpisodeRecord>> GetEpisodesAsync(string feedName);
@@ -49,6 +49,7 @@ public partial class PodcastDatabaseService : IPodcastDatabaseService
     private readonly ILogger<PodcastDatabaseService> _logger;
     private readonly SemaphoreSlim _dbLock = new(1, 1);
     private readonly Dictionary<string, bool> _initialized = new();
+    private int _disposed;
 
     [GeneratedRegex(@"\s+")]
     private static partial Regex WhitespaceRegex();
@@ -726,5 +727,15 @@ public partial class PodcastDatabaseService : IPodcastDatabaseService
         }
 
         return dp[m, n];
+    }
+
+    public void Dispose()
+    {
+        // Thread-safe disposal to prevent multiple threads from disposing simultaneously
+        if (Interlocked.CompareExchange(ref _disposed, 1, 0) != 0)
+            return;
+
+        _dbLock?.Dispose();
+        GC.SuppressFinalize(this);
     }
 }
