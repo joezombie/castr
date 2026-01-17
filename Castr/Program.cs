@@ -32,6 +32,9 @@ builder.Services.AddHostedService<PlaylistWatcherService>();
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 
+// Add health checks for monitoring and container orchestration
+builder.Services.AddHealthChecks();
+
 var app = builder.Build();
 
 // Initialize databases for all configured feeds at startup
@@ -117,5 +120,8 @@ if (app.Environment.IsDevelopment())
 app.UseAuthorization();
 
 app.MapControllers();
+
+// Add health check endpoint for monitoring and container orchestration
+app.MapHealthChecks("/health");
 
 app.Run();
