@@ -91,7 +91,11 @@ public class PodcastDatabaseService : IPodcastDatabaseService
             return;
         }
 
-        await _dbLock.WaitAsync();
+        if (!await _dbLock.WaitAsync(TimeSpan.FromSeconds(30)))
+        {
+            _logger.LogError("Timeout waiting for database lock for feed {FeedName}", feedName);
+            throw new TimeoutException($"Database lock timeout for feed {feedName}");
+        }
         try
         {
             if (_initialized.TryGetValue(feedName, out isInit) && isInit)
@@ -246,7 +250,11 @@ public class PodcastDatabaseService : IPodcastDatabaseService
     {
         await InitializeDatabaseAsync(feedName);
 
-        await _dbLock.WaitAsync();
+        if (!await _dbLock.WaitAsync(TimeSpan.FromSeconds(30)))
+        {
+            _logger.LogError("Timeout waiting for database lock for feed {FeedName}", feedName);
+            throw new TimeoutException($"Database lock timeout for feed {feedName}");
+        }
         try
         {
             await using var connection = new SqliteConnection(GetConnectionString(feedName));
@@ -283,7 +291,11 @@ public class PodcastDatabaseService : IPodcastDatabaseService
         var episodeList = episodes.ToList();
         if (episodeList.Count == 0) return;
 
-        await _dbLock.WaitAsync();
+        if (!await _dbLock.WaitAsync(TimeSpan.FromSeconds(30)))
+        {
+            _logger.LogError("Timeout waiting for database lock for feed {FeedName}", feedName);
+            throw new TimeoutException($"Database lock timeout for feed {feedName}");
+        }
         try
         {
             await using var connection = new SqliteConnection(GetConnectionString(feedName));
@@ -338,7 +350,11 @@ public class PodcastDatabaseService : IPodcastDatabaseService
     {
         await InitializeDatabaseAsync(feedName);
 
-        await _dbLock.WaitAsync();
+        if (!await _dbLock.WaitAsync(TimeSpan.FromSeconds(30)))
+        {
+            _logger.LogError("Timeout waiting for database lock for feed {FeedName}", feedName);
+            throw new TimeoutException($"Database lock timeout for feed {feedName}");
+        }
         try
         {
             await using var connection = new SqliteConnection(GetConnectionString(feedName));
@@ -378,7 +394,11 @@ public class PodcastDatabaseService : IPodcastDatabaseService
 
         await InitializeDatabaseAsync(feedName);
 
-        await _dbLock.WaitAsync();
+        if (!await _dbLock.WaitAsync(TimeSpan.FromSeconds(30)))
+        {
+            _logger.LogError("Timeout waiting for database lock for feed {FeedName}", feedName);
+            throw new TimeoutException($"Database lock timeout for feed {feedName}");
+        }
         try
         {
             // Get all files in directory
@@ -485,7 +505,11 @@ public class PodcastDatabaseService : IPodcastDatabaseService
             return;
         }
 
-        await _dbLock.WaitAsync();
+        if (!await _dbLock.WaitAsync(TimeSpan.FromSeconds(30)))
+        {
+            _logger.LogError("Timeout waiting for database lock for feed {FeedName}", feedName);
+            throw new TimeoutException($"Database lock timeout for feed {feedName}");
+        }
         try
         {
             await using var connection = new SqliteConnection(GetConnectionString(feedName));
