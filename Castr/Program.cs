@@ -53,14 +53,18 @@ foreach (var (feedName, feedConfig) in config.Value.Feeds)
     // Validate directory path for security issues
     try
     {
-        // Check for path traversal patterns before resolving the path
+        // Check for obvious path traversal patterns first
         if (feedConfig.Directory.Contains("..") || 
             feedConfig.Directory.Contains("~"))
         {
             throw new InvalidOperationException($"Feed {feedName}: Directory path contains invalid characters");
         }
         
-        var fullPath = Path.GetFullPath(feedConfig.Directory);
+        // Validate that the path is rooted (absolute path)
+        if (!Path.IsPathRooted(feedConfig.Directory))
+        {
+            throw new InvalidOperationException($"Feed {feedName}: Directory path must be an absolute path");
+        }
     }
     catch (Exception ex) when (ex is not InvalidOperationException)
     {
@@ -71,12 +75,9 @@ foreach (var (feedName, feedConfig) in config.Value.Feeds)
     // Note: Directory.CreateDirectory is safe to call on existing directories
     try
     {
-        var directoryInfo = Directory.CreateDirectory(feedConfig.Directory);
-        if (directoryInfo.Exists)
-        {
-            logger.LogDebug("Directory ready for feed {FeedName}: {Directory}", 
-                feedName, feedConfig.Directory);
-        }
+        Directory.CreateDirectory(feedConfig.Directory);
+        logger.LogDebug("Directory ready for feed {FeedName}: {Directory}", 
+            feedName, feedConfig.Directory);
     }
     catch (UnauthorizedAccessException ex)
     {
