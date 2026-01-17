@@ -45,6 +45,14 @@ public class PlaylistVideoInfo
 
 public partial class PodcastDatabaseService : IPodcastDatabaseService
 {
+    /// <summary>
+    /// Maximum time to wait for database lock acquisition.
+    /// 30 seconds is chosen to balance between allowing legitimate long-running operations
+    /// and preventing indefinite hangs. Timeouts may occur during high contention scenarios
+    /// when multiple concurrent requests attempt to modify the same feed's database.
+    /// </summary>
+    private static readonly TimeSpan DatabaseLockTimeout = TimeSpan.FromSeconds(30);
+    
     private readonly IOptions<PodcastFeedsConfig> _config;
     private readonly ILogger<PodcastDatabaseService> _logger;
     private readonly SemaphoreSlim _dbLock = new(1, 1);
@@ -74,6 +82,27 @@ public partial class PodcastDatabaseService : IPodcastDatabaseService
         return $"Data Source={GetDatabasePath(feedName)}";
     }
 
+    /// <summary>
+    /// Acquires the database lock with a timeout to prevent indefinite blocking.
+    /// </summary>
+    /// <param name="feedName">The name of the feed for logging purposes.</param>
+    /// <exception cref="TimeoutException">
+    /// Thrown when the lock cannot be acquired within the timeout period.
+    /// This typically indicates high contention or a deadlock scenario.
+    /// </exception>
+    /// <remarks>
+    /// Uses a semaphore to ensure only one thread can access the database at a time.
+    /// The timeout prevents indefinite blocking and improves system reliability.
+    /// </remarks>
+    private async Task AcquireDatabaseLockAsync(string feedName)
+    {
+        if (!await _dbLock.WaitAsync(DatabaseLockTimeout))
+        {
+            _logger.LogError("Timeout waiting for database lock for feed {FeedName}", feedName);
+            throw new TimeoutException($"Database lock timeout for feed {feedName}");
+        }
+    }
+
     private async Task MigrateColumnIfMissingAsync(SqliteConnection connection, string columnName, string columnType)
     {
         var checkCommand = connection.CreateCommand();
@@ -96,7 +125,7 @@ public partial class PodcastDatabaseService : IPodcastDatabaseService
             return;
         }
 
-        await _dbLock.WaitAsync();
+        await AcquireDatabaseLockAsync(feedName);
         try
         {
             if (_initialized.TryGetValue(feedName, out isInit) && isInit)
@@ -251,7 +280,7 @@ public partial class PodcastDatabaseService : IPodcastDatabaseService
     {
         await InitializeDatabaseAsync(feedName);
 
-        await _dbLock.WaitAsync();
+        await AcquireDatabaseLockAsync(feedName);
         try
         {
             await using var connection = new SqliteConnection(GetConnectionString(feedName));
@@ -288,7 +317,7 @@ public partial class PodcastDatabaseService : IPodcastDatabaseService
         var episodeList = episodes.ToList();
         if (episodeList.Count == 0) return;
 
-        await _dbLock.WaitAsync();
+        await AcquireDatabaseLockAsync(feedName);
         try
         {
             await using var connection = new SqliteConnection(GetConnectionString(feedName));
@@ -343,7 +372,7 @@ public partial class PodcastDatabaseService : IPodcastDatabaseService
     {
         await InitializeDatabaseAsync(feedName);
 
-        await _dbLock.WaitAsync();
+        await AcquireDatabaseLockAsync(feedName);
         try
         {
             await using var connection = new SqliteConnection(GetConnectionString(feedName));
@@ -383,7 +412,7 @@ public partial class PodcastDatabaseService : IPodcastDatabaseService
 
         await InitializeDatabaseAsync(feedName);
 
-        await _dbLock.WaitAsync();
+        await AcquireDatabaseLockAsync(feedName);
         try
         {
             // Get all files in directory
@@ -490,7 +519,7 @@ public partial class PodcastDatabaseService : IPodcastDatabaseService
             return;
         }
 
-        await _dbLock.WaitAsync();
+        await AcquireDatabaseLockAsync(feedName);
         try
         {
             await using var connection = new SqliteConnection(GetConnectionString(feedName));
