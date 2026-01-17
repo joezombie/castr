@@ -334,7 +334,8 @@ def generate_map_file(json_path='matched_episodes.json', output_path='episode_or
 
     logger.info("Map file saved to %s", output_path)
     logger.info("Contains %d episodes in playlist order", len(sorted_matches))
-    logger.info("\nUse this file with the PodcastFeedApi by setting MapFile in appsettings.json")
+    logger.info("")
+    logger.info("Use this file with the PodcastFeedApi by setting MapFile in appsettings.json")
 
     return output_path
 
@@ -506,7 +507,7 @@ def do_matching():
 
     low_confidence = [m for m in matches if m['match_score'] < 0.7]
     if low_confidence:
-        logger.warning("")
+        logger.info("")
         logger.warning("  ⚠️  %d matches have low confidence (< 70%%):", len(low_confidence))
         for m in low_confidence[:5]:  # Show first 5
             logger.warning("     - %s → %s (%.2f%%)", m['playlist_name'], m['mp3_file'], m['match_score'] * 100)
