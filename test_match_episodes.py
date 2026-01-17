@@ -216,28 +216,35 @@ class TestSimilarityScore(unittest.TestCase):
 
 class TestExtractFilenameFromLsLine(unittest.TestCase):
     """Test the extract_filename_from_ls_line function."""
+    
+    # Helper constant for typical ls -l output format
+    LS_FORMAT = "-rw-r--r-- 1 user group 12345 Jan 1 12:00"
+
+    def _make_ls_line(self, path):
+        """Helper method to create ls -l output line."""
+        return f"{self.LS_FORMAT} {path}"
 
     def test_extract_simple_path(self):
         """Test extraction from simple ls -l line."""
-        line = "-rw-r--r-- 1 user group 12345 Jan 1 12:00 /mnt/user/media/Episode.mp3"
+        line = self._make_ls_line("/mnt/user/media/Episode.mp3")
         expected = "Episode.mp3"
         self.assertEqual(extract_filename_from_ls_line(line), expected)
 
     def test_extract_with_escaped_spaces(self):
         """Test extraction with escaped spaces in path."""
-        line = r"-rw-r--r-- 1 user group 12345 Jan 1 12:00 /mnt/user/media/Episode\ Name.mp3"
+        line = self._make_ls_line(r"/mnt/user/media/Episode\ Name.mp3")
         expected = "Episode Name.mp3"
         self.assertEqual(extract_filename_from_ls_line(line), expected)
 
     def test_extract_long_path(self):
         """Test extraction from long path."""
-        line = "-rw-r--r-- 1 user group 12345 Jan 1 12:00 /mnt/user/media/podcasts/btb/Episode.mp3"
+        line = self._make_ls_line("/mnt/user/media/podcasts/btb/Episode.mp3")
         expected = "Episode.mp3"
         self.assertEqual(extract_filename_from_ls_line(line), expected)
 
     def test_extract_no_mp3(self):
         """Test when line doesn't contain .mp3."""
-        line = "-rw-r--r-- 1 user group 12345 Jan 1 12:00 /mnt/user/media/file.txt"
+        line = self._make_ls_line("/mnt/user/media/file.txt")
         self.assertIsNone(extract_filename_from_ls_line(line))
 
     def test_extract_no_path(self):
@@ -247,7 +254,7 @@ class TestExtractFilenameFromLsLine(unittest.TestCase):
 
     def test_extract_multiple_backslashes(self):
         """Test extraction with multiple escaped spaces."""
-        line = r"-rw-r--r-- 1 user group 12345 Jan 1 12:00 /mnt/user/media/Episode\ Name\ Part\ One.mp3"
+        line = self._make_ls_line(r"/mnt/user/media/Episode\ Name\ Part\ One.mp3")
         expected = "Episode Name Part One.mp3"
         self.assertEqual(extract_filename_from_ls_line(line), expected)
 
@@ -335,7 +342,12 @@ class TestEdgeCases(unittest.TestCase):
         self.assertEqual(result, "")
 
     def test_extract_part_number_invalid_word(self):
-        """Test invalid part word."""
+        """Test invalid part word (numbers beyond 'ten' are not supported as words).
+        
+        The extract_part_number function only supports word-based part numbers
+        from 'one' through 'ten'. For larger numbers, numeric format (e.g., 'Part 11')
+        should be used instead.
+        """
         self.assertIsNone(extract_part_number("Part Eleven: Title"))
 
     def test_similarity_score_special_characters(self):
@@ -361,10 +373,16 @@ class TestEdgeCases(unittest.TestCase):
         score = similarity_score("Episode 123: Name", "Episode 123: Name")
         self.assertGreater(score, 0.9)
 
-    def test_part_number_with_no_colon(self):
-        """Test part number without colon."""
-        # Should not match without colon
+    def test_part_number_requires_colon_separator(self):
+        """Test that part number detection requires a colon separator.
+        
+        The function specifically looks for 'Part X:' or 'Pt X:' format,
+        requiring the colon to separate the part number from the title.
+        Without the colon, the part number is not detected.
+        """
+        # Should not match without colon separator
         self.assertIsNone(extract_part_number("Part One Title"))
+        self.assertIsNone(extract_part_number("Pt 1 Title"))
 
     def test_unicode_in_all_functions(self):
         """Test unicode handling across functions."""
