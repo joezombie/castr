@@ -42,6 +42,10 @@ public class FeedController : ControllerBase
     [Produces("application/rss+xml")]
     public async Task<IActionResult> GetFeed(string feedName)
     {
+        // Input validation
+        if (string.IsNullOrWhiteSpace(feedName) || feedName.Length > 100)
+            return BadRequest("Invalid feed name");
+        
         _logger.LogDebug("Generating RSS feed for {FeedName}", feedName);
 
         if (!_feedService.FeedExists(feedName))
@@ -72,6 +76,16 @@ public class FeedController : ControllerBase
     [HttpGet("{feedName}/media/{fileName}")]
     public IActionResult GetMedia(string feedName, string fileName)
     {
+        // Input validation
+        if (string.IsNullOrWhiteSpace(feedName) || feedName.Length > 100)
+            return BadRequest("Invalid feed name");
+        
+        if (string.IsNullOrWhiteSpace(fileName) || fileName.Length > 255)
+            return BadRequest("Invalid file name");
+        
+        if (fileName.Contains("..") || fileName.Contains("/") || fileName.Contains("\\"))
+            return BadRequest("Invalid file name");
+        
         _logger.LogDebug("Serving media file {FileName} for feed {FeedName}", fileName, feedName);
 
         var filePath = _feedService.GetMediaFilePath(feedName, fileName);
