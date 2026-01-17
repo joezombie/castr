@@ -1,6 +1,7 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Options;
 using Castr.Models;
+using System.Text.RegularExpressions;
 
 namespace Castr.Services;
 
@@ -42,12 +43,15 @@ public class PlaylistVideoInfo
     public int PlaylistIndex { get; set; }
 }
 
-public class PodcastDatabaseService : IPodcastDatabaseService
+public partial class PodcastDatabaseService : IPodcastDatabaseService
 {
     private readonly IOptions<PodcastFeedsConfig> _config;
     private readonly ILogger<PodcastDatabaseService> _logger;
     private readonly SemaphoreSlim _dbLock = new(1, 1);
     private readonly Dictionary<string, bool> _initialized = new();
+
+    [GeneratedRegex(@"\s+")]
+    private static partial Regex WhitespaceRegex();
 
     public PodcastDatabaseService(
         IOptions<PodcastFeedsConfig> config,
@@ -690,8 +694,7 @@ public class PodcastDatabaseService : IPodcastDatabaseService
             .ToLowerInvariant()
             .Trim();
 
-        while (normalized.Contains("  "))
-            normalized = normalized.Replace("  ", " ");
+        normalized = WhitespaceRegex().Replace(normalized, " ");
 
         return normalized;
     }
