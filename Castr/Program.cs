@@ -21,6 +21,9 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 builder.Services.Configure<PodcastFeedsConfig>(
     builder.Configuration.GetSection("PodcastFeeds"));
 
+// Add memory cache for RSS feed caching
+builder.Services.AddMemoryCache();
+
 // Database service for episode tracking
 builder.Services.AddSingleton<IPodcastDatabaseService, PodcastDatabaseService>();
 builder.Services.AddSingleton<PodcastFeedService>();

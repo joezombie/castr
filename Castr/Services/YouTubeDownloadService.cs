@@ -3,6 +3,7 @@ using YoutubeExplode.Common;
 using YoutubeExplode.Converter;
 using YoutubeExplode.Playlists;
 using YoutubeExplode.Videos.Streams;
+using System.Text.RegularExpressions;
 
 namespace Castr.Services;
 
@@ -38,10 +39,13 @@ public class VideoDetails
     public DateTime? UploadDate { get; set; }
 }
 
-public class YouTubeDownloadService : IYouTubeDownloadService
+public partial class YouTubeDownloadService : IYouTubeDownloadService
 {
     private readonly YoutubeClient _youtube;
     private readonly ILogger<YouTubeDownloadService> _logger;
+
+    [GeneratedRegex(@"\s+")]
+    private static partial Regex WhitespaceRegex();
 
     public YouTubeDownloadService(ILogger<YouTubeDownloadService> logger)
     {
@@ -253,8 +257,7 @@ public class YouTubeDownloadService : IYouTubeDownloadService
             .Trim();
 
         // Remove extra whitespace
-        while (normalized.Contains("  "))
-            normalized = normalized.Replace("  ", " ");
+        normalized = WhitespaceRegex().Replace(normalized, " ");
 
         return normalized;
     }

@@ -1,10 +1,11 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Options;
 using Castr.Models;
+using System.Text.RegularExpressions;
 
 namespace Castr.Services;
 
-public interface IPodcastDatabaseService
+public interface IPodcastDatabaseService : IDisposable
 {
     Task InitializeDatabaseAsync(string feedName);
     Task<List<EpisodeRecord>> GetEpisodesAsync(string feedName);
@@ -42,12 +43,24 @@ public class PlaylistVideoInfo
     public int PlaylistIndex { get; set; }
 }
 
-public class PodcastDatabaseService : IPodcastDatabaseService
+public partial class PodcastDatabaseService : IPodcastDatabaseService
 {
+    /// <summary>
+    /// Maximum time to wait for database lock acquisition.
+    /// 30 seconds is chosen to balance between allowing legitimate long-running operations
+    /// and preventing indefinite hangs. Timeouts may occur during high contention scenarios
+    /// when multiple concurrent requests attempt to modify the same feed's database.
+    /// </summary>
+    private static readonly TimeSpan DatabaseLockTimeout = TimeSpan.FromSeconds(30);
+    
     private readonly IOptions<PodcastFeedsConfig> _config;
     private readonly ILogger<PodcastDatabaseService> _logger;
     private readonly SemaphoreSlim _dbLock = new(1, 1);
     private readonly Dictionary<string, bool> _initialized = new();
+    private int _disposed;
+
+    [GeneratedRegex(@"\s+")]
+    private static partial Regex WhitespaceRegex();
 
     public PodcastDatabaseService(
         IOptions<PodcastFeedsConfig> config,
@@ -67,6 +80,27 @@ public class PodcastDatabaseService : IPodcastDatabaseService
     private string GetConnectionString(string feedName)
     {
         return $"Data Source={GetDatabasePath(feedName)}";
+    }
+
+    /// <summary>
+    /// Acquires the database lock with a timeout to prevent indefinite blocking.
+    /// </summary>
+    /// <param name="feedName">The name of the feed for logging purposes.</param>
+    /// <exception cref="TimeoutException">
+    /// Thrown when the lock cannot be acquired within the timeout period.
+    /// This typically indicates high contention or a deadlock scenario.
+    /// </exception>
+    /// <remarks>
+    /// Uses a semaphore to ensure only one thread can access the database at a time.
+    /// The timeout prevents indefinite blocking and improves system reliability.
+    /// </remarks>
+    private async Task AcquireDatabaseLockAsync(string feedName)
+    {
+        if (!await _dbLock.WaitAsync(DatabaseLockTimeout))
+        {
+            _logger.LogError("Timeout waiting for database lock for feed {FeedName}", feedName);
+            throw new TimeoutException($"Database lock timeout for feed {feedName}");
+        }
     }
 
     private async Task MigrateColumnIfMissingAsync(SqliteConnection connection, string columnName, string columnType)
@@ -91,7 +125,7 @@ public class PodcastDatabaseService : IPodcastDatabaseService
             return;
         }
 
-        await _dbLock.WaitAsync();
+        await AcquireDatabaseLockAsync(feedName);
         try
         {
             if (_initialized.TryGetValue(feedName, out isInit) && isInit)
@@ -246,7 +280,7 @@ public class PodcastDatabaseService : IPodcastDatabaseService
     {
         await InitializeDatabaseAsync(feedName);
 
-        await _dbLock.WaitAsync();
+        await AcquireDatabaseLockAsync(feedName);
         try
         {
             await using var connection = new SqliteConnection(GetConnectionString(feedName));
@@ -283,7 +317,7 @@ public class PodcastDatabaseService : IPodcastDatabaseService
         var episodeList = episodes.ToList();
         if (episodeList.Count == 0) return;
 
-        await _dbLock.WaitAsync();
+        await AcquireDatabaseLockAsync(feedName);
         try
         {
             await using var connection = new SqliteConnection(GetConnectionString(feedName));
@@ -338,7 +372,7 @@ public class PodcastDatabaseService : IPodcastDatabaseService
     {
         await InitializeDatabaseAsync(feedName);
 
-        await _dbLock.WaitAsync();
+        await AcquireDatabaseLockAsync(feedName);
         try
         {
             await using var connection = new SqliteConnection(GetConnectionString(feedName));
@@ -378,7 +412,7 @@ public class PodcastDatabaseService : IPodcastDatabaseService
 
         await InitializeDatabaseAsync(feedName);
 
-        await _dbLock.WaitAsync();
+        await AcquireDatabaseLockAsync(feedName);
         try
         {
             // Get all files in directory
@@ -485,7 +519,7 @@ public class PodcastDatabaseService : IPodcastDatabaseService
             return;
         }
 
-        await _dbLock.WaitAsync();
+        await AcquireDatabaseLockAsync(feedName);
         try
         {
             await using var connection = new SqliteConnection(GetConnectionString(feedName));
@@ -690,8 +724,7 @@ public class PodcastDatabaseService : IPodcastDatabaseService
             .ToLowerInvariant()
             .Trim();
 
-        while (normalized.Contains("  "))
-            normalized = normalized.Replace("  ", " ");
+        normalized = WhitespaceRegex().Replace(normalized, " ");
 
         return normalized;
     }
@@ -723,5 +756,15 @@ public class PodcastDatabaseService : IPodcastDatabaseService
         }
 
         return dp[m, n];
+    }
+
+    public void Dispose()
+    {
+        // Thread-safe disposal to prevent multiple threads from disposing simultaneously
+        if (Interlocked.CompareExchange(ref _disposed, 1, 0) != 0)
+            return;
+
+        _dbLock?.Dispose();
+        GC.SuppressFinalize(this);
     }
 }
