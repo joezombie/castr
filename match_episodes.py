@@ -271,6 +271,43 @@ def generate_map_file(json_path='matched_episodes.json', output_path='episode_or
     return output_path
 
 
+def reverse_list_file(input_path, output_path=None, in_place=False):
+    """Reverse the order of lines in a list file (descending to ascending or vice versa).
+
+    Args:
+        input_path: Path to the input file
+        output_path: Path to output file (if None and not in_place, prints to stdout)
+        in_place: If True, modifies the input file directly
+    """
+    print(f"Reading {input_path}...")
+
+    with open(input_path, 'r', encoding='utf-8') as f:
+        lines = [line.rstrip('\n\r') for line in f if line.strip()]
+
+    print(f"Found {len(lines)} lines")
+
+    # Reverse the list
+    reversed_lines = list(reversed(lines))
+
+    # Determine output destination
+    if in_place:
+        output_path = input_path
+
+    if output_path:
+        with open(output_path, 'w', encoding='utf-8') as f:
+            for line in reversed_lines:
+                f.write(line + '\n')
+        print(f"Reversed list saved to {output_path}")
+        print(f"  First line: {reversed_lines[0] if reversed_lines else '(empty)'}")
+        print(f"  Last line:  {reversed_lines[-1] if reversed_lines else '(empty)'}")
+    else:
+        # Print to stdout
+        for line in reversed_lines:
+            print(line)
+
+    return reversed_lines
+
+
 def do_matching():
     """Run the fuzzy matching process."""
     # Read the files list
@@ -378,6 +415,8 @@ Examples:
   %(prog)s rename --execute         # Actually rename files
   %(prog)s script                   # Generate bash script for renames
   %(prog)s mapfile                  # Generate map file for podcast feed API
+  %(prog)s reverse episode_order.txt --in-place  # Reverse file in place
+  %(prog)s reverse input.txt -o output.txt       # Reverse to new file
         """
     )
 
@@ -417,6 +456,13 @@ Examples:
     mapfile_parser.add_argument('--output', default='episode_order.txt',
                                 help='Output map file path')
 
+    # Reverse command
+    reverse_parser = subparsers.add_parser('reverse', help='Reverse the order of lines in a list file')
+    reverse_parser.add_argument('input', help='Input file to reverse')
+    reverse_parser.add_argument('-o', '--output', help='Output file (default: print to stdout)')
+    reverse_parser.add_argument('--in-place', action='store_true',
+                                help='Modify the input file in place')
+
     args = parser.parse_args()
 
     if args.command == 'match':
@@ -430,6 +476,8 @@ Examples:
                                output_path=args.output, pad_width=args.pad)
     elif args.command == 'mapfile':
         generate_map_file(json_path=args.json, output_path=args.output)
+    elif args.command == 'reverse':
+        reverse_list_file(args.input, output_path=args.output, in_place=args.in_place)
     else:
         # Default to matching if no command specified
         parser.print_help()
