@@ -44,7 +44,7 @@ public class FeedController : ControllerBase
     {
         // Input validation
         if (string.IsNullOrWhiteSpace(feedName) || feedName.Length > 100)
-            return BadRequest("Invalid feed name");
+            return BadRequest("Feed name cannot be empty or exceed 100 characters");
         
         _logger.LogDebug("Generating RSS feed for {FeedName}", feedName);
 
@@ -78,13 +78,13 @@ public class FeedController : ControllerBase
     {
         // Input validation
         if (string.IsNullOrWhiteSpace(feedName) || feedName.Length > 100)
-            return BadRequest("Invalid feed name");
+            return BadRequest("Feed name cannot be empty or exceed 100 characters");
         
         if (string.IsNullOrWhiteSpace(fileName) || fileName.Length > 255)
-            return BadRequest("Invalid file name");
+            return BadRequest("File name cannot be empty or exceed 255 characters");
         
         if (fileName.Contains("..") || fileName.Contains("/") || fileName.Contains("\\"))
-            return BadRequest("Invalid file name");
+            return BadRequest("File name contains invalid characters or path traversal patterns");
         
         _logger.LogDebug("Serving media file {FileName} for feed {FeedName}", fileName, feedName);
 
