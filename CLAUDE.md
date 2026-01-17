@@ -61,9 +61,44 @@ cd Castr
 Feeds configured in `appsettings.json` under `PodcastFeeds.Feeds`. Each feed has:
 - `Title`, `Description`, `Directory` (required)
 - `Author`, `ImageUrl`, `Link`, `Language`, `Category`, `FileExtensions` (optional)
+- `DatabasePath` - Path to SQLite database (optional, defaults to `{Directory}/podcast.db`)
+- `YouTube` - YouTube playlist monitoring configuration (optional):
+  - `PlaylistUrl` - YouTube playlist URL or ID
+  - `PollIntervalMinutes` - How often to check for new videos (default: 60)
+  - `Enabled` - Enable/disable playlist monitoring (default: true)
+  - `MaxConcurrentDownloads` - Parallel download limit (default: 1)
+  - `AudioQuality` - "highest", "lowest", or bitrate value (default: "highest")
 
 ### Architecture
 
-- `Models/PodcastFeedConfig.cs` - Configuration models
+- `Models/PodcastFeedConfig.cs` - Configuration models including YouTubePlaylistConfig
 - `Services/PodcastFeedService.cs` - RSS XML generation, reads ID3 tags via TagLibSharp
+- `Services/PodcastDatabaseService.cs` - SQLite database for episode tracking and ordering
+- `Services/YouTubeDownloadService.cs` - YouTube playlist fetching and audio downloads via YouTubeExplode
+- `Services/PlaylistWatcherService.cs` - BackgroundService that monitors playlists and downloads new episodes
 - `Controllers/FeedController.cs` - API endpoints with range request support for streaming
+
+### YouTube Playlist Watcher
+
+Automatically monitors YouTube playlists and downloads new episodes:
+
+**How it works:**
+1. Polls configured playlists at specified intervals (default: every 60 minutes)
+2. Uses fuzzy matching to link YouTube videos to existing MP3 files
+3. Downloads only new videos not already downloaded
+4. Stores metadata (description, thumbnail, publish date) in SQLite database
+5. Updates RSS feed with new episodes automatically
+
+**Key features:**
+- Fuzzy matching prevents duplicate downloads (80% similarity threshold)
+- Rate limiting: 5 seconds between downloads
+- 30-minute timeout per download
+- Downloads oldest videos first
+- Thread-safe database operations
+- Comprehensive logging
+
+**Database:**
+- `episodes` table - Tracks all episodes with display_order (newer = lower numbers)
+- `downloaded_videos` table - Prevents re-downloading YouTube videos
+
+See `YOUTUBE_WATCHER_IMPLEMENTATION.md` for detailed documentation.
