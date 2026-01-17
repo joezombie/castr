@@ -50,7 +50,7 @@ public partial class PodcastDatabaseService : IPodcastDatabaseService
     private readonly SemaphoreSlim _dbLock = new(1, 1);
     private readonly Dictionary<string, bool> _initialized = new();
 
-    [GeneratedRegex(@"\s+", RegexOptions.Compiled)]
+    [GeneratedRegex(@"\s+")]
     private static partial Regex WhitespaceRegex();
 
     public PodcastDatabaseService(

@@ -44,7 +44,7 @@ public partial class YouTubeDownloadService : IYouTubeDownloadService
     private readonly YoutubeClient _youtube;
     private readonly ILogger<YouTubeDownloadService> _logger;
 
-    [GeneratedRegex(@"\s+", RegexOptions.Compiled)]
+    [GeneratedRegex(@"\s+")]
     private static partial Regex WhitespaceRegex();
 
     public YouTubeDownloadService(ILogger<YouTubeDownloadService> logger)
