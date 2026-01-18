@@ -1,0 +1,111 @@
+@page "/login"
+@using Microsoft.AspNetCore.Authentication
+@layout MainLayout
+@inject NavigationManager NavigationManager
+@inject IConfiguration Configuration
+
+<PageTitle>Login - Castr</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="mt-8">
+    <MudPaper Elevation="4" Class="pa-8">
+        <MudText Typo="Typo.h4" Align="Align.Center" Class="mb-4">Castr Login</MudText>
+        <MudText Typo="Typo.body2" Align="Align.Center" Class="mb-6">Enter your credentials to access the dashboard</MudText>
+        
+        <EditForm Model="@_loginModel" OnValidSubmit="HandleLogin">
+            <DataAnnotationsValidator />
+            
+            <MudTextField @bind-Value="_loginModel.Username" 
+                          Label="Username" 
+                          Variant="Variant.Outlined" 
+                          Class="mb-4"
+                          Required="true" />
+            
+            <MudTextField @bind-Value="_loginModel.Password" 
+                          Label="Password" 
+                          Variant="Variant.Outlined" 
+                          InputType="InputType.Password"
+                          Class="mb-4"
+                          Required="true" />
+            
+            @if (!string.IsNullOrEmpty(_errorMessage))
+            {
+                <MudAlert Severity="Severity.Error" Class="mb-4">@_errorMessage</MudAlert>
+            }
+            
+            <MudButton ButtonType="ButtonType.Submit" 
+                       Variant="Variant.Filled" 
+                       Color="Color.Primary" 
+                       FullWidth="true"
+                       Disabled="@_isLoading">
+                @if (_isLoading)
+                {
+                    <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+                }
+                else
+                {
+                    <MudText>Login</MudText>
+                }
+            </MudButton>
+        </EditForm>
+    </MudPaper>
+</MudContainer>
+
+@code {
+    private LoginModel _loginModel = new();
+    private string? _errorMessage;
+    private bool _isLoading;
+
+    [CascadingParameter]
+    private HttpContext? HttpContext { get; set; }
+
+    private async Task HandleLogin()
+    {
+        _isLoading = true;
+        _errorMessage = null;
+
+        try
+        {
+            var configUsername = Configuration["Dashboard:Username"] ?? "admin";
+            var configPassword = Configuration["Dashboard:Password"] ?? "changeme";
+
+            if (_loginModel.Username == configUsername && _loginModel.Password == configPassword)
+            {
+                // Create authentication cookie
+                var claims = new List<System.Security.Claims.Claim>
+                {
+                    new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Name, _loginModel.Username)
+                };
+
+                var identity = new System.Security.Claims.ClaimsIdentity(claims, Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationDefaults.AuthenticationScheme);
+                var principal = new System.Security.Claims.ClaimsPrincipal(identity);
+
+                if (HttpContext != null)
+                {
+                    await HttpContext.SignInAsync(
+                        Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationDefaults.AuthenticationScheme,
+                        principal);
+                }
+
+                NavigationManager.NavigateTo("/", forceLoad: true);
+            }
+            else
+            {
+                _errorMessage = "Invalid username or password";
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Login failed: {ex.Message}";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private class LoginModel
+    {
+        public string Username { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
+    }
+}

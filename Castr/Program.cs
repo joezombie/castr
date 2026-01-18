@@ -1,7 +1,11 @@
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.Extensions.Options;
 using Castr.Models;
 using Castr.Services;
+using Castr.Hubs;
+using MudBlazor.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -24,6 +28,9 @@ builder.Services.Configure<PodcastFeedsConfig>(
 // Add memory cache for RSS feed caching
 builder.Services.AddMemoryCache();
 
+// Central database service
+builder.Services.AddSingleton<ICentralDatabaseService, CentralDatabaseService>();
+
 // Database service for episode tracking
 builder.Services.AddSingleton<IPodcastDatabaseService, PodcastDatabaseService>();
 builder.Services.AddSingleton<PodcastFeedService>();
@@ -31,6 +38,26 @@ builder.Services.AddSingleton<PodcastFeedService>();
 // YouTube download services
 builder.Services.AddSingleton<IYouTubeDownloadService, YouTubeDownloadService>();
 builder.Services.AddHostedService<PlaylistWatcherService>();
+
+// Blazor and MudBlazor services
+builder.Services.AddRazorComponents()
+    .AddInteractiveServerComponents();
+builder.Services.AddMudServices();
+
+// Authentication
+builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+    .AddCookie(options =>
+    {
+        options.LoginPath = "/login";
+        options.LogoutPath = "/logout";
+        options.ExpireTimeSpan = TimeSpan.FromDays(7);
+        options.SlidingExpiration = true;
+    });
+builder.Services.AddAuthorization();
+builder.Services.AddCascadingAuthenticationState();
+
+// SignalR for real-time updates
+builder.Services.AddSignalR();
 
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
@@ -40,8 +67,15 @@ builder.Services.AddHealthChecks();
 
 var app = builder.Build();
 
-// Initialize databases for all configured feeds at startup
+// Initialize central database
 var logger = app.Services.GetRequiredService<ILogger<Program>>();
+var centralDatabase = app.Services.GetRequiredService<ICentralDatabaseService>();
+
+logger.LogInformation("Initializing central database");
+await centralDatabase.InitializeDatabaseAsync();
+logger.LogInformation("Central database initialized successfully");
+
+// Initialize databases for all configured feeds at startup
 var config = app.Services.GetRequiredService<IOptions<PodcastFeedsConfig>>();
 var database = app.Services.GetRequiredService<IPodcastDatabaseService>();
 
@@ -161,11 +195,34 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
+// Static files for Blazor
+app.UseStaticFiles();
+
+// Authentication and authorization
+app.UseAuthentication();
 app.UseAuthorization();
 
+// Anti-forgery (required for Blazor forms)
+app.UseAntiforgery();
+
+// Blazor components
+app.MapRazorComponents<Castr.Components.App>()
+    .AddInteractiveServerRenderMode();
+
+// SignalR hub
+app.MapHub<DownloadProgressHub>("/hubs/download-progress");
+
+// API controllers (RSS feed endpoints remain public)
 app.MapControllers();
 
 // Add health check endpoint for monitoring and container orchestration
 app.MapHealthChecks("/health");
+
+// Logout endpoint
+app.MapGet("/logout", async (HttpContext context) =>
+{
+    await context.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+    context.Response.Redirect("/login");
+});
 
 app.Run();

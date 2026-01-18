@@ -1,0 +1,234 @@
+@page "/feeds/{Name}"
+@attribute [Authorize]
+@inject ICentralDatabaseService DatabaseService
+@inject ISnackbar Snackbar
+@inject NavigationManager NavigationManager
+
+<PageTitle>Feed Details - Castr</PageTitle>
+
+@if (_isLoading)
+{
+    <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+}
+else if (_feed == null)
+{
+    <MudAlert Severity="Severity.Error">Feed not found</MudAlert>
+    <MudButton Variant="Variant.Filled" 
+               Color="Color.Primary" 
+               OnClick="@(() => NavigationManager.NavigateTo("/feeds"))">
+        Back to Feeds
+    </MudButton>
+}
+else
+{
+    <MudText Typo="Typo.h3" Class="mb-2">@_feed.Title</MudText>
+    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">@_feed.Name</MudText>
+
+    <MudButton Variant="Variant.Filled" 
+               Color="Color.Primary" 
+               StartIcon="@Icons.Material.Filled.Sync"
+               OnClick="TriggerSync"
+               Disabled="@_isSyncing"
+               Class="mb-4">
+        @if (_isSyncing)
+        {
+            <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+            <MudText>Syncing...</MudText>
+        }
+        else
+        {
+            <MudText>Sync Now</MudText>
+        }
+    </MudButton>
+
+    <MudButton Variant="Variant.Outlined" 
+               Color="Color.Default" 
+               StartIcon="@Icons.Material.Filled.ArrowBack"
+               OnClick="@(() => NavigationManager.NavigateTo("/feeds"))"
+               Class="mb-4 ml-2">
+        Back to Feeds
+    </MudButton>
+
+    <MudGrid>
+        <MudItem xs="12" md="6">
+            <MudPaper Elevation="4" Class="pa-4">
+                <MudText Typo="Typo.h5" Class="mb-4">Feed Configuration</MudText>
+                
+                <MudText Typo="Typo.body2" Color="Color.Secondary">Description</MudText>
+                <MudText Typo="Typo.body1" Class="mb-3">@_feed.Description</MudText>
+                
+                <MudText Typo="Typo.body2" Color="Color.Secondary">Directory</MudText>
+                <MudText Typo="Typo.body1" Class="mb-3"><code>@_feed.Directory</code></MudText>
+                
+                @if (!string.IsNullOrEmpty(_feed.Author))
+                {
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">Author</MudText>
+                    <MudText Typo="Typo.body1" Class="mb-3">@_feed.Author</MudText>
+                }
+                
+                <MudText Typo="Typo.body2" Color="Color.Secondary">Language</MudText>
+                <MudText Typo="Typo.body1" Class="mb-3">@_feed.Language</MudText>
+                
+                @if (!string.IsNullOrEmpty(_feed.Category))
+                {
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">Category</MudText>
+                    <MudText Typo="Typo.body1" Class="mb-3">@_feed.Category</MudText>
+                }
+                
+                <MudText Typo="Typo.body2" Color="Color.Secondary">File Extensions</MudText>
+                <MudText Typo="Typo.body1" Class="mb-3">@_feed.FileExtensions</MudText>
+                
+                <MudText Typo="Typo.body2" Color="Color.Secondary">Created</MudText>
+                <MudText Typo="Typo.body1" Class="mb-3">@_feed.CreatedAt.ToString("g")</MudText>
+                
+                <MudText Typo="Typo.body2" Color="Color.Secondary">Last Updated</MudText>
+                <MudText Typo="Typo.body1">@_feed.UpdatedAt.ToString("g")</MudText>
+            </MudPaper>
+        </MudItem>
+        
+        <MudItem xs="12" md="6">
+            <MudPaper Elevation="4" Class="pa-4 mb-4">
+                <MudText Typo="Typo.h5" Class="mb-4">YouTube Configuration</MudText>
+                
+                <MudText Typo="Typo.body2" Color="Color.Secondary">Status</MudText>
+                @if (_feed.YoutubeEnabled)
+                {
+                    <MudChip T="string" Color="Color.Success" Class="mb-3">Enabled</MudChip>
+                }
+                else
+                {
+                    <MudChip T="string" Color="Color.Default" Class="mb-3">Disabled</MudChip>
+                }
+                
+                @if (_feed.YoutubeEnabled && !string.IsNullOrEmpty(_feed.YoutubePlaylistUrl))
+                {
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">Playlist URL</MudText>
+                    <MudText Typo="Typo.body1" Class="mb-3"><code>@_feed.YoutubePlaylistUrl</code></MudText>
+                    
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">Poll Interval</MudText>
+                    <MudText Typo="Typo.body1" Class="mb-3">@_feed.YoutubePollinIntervalMinutes minutes</MudText>
+                    
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">Max Concurrent Downloads</MudText>
+                    <MudText Typo="Typo.body1" Class="mb-3">@_feed.YoutubeMaxConcurrentDownloads</MudText>
+                    
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">Audio Quality</MudText>
+                    <MudText Typo="Typo.body1">@_feed.YoutubeAudioQuality</MudText>
+                }
+            </MudPaper>
+            
+            <MudPaper Elevation="4" Class="pa-4">
+                <MudText Typo="Typo.h5" Class="mb-4">Statistics</MudText>
+                
+                <MudText Typo="Typo.body2" Color="Color.Secondary">Total Episodes</MudText>
+                <MudText Typo="Typo.h4" Class="mb-3">@_episodeCount</MudText>
+                
+                <MudText Typo="Typo.body2" Color="Color.Secondary">Last Sync</MudText>
+                @if (_lastSyncTime.HasValue)
+                {
+                    <MudText Typo="Typo.body1">@_lastSyncTime.Value.ToString("g")</MudText>
+                }
+                else
+                {
+                    <MudText Typo="Typo.body1" Color="Color.Secondary">Never</MudText>
+                }
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+
+    <MudPaper Elevation="4" Class="pa-4 mt-4">
+        <MudText Typo="Typo.h5" Class="mb-4">Recent Activity</MudText>
+        
+        @if (_activities == null || _activities.Count == 0)
+        {
+            <MudText Color="Color.Secondary">No recent activity</MudText>
+        }
+        else
+        {
+            <MudList T="string">
+                @foreach (var activity in _activities)
+                {
+                    <MudListItem T="string">
+                        <MudText Typo="Typo.body1">@activity.Message</MudText>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">
+                            @activity.CreatedAt.ToString("g") - @activity.ActivityType
+                        </MudText>
+                    </MudListItem>
+                    <MudDivider />
+                }
+            </MudList>
+        }
+    </MudPaper>
+}
+
+@code {
+    [Parameter]
+    public string Name { get; set; } = string.Empty;
+
+    private FeedRecord? _feed;
+    private int _episodeCount;
+    private DateTime? _lastSyncTime;
+    private List<ActivityLogRecord>? _activities;
+    private bool _isLoading = true;
+    private bool _isSyncing;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadFeedDetails();
+    }
+
+    private async Task LoadFeedDetails()
+    {
+        _isLoading = true;
+
+        try
+        {
+            _feed = await DatabaseService.GetFeedByNameAsync(Name);
+            
+            if (_feed != null)
+            {
+                _episodeCount = await DatabaseService.GetFeedEpisodeCountAsync(_feed.Id);
+                _lastSyncTime = await DatabaseService.GetFeedLastSyncTimeAsync(_feed.Id);
+                _activities = await DatabaseService.GetRecentActivitiesAsync(10, _feed.Id);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading feed details: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task TriggerSync()
+    {
+        if (_feed == null) return;
+
+        _isSyncing = true;
+
+        try
+        {
+            // Log the sync request
+            await DatabaseService.LogActivityAsync(_feed.Id, "sync_requested", 
+                $"Manual sync requested for feed '{_feed.Name}'");
+            
+            Snackbar.Add("Sync triggered - this may take a few minutes", Severity.Info);
+            
+            // In a real implementation, this would trigger the playlist watcher service
+            // For now, we just log the activity
+            
+            // Reload activities to show the sync request
+            await Task.Delay(1000);
+            _activities = await DatabaseService.GetRecentActivitiesAsync(10, _feed.Id);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error triggering sync: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isSyncing = false;
+        }
+    }
+}

@@ -1,0 +1,32 @@
+<Router AppAssembly="typeof(Program).Assembly">
+    <Found Context="routeData">
+        <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(MainLayout)">
+            <Authorizing>
+                <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+            </Authorizing>
+            <NotAuthorized>
+                @if (context.User.Identity?.IsAuthenticated != true)
+                {
+                    <RedirectToLogin />
+                }
+                else
+                {
+                    <MudText Typo="Typo.h5" Color="Color.Error">Not authorized</MudText>
+                }
+            </NotAuthorized>
+        </AuthorizeRouteView>
+    </Found>
+</Router>
+
+@code {
+    private class RedirectToLogin : ComponentBase
+    {
+        [Inject]
+        private NavigationManager NavigationManager { get; set; } = default!;
+
+        protected override void OnInitialized()
+        {
+            NavigationManager.NavigateTo("/login", forceLoad: true);
+        }
+    }
+}

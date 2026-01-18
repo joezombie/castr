@@ -1,0 +1,324 @@
+@inject ICentralDatabaseService DatabaseService
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<MudDialog>
+    <DialogContent>
+        <EditForm Model="@_model" OnValidSubmit="HandleSubmit">
+            <DataAnnotationsValidator />
+            
+            <MudTabs Elevation="2" Rounded="true" ApplyEffectsToContainer="true">
+                <MudTabPanel Text="Basic Info" Icon="@Icons.Material.Filled.Info">
+                    <MudPaper Class="pa-4 mt-4">
+                        <MudTextField @bind-Value="_model.Name" 
+                                      Label="Name (slug)" 
+                                      Variant="Variant.Outlined"
+                                      Required="true"
+                                      HelperText="Unique identifier for the feed (e.g., 'btb')"
+                                      Disabled="@(_isEdit)"
+                                      Class="mb-4" />
+                        
+                        <MudTextField @bind-Value="_model.Title" 
+                                      Label="Title" 
+                                      Variant="Variant.Outlined"
+                                      Required="true"
+                                      Class="mb-4" />
+                        
+                        <MudTextField @bind-Value="_model.Description" 
+                                      Label="Description" 
+                                      Variant="Variant.Outlined"
+                                      Required="true"
+                                      Lines="3"
+                                      Class="mb-4" />
+                        
+                        <MudTextField @bind-Value="_model.Directory" 
+                                      Label="Directory Path" 
+                                      Variant="Variant.Outlined"
+                                      Required="true"
+                                      HelperText="Absolute path to the directory containing podcast files"
+                                      Class="mb-4" />
+                        
+                        <MudTextField @bind-Value="_model.Author" 
+                                      Label="Author (optional)" 
+                                      Variant="Variant.Outlined"
+                                      Class="mb-4" />
+                        
+                        <MudTextField @bind-Value="_model.ImageUrl" 
+                                      Label="Image URL (optional)" 
+                                      Variant="Variant.Outlined"
+                                      Class="mb-4" />
+                        
+                        <MudTextField @bind-Value="_model.Link" 
+                                      Label="Link (optional)" 
+                                      Variant="Variant.Outlined"
+                                      HelperText="Website or homepage URL"
+                                      Class="mb-4" />
+                        
+                        <MudTextField @bind-Value="_model.Language" 
+                                      Label="Language" 
+                                      Variant="Variant.Outlined"
+                                      HelperText="Language code (e.g., 'en-us')"
+                                      Class="mb-4" />
+                        
+                        <MudTextField @bind-Value="_model.Category" 
+                                      Label="Category (optional)" 
+                                      Variant="Variant.Outlined"
+                                      Class="mb-4" />
+                        
+                        <MudTextField @bind-Value="_model.FileExtensions" 
+                                      Label="File Extensions" 
+                                      Variant="Variant.Outlined"
+                                      HelperText="Comma-separated list (e.g., '.mp3,.m4a')"
+                                      Class="mb-4" />
+                    </MudPaper>
+                </MudTabPanel>
+                
+                <MudTabPanel Text="YouTube" Icon="@Icons.Material.Filled.VideoLibrary">
+                    <MudPaper Class="pa-4 mt-4">
+                        <MudSwitch @bind-Value="_model.YoutubeEnabled" 
+                                   Label="Enable YouTube Integration" 
+                                   Color="Color.Primary"
+                                   Class="mb-4" />
+                        
+                        @if (_model.YoutubeEnabled)
+                        {
+                            <MudTextField @bind-Value="_model.YoutubePlaylistUrl" 
+                                          Label="Playlist URL" 
+                                          Variant="Variant.Outlined"
+                                          HelperText="YouTube playlist URL or ID"
+                                          Class="mb-4" />
+                            
+                            <MudNumericField @bind-Value="_model.YoutubePollinIntervalMinutes" 
+                                             Label="Poll Interval (minutes)" 
+                                             Variant="Variant.Outlined"
+                                             Min="1"
+                                             Class="mb-4" />
+                            
+                            <MudNumericField @bind-Value="_model.YoutubeMaxConcurrentDownloads" 
+                                             Label="Max Concurrent Downloads" 
+                                             Variant="Variant.Outlined"
+                                             Min="1"
+                                             Max="5"
+                                             Class="mb-4" />
+                            
+                            <MudSelect @bind-Value="_model.YoutubeAudioQuality" 
+                                       Label="Audio Quality" 
+                                       Variant="Variant.Outlined"
+                                       Class="mb-4">
+                                <MudSelectItem Value="@("highest")">Highest</MudSelectItem>
+                                <MudSelectItem Value="@("128")">128 kbps</MudSelectItem>
+                                <MudSelectItem Value="@("lowest")">Lowest</MudSelectItem>
+                            </MudSelect>
+                        }
+                    </MudPaper>
+                </MudTabPanel>
+            </MudTabs>
+            
+            @if (!string.IsNullOrEmpty(_errorMessage))
+            {
+                <MudAlert Severity="Severity.Error" Class="mt-4">@_errorMessage</MudAlert>
+            }
+        </EditForm>
+    </DialogContent>
+    
+    <DialogActions>
+        <MudButton OnClick="@(() => DialogInstance?.Close())">Cancel</MudButton>
+        <MudButton Color="Color.Primary" 
+                   OnClick="HandleSubmit" 
+                   Disabled="@_isSaving">
+            @if (_isSaving)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+            }
+            else
+            {
+                <MudText>@(_isEdit ? "Update" : "Create")</MudText>
+            }
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] 
+    public dynamic? DialogInstance { get; set; }
+
+    [Parameter]
+    public FeedRecord? Feed { get; set; }
+
+    private FeedEditModel _model = new();
+    private bool _isEdit;
+    private bool _isSaving;
+    private string? _errorMessage;
+
+    protected override void OnInitialized()
+    {
+        if (Feed != null)
+        {
+            _isEdit = true;
+            _model = new FeedEditModel
+            {
+                Id = Feed.Id,
+                Name = Feed.Name,
+                Title = Feed.Title,
+                Description = Feed.Description,
+                Directory = Feed.Directory,
+                Author = Feed.Author,
+                ImageUrl = Feed.ImageUrl,
+                Link = Feed.Link,
+                Language = Feed.Language,
+                Category = Feed.Category,
+                FileExtensions = Feed.FileExtensions,
+                YoutubePlaylistUrl = Feed.YoutubePlaylistUrl,
+                YoutubePollinIntervalMinutes = Feed.YoutubePollinIntervalMinutes,
+                YoutubeEnabled = Feed.YoutubeEnabled,
+                YoutubeMaxConcurrentDownloads = Feed.YoutubeMaxConcurrentDownloads,
+                YoutubeAudioQuality = Feed.YoutubeAudioQuality
+            };
+        }
+        else
+        {
+            _isEdit = false;
+            _model = new FeedEditModel
+            {
+                Language = "en-us",
+                FileExtensions = ".mp3",
+                YoutubePollinIntervalMinutes = 60,
+                YoutubeMaxConcurrentDownloads = 1,
+                YoutubeAudioQuality = "highest"
+            };
+        }
+    }
+
+    private async Task HandleSubmit()
+    {
+        _isSaving = true;
+        _errorMessage = null;
+
+        try
+        {
+            // Validate required fields
+            if (string.IsNullOrWhiteSpace(_model.Name))
+            {
+                _errorMessage = "Name is required";
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(_model.Title))
+            {
+                _errorMessage = "Title is required";
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(_model.Description))
+            {
+                _errorMessage = "Description is required";
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(_model.Directory))
+            {
+                _errorMessage = "Directory is required";
+                return;
+            }
+
+            // Validate directory path
+            try
+            {
+                var fullPath = Path.GetFullPath(_model.Directory);
+                
+                // Check for path traversal
+                if (fullPath.Contains("..") || !Path.IsPathFullyQualified(_model.Directory))
+                {
+                    _errorMessage = "Invalid directory path";
+                    return;
+                }
+            }
+            catch
+            {
+                _errorMessage = "Invalid directory path";
+                return;
+            }
+
+            // Validate YouTube configuration if enabled
+            if (_model.YoutubeEnabled && string.IsNullOrWhiteSpace(_model.YoutubePlaylistUrl))
+            {
+                _errorMessage = "YouTube playlist URL is required when YouTube integration is enabled";
+                return;
+            }
+
+            // Create or update feed
+            var feedRecord = new FeedRecord
+            {
+                Id = _model.Id,
+                Name = _model.Name.Trim(),
+                Title = _model.Title.Trim(),
+                Description = _model.Description.Trim(),
+                Directory = _model.Directory.Trim(),
+                Author = string.IsNullOrWhiteSpace(_model.Author) ? null : _model.Author.Trim(),
+                ImageUrl = string.IsNullOrWhiteSpace(_model.ImageUrl) ? null : _model.ImageUrl.Trim(),
+                Link = string.IsNullOrWhiteSpace(_model.Link) ? null : _model.Link.Trim(),
+                Language = _model.Language,
+                Category = string.IsNullOrWhiteSpace(_model.Category) ? null : _model.Category.Trim(),
+                FileExtensions = _model.FileExtensions,
+                YoutubePlaylistUrl = string.IsNullOrWhiteSpace(_model.YoutubePlaylistUrl) ? null : _model.YoutubePlaylistUrl.Trim(),
+                YoutubePollinIntervalMinutes = _model.YoutubePollinIntervalMinutes,
+                YoutubeEnabled = _model.YoutubeEnabled,
+                YoutubeMaxConcurrentDownloads = _model.YoutubeMaxConcurrentDownloads,
+                YoutubeAudioQuality = _model.YoutubeAudioQuality
+            };
+
+            if (_isEdit)
+            {
+                await DatabaseService.UpdateFeedAsync(feedRecord);
+            }
+            else
+            {
+                // Check if name already exists
+                var existingFeed = await DatabaseService.GetFeedByNameAsync(feedRecord.Name);
+                if (existingFeed != null)
+                {
+                    _errorMessage = $"A feed with the name '{feedRecord.Name}' already exists";
+                    return;
+                }
+
+                // Create directory if it doesn't exist
+                if (!Directory.Exists(feedRecord.Directory))
+                {
+                    Directory.CreateDirectory(feedRecord.Directory);
+                }
+
+                await DatabaseService.CreateFeedAsync(feedRecord);
+            }
+
+            DialogInstance?.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Error saving feed: {ex.Message}";
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private class FeedEditModel
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string Title { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public string Directory { get; set; } = string.Empty;
+        public string? Author { get; set; }
+        public string? ImageUrl { get; set; }
+        public string? Link { get; set; }
+        public string Language { get; set; } = "en-us";
+        public string? Category { get; set; }
+        public string FileExtensions { get; set; } = ".mp3";
+        public string? YoutubePlaylistUrl { get; set; }
+        public int YoutubePollinIntervalMinutes { get; set; } = 60;
+        public bool YoutubeEnabled { get; set; }
+        public int YoutubeMaxConcurrentDownloads { get; set; } = 1;
+        public string YoutubeAudioQuality { get; set; } = "highest";
+    }
+}

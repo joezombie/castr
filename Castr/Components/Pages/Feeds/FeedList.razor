@@ -1,0 +1,207 @@
+@page "/feeds"
+@attribute [Authorize]
+@inject ICentralDatabaseService DatabaseService
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>Feeds - Castr</PageTitle>
+
+<MudText Typo="Typo.h3" Class="mb-4">Podcast Feeds</MudText>
+
+<MudButton Variant="Variant.Filled" 
+           Color="Color.Primary" 
+           StartIcon="@Icons.Material.Filled.Add" 
+           OnClick="OpenCreateDialog"
+           Class="mb-4">
+    New Feed
+</MudButton>
+
+@if (_isLoading)
+{
+    <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+}
+else
+{
+    <MudDataGrid T="FeedRecord" 
+                 Items="@_feeds" 
+                 Filterable="true" 
+                 SortMode="SortMode.Multiple"
+                 Elevation="4">
+        <Columns>
+            <PropertyColumn Property="x => x.Name" Title="Name" />
+            <PropertyColumn Property="x => x.Title" Title="Title" />
+            <TemplateColumn Title="Episodes" Sortable="false">
+                <CellTemplate>
+                    @(_episodeCounts.GetValueOrDefault(context.Item.Id, 0))
+                </CellTemplate>
+            </TemplateColumn>
+            <TemplateColumn Title="YouTube" Sortable="false">
+                <CellTemplate>
+                    @if (context.Item.YoutubeEnabled)
+                    {
+                        <MudChip Color="Color.Success" Size="Size.Small">Enabled</MudChip>
+                    }
+                    else
+                    {
+                        <MudChip Color="Color.Default" Size="Size.Small">Disabled</MudChip>
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+            <TemplateColumn Title="Last Sync" Sortable="false">
+                <CellTemplate>
+                    @{
+                        var lastSync = _lastSyncTimes.GetValueOrDefault(context.Item.Id);
+                        if (lastSync.HasValue)
+                        {
+                            <MudText Typo="Typo.body2">@lastSync.Value.ToString("g")</MudText>
+                        }
+                        else
+                        {
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">Never</MudText>
+                        }
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+            <TemplateColumn Title="Actions" Sortable="false">
+                <CellTemplate>
+                    <MudIconButton Icon="@Icons.Material.Filled.Visibility" 
+                                   Color="Color.Primary" 
+                                   Size="Size.Small"
+                                   OnClick="@(() => ViewFeed(context.Item))" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" 
+                                   Color="Color.Info" 
+                                   Size="Size.Small"
+                                   OnClick="@(() => OpenEditDialog(context.Item))" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" 
+                                   Color="Color.Error" 
+                                   Size="Size.Small"
+                                   OnClick="@(() => ConfirmDelete(context.Item))" />
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+    </MudDataGrid>
+}
+
+@code {
+    [Inject]
+    private NavigationManager NavigationManager { get; set; } = default!;
+
+    private List<FeedRecord> _feeds = new();
+    private Dictionary<int, int> _episodeCounts = new();
+    private Dictionary<int, DateTime?> _lastSyncTimes = new();
+    private bool _isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadFeeds();
+    }
+
+    private async Task LoadFeeds()
+    {
+        _isLoading = true;
+        
+        try
+        {
+            _feeds = await DatabaseService.GetAllFeedsAsync();
+            
+            // Load episode counts and last sync times for each feed
+            _episodeCounts.Clear();
+            _lastSyncTimes.Clear();
+            
+            foreach (var feed in _feeds)
+            {
+                _episodeCounts[feed.Id] = await DatabaseService.GetFeedEpisodeCountAsync(feed.Id);
+                _lastSyncTimes[feed.Id] = await DatabaseService.GetFeedLastSyncTimeAsync(feed.Id);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading feeds: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task OpenCreateDialog()
+    {
+        var parameters = new DialogParameters
+        {
+            ["Feed"] = null
+        };
+        
+        var options = new DialogOptions 
+        { 
+            MaxWidth = MaxWidth.Large, 
+            FullWidth = true,
+            CloseOnEscapeKey = true
+        };
+
+        var dialog = await DialogService.ShowAsync<FeedEdit>("Create New Feed", parameters, options);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            await LoadFeeds();
+            Snackbar.Add("Feed created successfully", Severity.Success);
+        }
+    }
+
+    private async Task OpenEditDialog(FeedRecord feed)
+    {
+        var parameters = new DialogParameters
+        {
+            ["Feed"] = feed
+        };
+        
+        var options = new DialogOptions 
+        { 
+            MaxWidth = MaxWidth.Large, 
+            FullWidth = true,
+            CloseOnEscapeKey = true
+        };
+
+        var dialog = await DialogService.ShowAsync<FeedEdit>("Edit Feed", parameters, options);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            await LoadFeeds();
+            Snackbar.Add("Feed updated successfully", Severity.Success);
+        }
+    }
+
+    private void ViewFeed(FeedRecord feed)
+    {
+        NavigationManager.NavigateTo($"/feeds/{feed.Name}");
+    }
+
+    private async Task ConfirmDelete(FeedRecord feed)
+    {
+        var confirmed = await DialogService.ShowMessageBox(
+            "Confirm Delete",
+            $"Are you sure you want to delete the feed '{feed.Name}'? This action cannot be undone.",
+            yesText: "Delete",
+            cancelText: "Cancel");
+
+        if (confirmed == true)
+        {
+            await DeleteFeed(feed);
+        }
+    }
+
+    private async Task DeleteFeed(FeedRecord feed)
+    {
+        try
+        {
+            await DatabaseService.DeleteFeedAsync(feed.Id);
+            await LoadFeeds();
+            Snackbar.Add($"Feed '{feed.Name}' deleted successfully", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error deleting feed: {ex.Message}", Severity.Error);
+        }
+    }
+}

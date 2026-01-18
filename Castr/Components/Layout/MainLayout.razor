@@ -1,0 +1,50 @@
+@inherits LayoutComponentBase
+
+<MudThemeProvider Theme="_theme" IsDarkMode="true" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout>
+    <MudAppBar Elevation="1">
+        <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="@ToggleDrawer" />
+        <MudText Typo="Typo.h5" Class="ml-3">Castr</MudText>
+        <MudSpacer />
+        <MudText Typo="Typo.body2">Podcast Management</MudText>
+    </MudAppBar>
+    
+    <MudDrawer @bind-Open="_drawerOpen" Elevation="2">
+        <NavMenu />
+    </MudDrawer>
+    
+    <MudMainContent Class="pa-4">
+        <MudContainer MaxWidth="MaxWidth.ExtraExtraLarge">
+            @Body
+        </MudContainer>
+    </MudMainContent>
+</MudLayout>
+
+@code {
+    private bool _drawerOpen = true;
+    
+    private MudTheme _theme = new MudTheme
+    {
+        PaletteLight = new PaletteLight(),
+        PaletteDark = new PaletteDark
+        {
+            Primary = "#7e57c2",
+            Secondary = "#26a69a",
+            AppbarBackground = "#1e1e2e",
+            Background = "#181825",
+            Surface = "#1e1e2e",
+            DrawerBackground = "#1e1e2e",
+            DrawerText = "rgba(255,255,255, 0.70)",
+            DrawerIcon = "rgba(255,255,255, 0.50)"
+        }
+    };
+
+    private void ToggleDrawer()
+    {
+        _drawerOpen = !_drawerOpen;
+    }
+}

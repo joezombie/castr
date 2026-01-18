@@ -1,0 +1,91 @@
+@page "/"
+@attribute [Authorize]
+@inject ICentralDatabaseService DatabaseService
+
+<PageTitle>Dashboard - Castr</PageTitle>
+
+<MudText Typo="Typo.h3" Class="mb-4">Dashboard</MudText>
+
+<MudGrid>
+    <MudItem xs="12" sm="6" md="3">
+        <MudCard Elevation="4">
+            <MudCardContent>
+                <MudText Typo="Typo.body2">Total Feeds</MudText>
+                <MudText Typo="Typo.h3">@_feedsCount</MudText>
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+    
+    <MudItem xs="12" sm="6" md="3">
+        <MudCard Elevation="4">
+            <MudCardContent>
+                <MudText Typo="Typo.body2">Total Episodes</MudText>
+                <MudText Typo="Typo.h3">@_episodesCount</MudText>
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+    
+    <MudItem xs="12" sm="6" md="3">
+        <MudCard Elevation="4">
+            <MudCardContent>
+                <MudText Typo="Typo.body2">Active Downloads</MudText>
+                <MudText Typo="Typo.h3">@_downloadsCount</MudText>
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+    
+    <MudItem xs="12" sm="6" md="3">
+        <MudCard Elevation="4">
+            <MudCardContent>
+                <MudText Typo="Typo.body2">Server Status</MudText>
+                <MudChip T="string" Color="Color.Success">Online</MudChip>
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+</MudGrid>
+
+<MudPaper Class="pa-4 mt-4" Elevation="4">
+    <MudText Typo="Typo.h5" Class="mb-4">Recent Activity</MudText>
+    
+    @if (_activities == null)
+    {
+        <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+    }
+    else if (_activities.Count == 0)
+    {
+        <MudText>No recent activity</MudText>
+    }
+    else
+    {
+        <MudList T="string">
+            @foreach (var activity in _activities)
+            {
+                <MudListItem T="string">
+                    <MudText Typo="Typo.body1">@activity.Message</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">@activity.CreatedAt.ToString("g")</MudText>
+                </MudListItem>
+                <MudDivider />
+            }
+        </MudList>
+    }
+</MudPaper>
+
+@code {
+    private int _feedsCount;
+    private int _episodesCount;
+    private int _downloadsCount;
+    private List<ActivityLogRecord>? _activities;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadStatistics();
+    }
+
+    private async Task LoadStatistics()
+    {
+        _feedsCount = await DatabaseService.GetTotalFeedsCountAsync();
+        _episodesCount = await DatabaseService.GetTotalEpisodesCountAsync();
+        _downloadsCount = await DatabaseService.GetActiveDownloadsCountAsync();
+        _activities = await DatabaseService.GetRecentActivitiesAsync(10);
+    }
+}
