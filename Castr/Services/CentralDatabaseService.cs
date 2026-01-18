@@ -580,7 +580,7 @@ public class CentralDatabaseService : ICentralDatabaseService
             Category = reader.IsDBNull(9) ? null : reader.GetString(9),
             FileExtensions = reader.GetString(10),
             YoutubePlaylistUrl = reader.IsDBNull(11) ? null : reader.GetString(11),
-            YoutubePollinIntervalMinutes = reader.GetInt32(12),
+            YoutubePollIntervalMinutes = reader.GetInt32(12),
             YoutubeEnabled = reader.GetInt32(13) == 1,
             YoutubeMaxConcurrentDownloads = reader.GetInt32(14),
             YoutubeAudioQuality = reader.GetString(15),
@@ -603,7 +603,7 @@ public class CentralDatabaseService : ICentralDatabaseService
         command.Parameters.AddWithValue("@category", feed.Category ?? (object)DBNull.Value);
         command.Parameters.AddWithValue("@fileExtensions", feed.FileExtensions);
         command.Parameters.AddWithValue("@youtubePlaylistUrl", feed.YoutubePlaylistUrl ?? (object)DBNull.Value);
-        command.Parameters.AddWithValue("@youtubePollIntervalMinutes", feed.YoutubePollinIntervalMinutes);
+        command.Parameters.AddWithValue("@youtubePollIntervalMinutes", feed.YoutubePollIntervalMinutes);
         command.Parameters.AddWithValue("@youtubeEnabled", feed.YoutubeEnabled ? 1 : 0);
         command.Parameters.AddWithValue("@youtubeMaxConcurrentDownloads", feed.YoutubeMaxConcurrentDownloads);
         command.Parameters.AddWithValue("@youtubeAudioQuality", feed.YoutubeAudioQuality);

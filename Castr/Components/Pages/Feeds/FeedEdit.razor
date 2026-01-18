@@ -89,7 +89,7 @@
                                           HelperText="YouTube playlist URL or ID"
                                           Class="mb-4" />
                             
-                            <MudNumericField @bind-Value="_model.YoutubePollinIntervalMinutes" 
+                            <MudNumericField @bind-Value="_model.YoutubePollIntervalMinutes" 
                                              Label="Poll Interval (minutes)" 
                                              Variant="Variant.Outlined"
                                              Min="1"
@@ -170,7 +170,7 @@
                 Category = Feed.Category,
                 FileExtensions = Feed.FileExtensions,
                 YoutubePlaylistUrl = Feed.YoutubePlaylistUrl,
-                YoutubePollinIntervalMinutes = Feed.YoutubePollinIntervalMinutes,
+                YoutubePollIntervalMinutes = Feed.YoutubePollIntervalMinutes,
                 YoutubeEnabled = Feed.YoutubeEnabled,
                 YoutubeMaxConcurrentDownloads = Feed.YoutubeMaxConcurrentDownloads,
                 YoutubeAudioQuality = Feed.YoutubeAudioQuality
@@ -183,7 +183,7 @@
             {
                 Language = "en-us",
                 FileExtensions = ".mp3",
-                YoutubePollinIntervalMinutes = 60,
+                YoutubePollIntervalMinutes = 60,
                 YoutubeMaxConcurrentDownloads = 1,
                 YoutubeAudioQuality = "highest"
             };
@@ -262,7 +262,7 @@
                 Category = string.IsNullOrWhiteSpace(_model.Category) ? null : _model.Category.Trim(),
                 FileExtensions = _model.FileExtensions,
                 YoutubePlaylistUrl = string.IsNullOrWhiteSpace(_model.YoutubePlaylistUrl) ? null : _model.YoutubePlaylistUrl.Trim(),
-                YoutubePollinIntervalMinutes = _model.YoutubePollinIntervalMinutes,
+                YoutubePollIntervalMinutes = _model.YoutubePollIntervalMinutes,
                 YoutubeEnabled = _model.YoutubeEnabled,
                 YoutubeMaxConcurrentDownloads = _model.YoutubeMaxConcurrentDownloads,
                 YoutubeAudioQuality = _model.YoutubeAudioQuality
@@ -317,7 +317,7 @@
         public string? Category { get; set; }
         public string FileExtensions { get; set; } = ".mp3";
         public string? YoutubePlaylistUrl { get; set; }
-        public int YoutubePollinIntervalMinutes { get; set; } = 60;
+        public int YoutubePollIntervalMinutes { get; set; } = 60;
         public bool YoutubeEnabled { get; set; }
         public int YoutubeMaxConcurrentDownloads { get; set; } = 1;
         public string YoutubeAudioQuality { get; set; } = "highest";

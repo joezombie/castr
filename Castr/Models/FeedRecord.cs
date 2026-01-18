@@ -19,7 +19,7 @@ public class FeedRecord
     
     // YouTube configuration
     public string? YoutubePlaylistUrl { get; set; }
-    public int YoutubePollinIntervalMinutes { get; set; } = 60;
+    public int YoutubePollIntervalMinutes { get; set; } = 60;
     public bool YoutubeEnabled { get; set; } = false;
     public int YoutubeMaxConcurrentDownloads { get; set; } = 1;
     public string YoutubeAudioQuality { get; set; } = "highest";
