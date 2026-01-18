@@ -1,6 +1,10 @@
 @page "/"
 @attribute [Authorize]
+@inject ICentralDatabaseService Database
 @inject ILogger<Dashboard> Logger
+@inject NavigationManager Navigation
+@implements IAsyncDisposable
+@using Microsoft.AspNetCore.SignalR.Client
 
 <PageTitle>Dashboard - Castr</PageTitle>
 
@@ -9,50 +13,216 @@
 <MudGrid>
     <MudItem xs="12" sm="6" md="3">
         <MudPaper Elevation="2" Class="pa-4">
-            <MudText Typo="Typo.h4" Color="Color.Primary">
-                <MudIcon Icon="@Icons.Material.Filled.RssFeed" Size="Size.Large" />
-            </MudText>
-            <MudText Typo="Typo.h6">Active Feeds</MudText>
-            <MudText Typo="Typo.body1">Coming soon</MudText>
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Size="Size.Large" />
+                <MudStack Spacing="0">
+                    <MudText Typo="Typo.h6">Server Status</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Success">Online</MudText>
+                    <MudText Typo="Typo.caption">Uptime: @_uptime</MudText>
+                </MudStack>
+            </MudStack>
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="12" sm="6" md="3">
+        <MudPaper Elevation="2" Class="pa-4 cursor-pointer" @onclick="GoToFeeds">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                <MudIcon Icon="@Icons.Material.Filled.RssFeed" Color="Color.Primary" Size="Size.Large" />
+                <MudStack Spacing="0">
+                    <MudText Typo="Typo.h6">Feeds</MudText>
+                    <MudText Typo="Typo.h4">@_feedCount</MudText>
+                </MudStack>
+            </MudStack>
         </MudPaper>
     </MudItem>
     <MudItem xs="12" sm="6" md="3">
         <MudPaper Elevation="2" Class="pa-4">
-            <MudText Typo="Typo.h4" Color="Color.Secondary">
-                <MudIcon Icon="@Icons.Material.Filled.Download" Size="Size.Large" />
-            </MudText>
-            <MudText Typo="Typo.h6">Downloads</MudText>
-            <MudText Typo="Typo.body1">Coming soon</MudText>
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                <MudIcon Icon="@Icons.Material.Filled.Headphones" Color="Color.Secondary" Size="Size.Large" />
+                <MudStack Spacing="0">
+                    <MudText Typo="Typo.h6">Episodes</MudText>
+                    <MudText Typo="Typo.h4">@_episodeCount</MudText>
+                </MudStack>
+            </MudStack>
         </MudPaper>
     </MudItem>
     <MudItem xs="12" sm="6" md="3">
-        <MudPaper Elevation="2" Class="pa-4">
-            <MudText Typo="Typo.h4" Color="Color.Success">
-                <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Large" />
-            </MudText>
-            <MudText Typo="Typo.h6">Episodes</MudText>
-            <MudText Typo="Typo.body1">Coming soon</MudText>
-        </MudPaper>
-    </MudItem>
-    <MudItem xs="12" sm="6" md="3">
-        <MudPaper Elevation="2" Class="pa-4">
-            <MudText Typo="Typo.h4" Color="Color.Info">
-                <MudIcon Icon="@Icons.Material.Filled.Storage" Size="Size.Large" />
-            </MudText>
-            <MudText Typo="Typo.h6">Storage</MudText>
-            <MudText Typo="Typo.body1">Coming soon</MudText>
+        <MudPaper Elevation="2" Class="pa-4 cursor-pointer" @onclick="GoToDownloads">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                <MudIcon Icon="@Icons.Material.Filled.Download" Color="@(_activeDownloads > 0 ? Color.Warning : Color.Info)" Size="Size.Large" />
+                <MudStack Spacing="0">
+                    <MudText Typo="Typo.h6">Downloads</MudText>
+                    <MudText Typo="Typo.h4">@_activeDownloads</MudText>
+                </MudStack>
+            </MudStack>
         </MudPaper>
     </MudItem>
 </MudGrid>
 
+@if (_activeDownloadItems.Any())
+{
+    <MudText Typo="Typo.h5" Class="mt-6 mb-4">Active Downloads</MudText>
+    <MudPaper Elevation="2" Class="pa-4">
+        @foreach (var item in _activeDownloadItems)
+        {
+            <MudStack Class="mb-3">
+                <MudStack Row="true" Justify="Justify.SpaceBetween">
+                    <MudText Typo="Typo.body1">@(item.VideoTitle ?? item.VideoId)</MudText>
+                    <MudText Typo="Typo.body2">@item.ProgressPercent%</MudText>
+                </MudStack>
+                <MudProgressLinear Value="@item.ProgressPercent" Color="Color.Primary" Rounded="true" Size="Size.Medium" />
+            </MudStack>
+        }
+    </MudPaper>
+}
+
 <MudText Typo="Typo.h5" Class="mt-6 mb-4">Recent Activity</MudText>
 <MudPaper Elevation="2" Class="pa-4">
-    <MudText Typo="Typo.body1">Activity feed coming in Phase 3</MudText>
+    @if (_recentActivity.Any())
+    {
+        <MudTimeline TimelinePosition="TimelinePosition.Start">
+            @foreach (var activity in _recentActivity)
+            {
+                <MudTimelineItem Color="@GetActivityColor(activity.ActivityType)" Size="Size.Small">
+                    <ItemContent>
+                        <MudStack Spacing="0">
+                            <MudText Typo="Typo.body1">@activity.Message</MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Default">@activity.CreatedAt.ToString("g")</MudText>
+                        </MudStack>
+                    </ItemContent>
+                </MudTimelineItem>
+            }
+        </MudTimeline>
+    }
+    else
+    {
+        <MudText Typo="Typo.body1" Color="Color.Default">No recent activity</MudText>
+    }
 </MudPaper>
 
 @code {
-    protected override void OnInitialized()
+    private static readonly DateTime _startTime = DateTime.UtcNow;
+
+    private int _feedCount;
+    private int _episodeCount;
+    private int _activeDownloads;
+    private string _uptime = "0s";
+    private List<DownloadQueueItem> _activeDownloadItems = new();
+    private List<ActivityLogRecord> _recentActivity = new();
+    private HubConnection? _hubConnection;
+    private System.Threading.Timer? _refreshTimer;
+
+    protected override async Task OnInitializedAsync()
     {
         Logger.LogDebug("Dashboard page initialized");
+
+        await LoadStatisticsAsync();
+
+        // Set up SignalR connection
+        _hubConnection = new HubConnectionBuilder()
+            .WithUrl(Navigation.ToAbsoluteUri("/hubs/download-progress"))
+            .WithAutomaticReconnect()
+            .Build();
+
+        _hubConnection.On<int, int, int>("StatisticsUpdated", async (feeds, episodes, downloads) =>
+        {
+            _feedCount = feeds;
+            _episodeCount = episodes;
+            _activeDownloads = downloads;
+            await InvokeAsync(StateHasChanged);
+        });
+
+        _hubConnection.On<int, string, int>("DownloadProgress", async (feedId, videoId, percent) =>
+        {
+            var item = _activeDownloadItems.FirstOrDefault(x => x.VideoId == videoId);
+            if (item != null)
+            {
+                item.ProgressPercent = percent;
+                await InvokeAsync(StateHasChanged);
+            }
+        });
+
+        _hubConnection.On<string, string, int?>("ActivityLogged", async (type, message, feedId) =>
+        {
+            await LoadStatisticsAsync();
+            await InvokeAsync(StateHasChanged);
+        });
+
+        try
+        {
+            await _hubConnection.StartAsync();
+            Logger.LogDebug("SignalR connection established");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to connect to SignalR hub");
+        }
+
+        // Refresh statistics every 30 seconds
+        _refreshTimer = new System.Threading.Timer(async _ =>
+        {
+            await LoadStatisticsAsync();
+            UpdateUptime();
+            await InvokeAsync(StateHasChanged);
+        }, null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
+    }
+
+    private async Task LoadStatisticsAsync()
+    {
+        try
+        {
+            var feeds = await Database.GetAllFeedsAsync();
+            _feedCount = feeds.Count;
+
+            _episodeCount = 0;
+            foreach (var feed in feeds)
+            {
+                var episodes = await Database.GetEpisodesAsync(feed.Id);
+                _episodeCount += episodes.Count;
+            }
+
+            var queue = await Database.GetDownloadQueueAsync();
+            _activeDownloadItems = queue.Where(q => q.Status == "downloading" || q.Status == "queued").ToList();
+            _activeDownloads = _activeDownloadItems.Count;
+
+            _recentActivity = await Database.GetRecentActivityAsync(count: 20);
+
+            UpdateUptime();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load dashboard statistics");
+        }
+    }
+
+    private void UpdateUptime()
+    {
+        var uptime = DateTime.UtcNow - _startTime;
+        if (uptime.TotalDays >= 1)
+            _uptime = $"{(int)uptime.TotalDays}d {uptime.Hours}h";
+        else if (uptime.TotalHours >= 1)
+            _uptime = $"{(int)uptime.TotalHours}h {uptime.Minutes}m";
+        else
+            _uptime = $"{uptime.Minutes}m {uptime.Seconds}s";
+    }
+
+    private Color GetActivityColor(string activityType) => activityType switch
+    {
+        "download" => Color.Success,
+        "error" => Color.Error,
+        "warning" => Color.Warning,
+        "sync" => Color.Info,
+        _ => Color.Default
+    };
+
+    private void GoToFeeds() => Navigation.NavigateTo("/feeds");
+    private void GoToDownloads() => Navigation.NavigateTo("/downloads");
+
+    public async ValueTask DisposeAsync()
+    {
+        _refreshTimer?.Dispose();
+        if (_hubConnection is not null)
+        {
+            await _hubConnection.DisposeAsync();
+        }
     }
 }

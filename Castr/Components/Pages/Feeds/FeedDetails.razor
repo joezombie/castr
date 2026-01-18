@@ -1,0 +1,232 @@
+@page "/feeds/{Name}"
+@attribute [Authorize]
+@inject ICentralDatabaseService Database
+@inject ILogger<FeedDetails> Logger
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+<PageTitle>@(_feed?.Title ?? "Feed Details") - Castr</PageTitle>
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+    <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" OnClick="GoToFeeds" />
+    <MudText Typo="Typo.h3">@(_feed?.Title ?? "Loading...")</MudText>
+    @if (_feed != null)
+    {
+        <MudSpacer />
+        <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Edit"
+            OnClick="GoToEdit">
+            Edit
+        </MudButton>
+    }
+</MudStack>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else if (_feed == null)
+{
+    <MudAlert Severity="Severity.Error">Feed not found</MudAlert>
+}
+else
+{
+    <MudGrid>
+        <MudItem xs="12" md="6">
+            <MudPaper Elevation="2" Class="pa-4">
+                <MudText Typo="Typo.h6" Class="mb-4">Feed Information</MudText>
+                <MudStack Spacing="2">
+                    <MudStack Row="true">
+                        <MudText Typo="Typo.body2" Color="Color.Default" Style="width: 120px;">Slug:</MudText>
+                        <MudText Typo="Typo.body1">@_feed.Name</MudText>
+                    </MudStack>
+                    <MudStack Row="true">
+                        <MudText Typo="Typo.body2" Color="Color.Default" Style="width: 120px;">Directory:</MudText>
+                        <MudText Typo="Typo.body1">@_feed.Directory</MudText>
+                    </MudStack>
+                    <MudStack Row="true">
+                        <MudText Typo="Typo.body2" Color="Color.Default" Style="width: 120px;">Author:</MudText>
+                        <MudText Typo="Typo.body1">@(_feed.Author ?? "—")</MudText>
+                    </MudStack>
+                    <MudStack Row="true">
+                        <MudText Typo="Typo.body2" Color="Color.Default" Style="width: 120px;">Language:</MudText>
+                        <MudText Typo="Typo.body1">@(_feed.Language ?? "en-us")</MudText>
+                    </MudStack>
+                    <MudStack Row="true">
+                        <MudText Typo="Typo.body2" Color="Color.Default" Style="width: 120px;">Category:</MudText>
+                        <MudText Typo="Typo.body1">@(_feed.Category ?? "—")</MudText>
+                    </MudStack>
+                    <MudStack Row="true">
+                        <MudText Typo="Typo.body2" Color="Color.Default" Style="width: 120px;">Extensions:</MudText>
+                        <MudText Typo="Typo.body1">@(_feed.FileExtensions ?? ".mp3")</MudText>
+                    </MudStack>
+                    <MudStack Row="true">
+                        <MudText Typo="Typo.body2" Color="Color.Default" Style="width: 120px;">Status:</MudText>
+                        @if (_feed.IsActive)
+                        {
+                            <MudChip T="string" Color="Color.Success" Size="Size.Small">Active</MudChip>
+                        }
+                        else
+                        {
+                            <MudChip T="string" Color="Color.Error" Size="Size.Small">Inactive</MudChip>
+                        }
+                    </MudStack>
+                </MudStack>
+            </MudPaper>
+
+            @if (_feed.YouTubeEnabled)
+            {
+                <MudPaper Elevation="2" Class="pa-4 mt-4">
+                    <MudText Typo="Typo.h6" Class="mb-4">YouTube Configuration</MudText>
+                    <MudStack Spacing="2">
+                        <MudStack Row="true">
+                            <MudText Typo="Typo.body2" Color="Color.Default" Style="width: 120px;">Playlist:</MudText>
+                            <MudText Typo="Typo.body1">@(_feed.YouTubePlaylistUrl ?? "—")</MudText>
+                        </MudStack>
+                        <MudStack Row="true">
+                            <MudText Typo="Typo.body2" Color="Color.Default" Style="width: 120px;">Poll Interval:</MudText>
+                            <MudText Typo="Typo.body1">@(_feed.YouTubePollIntervalMinutes ?? 60) minutes</MudText>
+                        </MudStack>
+                        <MudStack Row="true">
+                            <MudText Typo="Typo.body2" Color="Color.Default" Style="width: 120px;">Max Downloads:</MudText>
+                            <MudText Typo="Typo.body1">@(_feed.YouTubeMaxConcurrentDownloads ?? 1)</MudText>
+                        </MudStack>
+                        <MudStack Row="true">
+                            <MudText Typo="Typo.body2" Color="Color.Default" Style="width: 120px;">Audio Quality:</MudText>
+                            <MudText Typo="Typo.body1">@(_feed.YouTubeAudioQuality ?? "highest")</MudText>
+                        </MudStack>
+                    </MudStack>
+                </MudPaper>
+            }
+        </MudItem>
+
+        <MudItem xs="12" md="6">
+            <MudPaper Elevation="2" Class="pa-4">
+                <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-4">
+                    <MudText Typo="Typo.h6">Episodes (@_episodes.Count)</MudText>
+                    <MudButton Variant="Variant.Text" Size="Size.Small"
+                        OnClick="GoToEpisodes">
+                        View All
+                    </MudButton>
+                </MudStack>
+
+                @if (_episodes.Any())
+                {
+                    <MudList T="EpisodeRecord" Dense="true">
+                        @foreach (var episode in _episodes.Take(10))
+                        {
+                            <MudListItem>
+                                <MudStack Spacing="0">
+                                    <MudText Typo="Typo.body1">@episode.Filename</MudText>
+                                    @if (!string.IsNullOrEmpty(episode.YoutubeTitle))
+                                    {
+                                        <MudText Typo="Typo.caption" Color="Color.Default">@episode.YoutubeTitle</MudText>
+                                    }
+                                </MudStack>
+                            </MudListItem>
+                        }
+                    </MudList>
+                    @if (_episodes.Count > 10)
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Default" Class="mt-2">
+                            ...and @(_episodes.Count - 10) more
+                        </MudText>
+                    }
+                }
+                else
+                {
+                    <MudText Typo="Typo.body2" Color="Color.Default">No episodes yet</MudText>
+                }
+            </MudPaper>
+
+            <MudPaper Elevation="2" Class="pa-4 mt-4">
+                <MudText Typo="Typo.h6" Class="mb-4">Recent Activity</MudText>
+                @if (_activities.Any())
+                {
+                    <MudTimeline TimelinePosition="TimelinePosition.Start">
+                        @foreach (var activity in _activities.Take(5))
+                        {
+                            <MudTimelineItem Size="Size.Small">
+                                <ItemContent>
+                                    <MudStack Spacing="0">
+                                        <MudText Typo="Typo.body2">@activity.Message</MudText>
+                                        <MudText Typo="Typo.caption" Color="Color.Default">@activity.CreatedAt.ToString("g")</MudText>
+                                    </MudStack>
+                                </ItemContent>
+                            </MudTimelineItem>
+                        }
+                    </MudTimeline>
+                }
+                else
+                {
+                    <MudText Typo="Typo.body2" Color="Color.Default">No recent activity</MudText>
+                }
+            </MudPaper>
+
+            <MudPaper Elevation="2" Class="pa-4 mt-4">
+                <MudText Typo="Typo.h6" Class="mb-4">RSS Feed</MudText>
+                <MudTextField Value="@GetFeedUrl()" Label="Feed URL" ReadOnly="true" Adornment="Adornment.End"
+                    AdornmentIcon="@Icons.Material.Filled.ContentCopy" OnAdornmentClick="CopyFeedUrl" />
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+}
+
+@code {
+    [Parameter]
+    public string? Name { get; set; }
+
+    private FeedRecord? _feed;
+    private List<EpisodeRecord> _episodes = new();
+    private List<ActivityLogRecord> _activities = new();
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDataAsync();
+    }
+
+    private async Task LoadDataAsync()
+    {
+        if (string.IsNullOrEmpty(Name))
+        {
+            Navigation.NavigateTo("/feeds");
+            return;
+        }
+
+        try
+        {
+            _feed = await Database.GetFeedByNameAsync(Name);
+            if (_feed == null)
+            {
+                Snackbar.Add("Feed not found", Severity.Error);
+                return;
+            }
+
+            _episodes = await Database.GetEpisodesAsync(_feed.Id);
+            _activities = await Database.GetRecentActivityAsync(_feed.Id, 10);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load feed details for {Name}", Name);
+            Snackbar.Add("Failed to load feed details", Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private string GetFeedUrl()
+    {
+        return Navigation.ToAbsoluteUri($"/feed/{Name}").ToString();
+    }
+
+    private void CopyFeedUrl()
+    {
+        Snackbar.Add("Feed URL copied to clipboard", Severity.Info);
+    }
+
+    private void GoToFeeds() => Navigation.NavigateTo("/feeds");
+    private void GoToEdit() => Navigation.NavigateTo($"/feeds/{Name}/edit");
+    private void GoToEpisodes() => Navigation.NavigateTo($"/feeds/{Name}/episodes");
+}

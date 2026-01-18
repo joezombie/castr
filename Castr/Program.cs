@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 using Castr.Models;
 using Castr.Services;
 using Castr.Components;
+using Castr.Hubs;
 using MudBlazor.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -27,13 +28,17 @@ builder.Services.Configure<PodcastFeedsConfig>(
 // Add memory cache for RSS feed caching
 builder.Services.AddMemoryCache();
 
-// Database service for episode tracking
+// Database services for episode tracking
 builder.Services.AddSingleton<IPodcastDatabaseService, PodcastDatabaseService>();
+builder.Services.AddSingleton<ICentralDatabaseService, CentralDatabaseService>();
 builder.Services.AddSingleton<PodcastFeedService>();
 
 // YouTube download services
 builder.Services.AddSingleton<IYouTubeDownloadService, YouTubeDownloadService>();
 builder.Services.AddHostedService<PlaylistWatcherService>();
+
+// SignalR for real-time updates
+builder.Services.AddSignalR();
 
 // Add authentication
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
@@ -145,6 +150,11 @@ foreach (var (feedName, feedConfig) in config.Value.Feeds)
 
 logger.LogInformation("All databases initialized successfully");
 
+// Initialize central database
+var centralDatabase = app.Services.GetRequiredService<ICentralDatabaseService>();
+await centralDatabase.InitializeDatabaseAsync();
+logger.LogInformation("Central database initialized");
+
 // Configure forwarded headers (MUST be before other middleware)
 app.UseForwardedHeaders();
 
@@ -206,6 +216,9 @@ app.MapRazorPages();
 // Map Blazor components (dashboard routes)
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
+
+// Map SignalR hub for real-time updates
+app.MapHub<DownloadProgressHub>("/hubs/download-progress");
 
 // Add health check endpoint for monitoring and container orchestration
 app.MapHealthChecks("/health");

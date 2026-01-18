@@ -1,0 +1,158 @@
+@page "/feeds"
+@attribute [Authorize]
+@inject ICentralDatabaseService Database
+@inject ILogger<FeedList> Logger
+@inject NavigationManager Navigation
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>Feeds - Castr</PageTitle>
+
+<MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-4">
+    <MudText Typo="Typo.h3">Podcast Feeds</MudText>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="CreateNewFeed">
+        New Feed
+    </MudButton>
+</MudStack>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else if (_feeds.Any())
+{
+    <MudDataGrid Items="@_feeds" Hover="true" Bordered="true" Dense="true">
+        <Columns>
+            <PropertyColumn Property="x => x.Name" Title="Slug" />
+            <PropertyColumn Property="x => x.Title" Title="Title" />
+            <TemplateColumn Title="Episodes">
+                <CellTemplate>
+                    @(_episodeCounts.GetValueOrDefault(context.Item.Id, 0))
+                </CellTemplate>
+            </TemplateColumn>
+            <TemplateColumn Title="YouTube">
+                <CellTemplate>
+                    @if (context.Item.YouTubeEnabled)
+                    {
+                        <MudChip T="string" Color="Color.Success" Size="Size.Small">Enabled</MudChip>
+                    }
+                    else
+                    {
+                        <MudChip T="string" Color="Color.Default" Size="Size.Small">Disabled</MudChip>
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+            <TemplateColumn Title="Active">
+                <CellTemplate>
+                    @if (context.Item.IsActive)
+                    {
+                        <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" />
+                    }
+                    else
+                    {
+                        <MudIcon Icon="@Icons.Material.Filled.Cancel" Color="Color.Error" />
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+            <TemplateColumn Title="Actions">
+                <CellTemplate>
+                    <MudStack Row="true" Spacing="1">
+                        <MudIconButton Icon="@Icons.Material.Filled.Visibility" Size="Size.Small"
+                            OnClick="() => ViewFeed(context.Item)" Title="View Details" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                            OnClick="() => EditFeed(context.Item)" Title="Edit" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                            OnClick="() => DeleteFeed(context.Item)" Title="Delete" />
+                    </MudStack>
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+    </MudDataGrid>
+}
+else
+{
+    <MudPaper Elevation="2" Class="pa-4">
+        <MudStack AlignItems="AlignItems.Center" Spacing="4">
+            <MudIcon Icon="@Icons.Material.Filled.RssFeed" Size="Size.Large" Color="Color.Default" />
+            <MudText Typo="Typo.h6">No feeds configured</MudText>
+            <MudText Typo="Typo.body2">Create your first podcast feed to get started.</MudText>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="CreateNewFeed">
+                Create Feed
+            </MudButton>
+        </MudStack>
+    </MudPaper>
+}
+
+@code {
+    private List<FeedRecord> _feeds = new();
+    private Dictionary<int, int> _episodeCounts = new();
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadFeedsAsync();
+    }
+
+    private async Task LoadFeedsAsync()
+    {
+        _loading = true;
+        try
+        {
+            _feeds = await Database.GetAllFeedsAsync();
+            _episodeCounts.Clear();
+            foreach (var feed in _feeds)
+            {
+                var episodes = await Database.GetEpisodesAsync(feed.Id);
+                _episodeCounts[feed.Id] = episodes.Count;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load feeds");
+            Snackbar.Add("Failed to load feeds", Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void CreateNewFeed()
+    {
+        Navigation.NavigateTo("/feeds/new");
+    }
+
+    private void ViewFeed(FeedRecord feed)
+    {
+        Navigation.NavigateTo($"/feeds/{feed.Name}");
+    }
+
+    private void EditFeed(FeedRecord feed)
+    {
+        Navigation.NavigateTo($"/feeds/{feed.Name}/edit");
+    }
+
+    private async Task DeleteFeed(FeedRecord feed)
+    {
+        var result = await DialogService.ShowMessageBox(
+            "Delete Feed",
+            $"Are you sure you want to delete '{feed.Title}'? This will also delete all associated episodes and download history.",
+            yesText: "Delete",
+            cancelText: "Cancel");
+
+        if (result == true)
+        {
+            try
+            {
+                await Database.DeleteFeedAsync(feed.Id);
+                Snackbar.Add($"Feed '{feed.Title}' deleted", Severity.Success);
+                await LoadFeedsAsync();
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Failed to delete feed {FeedId}", feed.Id);
+                Snackbar.Add("Failed to delete feed", Severity.Error);
+            }
+        }
+    }
+}

@@ -1,0 +1,216 @@
+@page "/feeds/new"
+@page "/feeds/{Name}/edit"
+@attribute [Authorize]
+@inject ICentralDatabaseService Database
+@inject ILogger<FeedEdit> Logger
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+<PageTitle>@(_isNew ? "New Feed" : "Edit Feed") - Castr</PageTitle>
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+    <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" OnClick="GoBack" />
+    <MudText Typo="Typo.h3">@(_isNew ? "New Feed" : "Edit Feed")</MudText>
+</MudStack>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else
+{
+    <MudForm @ref="_form" @bind-IsValid="@_formValid">
+        <MudGrid>
+            <MudItem xs="12" md="6">
+                <MudPaper Elevation="2" Class="pa-4">
+                    <MudText Typo="Typo.h6" Class="mb-4">Basic Information</MudText>
+
+                    <MudTextField @bind-Value="_feed.Name" Label="Slug" Required="true" Disabled="@(!_isNew)"
+                        HelperText="Unique identifier for URL (e.g., 'btb')"
+                        Validation="@(new Func<string, string?>(ValidateSlug))" />
+
+                    <MudTextField @bind-Value="_feed.Title" Label="Title" Required="true" Class="mt-3"
+                        HelperText="Display name for the podcast" />
+
+                    <MudTextField @bind-Value="_feed.Description" Label="Description" Required="true" Class="mt-3"
+                        Lines="3" />
+
+                    <MudTextField @bind-Value="_feed.Directory" Label="Directory" Required="true" Class="mt-3"
+                        HelperText="Path to media files (e.g., '/Podcasts/MyPodcast')" />
+
+                    <MudTextField @bind-Value="_feed.Author" Label="Author" Class="mt-3" />
+
+                    <MudTextField @bind-Value="_feed.ImageUrl" Label="Image URL" Class="mt-3"
+                        HelperText="Podcast cover art URL" />
+
+                    <MudTextField @bind-Value="_feed.Link" Label="Website URL" Class="mt-3" />
+
+                    <MudSelect @bind-Value="_feed.Language" Label="Language" Class="mt-3">
+                        <MudSelectItem Value="@("en-us")">English (US)</MudSelectItem>
+                        <MudSelectItem Value="@("en-gb")">English (UK)</MudSelectItem>
+                        <MudSelectItem Value="@("es")">Spanish</MudSelectItem>
+                        <MudSelectItem Value="@("fr")">French</MudSelectItem>
+                        <MudSelectItem Value="@("de")">German</MudSelectItem>
+                    </MudSelect>
+
+                    <MudTextField @bind-Value="_feed.Category" Label="Category" Class="mt-3"
+                        HelperText="iTunes category (e.g., 'Society & Culture')" />
+
+                    <MudTextField @bind-Value="_feed.FileExtensions" Label="File Extensions" Class="mt-3"
+                        HelperText="Comma-separated (e.g., '.mp3,.m4a')" />
+
+                    <MudSwitch @bind-Value="_feed.IsActive" Label="Active" Color="Color.Primary" Class="mt-3" />
+                </MudPaper>
+            </MudItem>
+
+            <MudItem xs="12" md="6">
+                <MudPaper Elevation="2" Class="pa-4">
+                    <MudText Typo="Typo.h6" Class="mb-4">YouTube Configuration</MudText>
+
+                    <MudSwitch @bind-Value="_feed.YouTubeEnabled" Label="Enable YouTube Monitoring" Color="Color.Primary" />
+
+                    @if (_feed.YouTubeEnabled)
+                    {
+                        <MudTextField @bind-Value="_feed.YouTubePlaylistUrl" Label="Playlist URL" Class="mt-3"
+                            HelperText="YouTube playlist URL or ID" />
+
+                        <MudNumericField @bind-Value="_feed.YouTubePollIntervalMinutes" Label="Poll Interval (minutes)"
+                            Class="mt-3" Min="5" Max="1440" />
+
+                        <MudNumericField @bind-Value="_feed.YouTubeMaxConcurrentDownloads" Label="Max Concurrent Downloads"
+                            Class="mt-3" Min="1" Max="5" />
+
+                        <MudSelect @bind-Value="_feed.YouTubeAudioQuality" Label="Audio Quality" Class="mt-3">
+                            <MudSelectItem Value="@("highest")">Highest</MudSelectItem>
+                            <MudSelectItem Value="@("medium")">Medium</MudSelectItem>
+                            <MudSelectItem Value="@("lowest")">Lowest</MudSelectItem>
+                        </MudSelect>
+                    }
+                </MudPaper>
+            </MudItem>
+        </MudGrid>
+
+        <MudStack Row="true" Justify="Justify.FlexEnd" Class="mt-4">
+            <MudButton Variant="Variant.Text" OnClick="GoBack">Cancel</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveFeed" Disabled="@(!_formValid || _saving)">
+                @if (_saving)
+                {
+                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                }
+                @(_isNew ? "Create Feed" : "Save Changes")
+            </MudButton>
+        </MudStack>
+    </MudForm>
+}
+
+@code {
+    [Parameter]
+    public string? Name { get; set; }
+
+    private FeedRecord _feed = new()
+    {
+        Name = "",
+        Title = "",
+        Description = "",
+        Directory = "",
+        Language = "en-us",
+        FileExtensions = ".mp3",
+        IsActive = true,
+        YouTubeEnabled = false,
+        YouTubePollIntervalMinutes = 60,
+        YouTubeMaxConcurrentDownloads = 1,
+        YouTubeAudioQuality = "highest"
+    };
+
+    private MudForm? _form;
+    private bool _formValid;
+    private bool _loading = true;
+    private bool _saving;
+    private bool _isNew => string.IsNullOrEmpty(Name);
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!_isNew)
+        {
+            await LoadFeedAsync();
+        }
+        else
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task LoadFeedAsync()
+    {
+        try
+        {
+            var feed = await Database.GetFeedByNameAsync(Name!);
+            if (feed == null)
+            {
+                Snackbar.Add("Feed not found", Severity.Error);
+                Navigation.NavigateTo("/feeds");
+                return;
+            }
+            _feed = feed;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load feed {Name}", Name);
+            Snackbar.Add("Failed to load feed", Severity.Error);
+            Navigation.NavigateTo("/feeds");
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private string? ValidateSlug(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return "Slug is required";
+        if (!System.Text.RegularExpressions.Regex.IsMatch(value, @"^[a-z0-9-]+$"))
+            return "Slug must contain only lowercase letters, numbers, and hyphens";
+        return null;
+    }
+
+    private async Task SaveFeed()
+    {
+        if (_form == null) return;
+        await _form.Validate();
+        if (!_formValid) return;
+
+        _saving = true;
+        try
+        {
+            if (_isNew)
+            {
+                _feed.CreatedAt = DateTime.UtcNow;
+                _feed.UpdatedAt = DateTime.UtcNow;
+                await Database.AddFeedAsync(_feed);
+                Snackbar.Add("Feed created successfully", Severity.Success);
+            }
+            else
+            {
+                _feed.UpdatedAt = DateTime.UtcNow;
+                await Database.UpdateFeedAsync(_feed);
+                Snackbar.Add("Feed updated successfully", Severity.Success);
+            }
+            Navigation.NavigateTo("/feeds");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to save feed");
+            Snackbar.Add("Failed to save feed", Severity.Error);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/feeds");
+    }
+}

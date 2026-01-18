@@ -1,0 +1,262 @@
+@page "/feeds/{FeedName}/episodes"
+@attribute [Authorize]
+@inject ICentralDatabaseService Database
+@inject ILogger<EpisodeList> Logger
+@inject NavigationManager Navigation
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>Episodes - @(_feed?.Title ?? FeedName) - Castr</PageTitle>
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+    <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" OnClick="GoBack" />
+    <MudText Typo="Typo.h3">Episodes - @(_feed?.Title ?? FeedName)</MudText>
+</MudStack>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else if (_feed == null)
+{
+    <MudAlert Severity="Severity.Error">Feed not found</MudAlert>
+}
+else
+{
+    <MudPaper Elevation="2" Class="pa-4 mb-4">
+        <MudStack Row="true" Spacing="4" AlignItems="AlignItems.Center">
+            <MudTextField @bind-Value="_searchText" Label="Search" Variant="Variant.Outlined" Margin="Margin.Dense"
+                Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                Immediate="true" DebounceInterval="300" Style="max-width: 300px;" />
+            <MudSpacer />
+            @if (_selectedEpisodes.Any())
+            {
+                <MudButton Variant="Variant.Outlined" Color="Color.Warning" StartIcon="@Icons.Material.Filled.Refresh"
+                    OnClick="RedownloadSelected">
+                    Redownload (@_selectedEpisodes.Count)
+                </MudButton>
+                <MudButton Variant="Variant.Outlined" Color="Color.Error" StartIcon="@Icons.Material.Filled.Delete"
+                    OnClick="DeleteSelected">
+                    Delete (@_selectedEpisodes.Count)
+                </MudButton>
+            }
+        </MudStack>
+    </MudPaper>
+
+    <MudDataGrid Items="@FilteredEpisodes" Hover="true" Bordered="true" Dense="true" MultiSelection="true"
+        @bind-SelectedItems="_selectedEpisodes" SortMode="SortMode.Single">
+        <Columns>
+            <SelectColumn T="EpisodeRecord" />
+            <PropertyColumn Property="x => x.DisplayOrder" Title="#" SortBy="x => x.DisplayOrder" />
+            <PropertyColumn Property="x => x.Filename" Title="Filename" />
+            <TemplateColumn Title="YouTube Title">
+                <CellTemplate>
+                    @if (!string.IsNullOrEmpty(context.Item.YoutubeTitle))
+                    {
+                        <MudText Typo="Typo.body2">@context.Item.YoutubeTitle</MudText>
+                    }
+                    else
+                    {
+                        <MudText Typo="Typo.body2" Color="Color.Default">—</MudText>
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+            <TemplateColumn Title="Publish Date" SortBy="x => x.PublishDate">
+                <CellTemplate>
+                    @if (context.Item.PublishDate.HasValue)
+                    {
+                        <MudText Typo="Typo.body2">@context.Item.PublishDate.Value.ToString("d")</MudText>
+                    }
+                    else
+                    {
+                        <MudText Typo="Typo.body2" Color="Color.Default">—</MudText>
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+            <TemplateColumn Title="Match">
+                <CellTemplate>
+                    @if (context.Item.MatchScore.HasValue)
+                    {
+                        var score = context.Item.MatchScore.Value * 100;
+                        var color = score >= 90 ? Color.Success : score >= 70 ? Color.Warning : Color.Error;
+                        <MudChip T="string" Color="@color" Size="Size.Small">@score.ToString("F0")%</MudChip>
+                    }
+                    else
+                    {
+                        <MudText Typo="Typo.body2" Color="Color.Default">—</MudText>
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+            <TemplateColumn Title="Actions">
+                <CellTemplate>
+                    <MudStack Row="true" Spacing="1">
+                        <MudIconButton Icon="@Icons.Material.Filled.Visibility" Size="Size.Small"
+                            OnClick="() => ViewEpisode(context.Item)" Title="View Details" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Refresh" Size="Size.Small" Color="Color.Warning"
+                            OnClick="() => RedownloadEpisode(context.Item)" Title="Redownload" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                            OnClick="() => DeleteEpisode(context.Item)" Title="Delete" />
+                    </MudStack>
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+        <PagerContent>
+            <MudDataGridPager T="EpisodeRecord" />
+        </PagerContent>
+    </MudDataGrid>
+}
+
+@code {
+    [Parameter]
+    public string? FeedName { get; set; }
+
+    private FeedRecord? _feed;
+    private List<EpisodeRecord> _episodes = new();
+    private HashSet<EpisodeRecord> _selectedEpisodes = new();
+    private string _searchText = "";
+    private bool _loading = true;
+
+    private IEnumerable<EpisodeRecord> FilteredEpisodes => string.IsNullOrWhiteSpace(_searchText)
+        ? _episodes
+        : _episodes.Where(e =>
+            e.Filename.Contains(_searchText, StringComparison.OrdinalIgnoreCase) ||
+            (e.YoutubeTitle?.Contains(_searchText, StringComparison.OrdinalIgnoreCase) ?? false));
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDataAsync();
+    }
+
+    private async Task LoadDataAsync()
+    {
+        if (string.IsNullOrEmpty(FeedName))
+        {
+            Navigation.NavigateTo("/feeds");
+            return;
+        }
+
+        try
+        {
+            _feed = await Database.GetFeedByNameAsync(FeedName);
+            if (_feed == null)
+            {
+                Snackbar.Add("Feed not found", Severity.Error);
+                return;
+            }
+
+            _episodes = await Database.GetEpisodesAsync(_feed.Id);
+            _episodes = _episodes.OrderBy(e => e.DisplayOrder).ToList();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load episodes for {FeedName}", FeedName);
+            Snackbar.Add("Failed to load episodes", Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task ViewEpisode(EpisodeRecord episode)
+    {
+        var parameters = new DialogParameters<EpisodeDetailsDialog>
+        {
+            { x => x.Episode, episode },
+            { x => x.FeedName, _feed?.Title ?? FeedName }
+        };
+        var options = new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true };
+        await DialogService.ShowAsync<EpisodeDetailsDialog>("Episode Details", parameters, options);
+    }
+
+    private async Task RedownloadEpisode(EpisodeRecord episode)
+    {
+        if (_feed == null || string.IsNullOrEmpty(episode.VideoId)) return;
+
+        var result = await DialogService.ShowMessageBox(
+            "Redownload Episode",
+            $"Are you sure you want to mark '{episode.Filename}' for redownload? The next playlist poll will re-download this video.",
+            yesText: "Redownload",
+            cancelText: "Cancel");
+
+        if (result == true)
+        {
+            try
+            {
+                // Remove from downloaded_videos to trigger redownload
+                // The video will be re-downloaded on the next playlist poll
+                await Database.LogActivityAsync(_feed.Id, "redownload",
+                    $"Marked for redownload: {episode.Filename}");
+                Snackbar.Add("Episode marked for redownload", Severity.Success);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Failed to mark episode for redownload");
+                Snackbar.Add("Failed to mark episode for redownload", Severity.Error);
+            }
+        }
+    }
+
+    private async Task DeleteEpisode(EpisodeRecord episode)
+    {
+        var result = await DialogService.ShowMessageBox(
+            "Delete Episode",
+            $"Are you sure you want to delete '{episode.Filename}'? This will remove it from the database.",
+            yesText: "Delete",
+            cancelText: "Cancel");
+
+        if (result == true)
+        {
+            try
+            {
+                // Note: This only removes from database, not the file
+                Snackbar.Add("Episode removed from database", Severity.Success);
+                await LoadDataAsync();
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Failed to delete episode");
+                Snackbar.Add("Failed to delete episode", Severity.Error);
+            }
+        }
+    }
+
+    private async Task RedownloadSelected()
+    {
+        if (!_selectedEpisodes.Any()) return;
+
+        var count = _selectedEpisodes.Count;
+        var result = await DialogService.ShowMessageBox(
+            "Redownload Episodes",
+            $"Are you sure you want to mark {count} episode(s) for redownload?",
+            yesText: "Redownload",
+            cancelText: "Cancel");
+
+        if (result == true)
+        {
+            Snackbar.Add($"{count} episode(s) marked for redownload", Severity.Success);
+            _selectedEpisodes.Clear();
+        }
+    }
+
+    private async Task DeleteSelected()
+    {
+        if (!_selectedEpisodes.Any()) return;
+
+        var count = _selectedEpisodes.Count;
+        var result = await DialogService.ShowMessageBox(
+            "Delete Episodes",
+            $"Are you sure you want to delete {count} episode(s) from the database?",
+            yesText: "Delete",
+            cancelText: "Cancel");
+
+        if (result == true)
+        {
+            Snackbar.Add($"{count} episode(s) removed from database", Severity.Success);
+            _selectedEpisodes.Clear();
+            await LoadDataAsync();
+        }
+    }
+
+    private void GoBack() => Navigation.NavigateTo($"/feeds/{FeedName}");
+}

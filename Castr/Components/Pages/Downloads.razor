@@ -1,18 +1,281 @@
 @page "/downloads"
 @attribute [Authorize]
+@inject ICentralDatabaseService Database
 @inject ILogger<Downloads> Logger
+@inject NavigationManager Navigation
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@implements IAsyncDisposable
+@using Microsoft.AspNetCore.SignalR.Client
 
 <PageTitle>Downloads - Castr</PageTitle>
 
-<MudText Typo="Typo.h3" Class="mb-4">Downloads</MudText>
+<MudText Typo="Typo.h3" Class="mb-4">Download Queue</MudText>
 
-<MudPaper Elevation="2" Class="pa-4">
-    <MudText Typo="Typo.body1">Downloads monitoring interface coming in Phase 3</MudText>
-</MudPaper>
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else
+{
+    @if (_activeDownloads.Any())
+    {
+        <MudText Typo="Typo.h5" Class="mb-3">Active Downloads</MudText>
+        <MudPaper Elevation="2" Class="pa-4 mb-4">
+            @foreach (var item in _activeDownloads)
+            {
+                <MudStack Class="mb-4">
+                    <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+                        <MudStack Spacing="0">
+                            <MudText Typo="Typo.body1">@(item.VideoTitle ?? item.VideoId)</MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Default">
+                                Feed: @(_feedNames.GetValueOrDefault(item.FeedId, "Unknown"))
+                            </MudText>
+                        </MudStack>
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                            <MudChip T="string" Color="@GetStatusColor(item.Status)" Size="Size.Small">@item.Status</MudChip>
+                            <MudText Typo="Typo.body2">@item.ProgressPercent%</MudText>
+                        </MudStack>
+                    </MudStack>
+                    <MudProgressLinear Value="@item.ProgressPercent" Color="@GetStatusColor(item.Status)" Rounded="true" />
+                </MudStack>
+            }
+        </MudPaper>
+    }
+
+    @if (_queuedDownloads.Any())
+    {
+        <MudText Typo="Typo.h5" Class="mb-3">Queued</MudText>
+        <MudPaper Elevation="2" Class="pa-4 mb-4">
+            <MudList T="DownloadQueueItem" Dense="true">
+                @foreach (var item in _queuedDownloads)
+                {
+                    <MudListItem>
+                        <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+                            <MudStack Spacing="0">
+                                <MudText Typo="Typo.body1">@(item.VideoTitle ?? item.VideoId)</MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Default">
+                                    Feed: @(_feedNames.GetValueOrDefault(item.FeedId, "Unknown")) |
+                                    Queued: @item.QueuedAt.ToString("g")
+                                </MudText>
+                            </MudStack>
+                            <MudIconButton Icon="@Icons.Material.Filled.Cancel" Size="Size.Small" Color="Color.Error"
+                                OnClick="() => CancelDownload(item)" Title="Cancel" />
+                        </MudStack>
+                    </MudListItem>
+                }
+            </MudList>
+        </MudPaper>
+    }
+
+    @if (_failedDownloads.Any())
+    {
+        <MudText Typo="Typo.h5" Class="mb-3">Failed</MudText>
+        <MudPaper Elevation="2" Class="pa-4 mb-4">
+            <MudList T="DownloadQueueItem" Dense="true">
+                @foreach (var item in _failedDownloads)
+                {
+                    <MudListItem>
+                        <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+                            <MudStack Spacing="0">
+                                <MudText Typo="Typo.body1">@(item.VideoTitle ?? item.VideoId)</MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Error">@item.ErrorMessage</MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Default">
+                                    Feed: @(_feedNames.GetValueOrDefault(item.FeedId, "Unknown"))
+                                </MudText>
+                            </MudStack>
+                            <MudStack Row="true" Spacing="1">
+                                <MudIconButton Icon="@Icons.Material.Filled.Refresh" Size="Size.Small" Color="Color.Primary"
+                                    OnClick="() => RetryDownload(item)" Title="Retry" />
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                                    OnClick="() => RemoveFromQueue(item)" Title="Remove" />
+                            </MudStack>
+                        </MudStack>
+                    </MudListItem>
+                }
+            </MudList>
+        </MudPaper>
+    }
+
+    @if (_completedDownloads.Any())
+    {
+        <MudText Typo="Typo.h5" Class="mb-3">Recently Completed</MudText>
+        <MudPaper Elevation="2" Class="pa-4">
+            <MudList T="DownloadQueueItem" Dense="true">
+                @foreach (var item in _completedDownloads.Take(10))
+                {
+                    <MudListItem>
+                        <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+                            <MudStack Spacing="0">
+                                <MudText Typo="Typo.body1">@(item.VideoTitle ?? item.VideoId)</MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Default">
+                                    Feed: @(_feedNames.GetValueOrDefault(item.FeedId, "Unknown")) |
+                                    Completed: @(item.CompletedAt?.ToString("g") ?? "Unknown")
+                                </MudText>
+                            </MudStack>
+                            <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" />
+                        </MudStack>
+                    </MudListItem>
+                }
+            </MudList>
+        </MudPaper>
+    }
+
+    @if (!_activeDownloads.Any() && !_queuedDownloads.Any() && !_failedDownloads.Any() && !_completedDownloads.Any())
+    {
+        <MudPaper Elevation="2" Class="pa-4">
+            <MudStack AlignItems="AlignItems.Center" Spacing="4">
+                <MudIcon Icon="@Icons.Material.Filled.Download" Size="Size.Large" Color="Color.Default" />
+                <MudText Typo="Typo.h6">No downloads in queue</MudText>
+                <MudText Typo="Typo.body2">Downloads will appear here when YouTube playlists are synced.</MudText>
+            </MudStack>
+        </MudPaper>
+    }
+}
 
 @code {
-    protected override void OnInitialized()
+    private List<DownloadQueueItem> _activeDownloads = new();
+    private List<DownloadQueueItem> _queuedDownloads = new();
+    private List<DownloadQueueItem> _completedDownloads = new();
+    private List<DownloadQueueItem> _failedDownloads = new();
+    private Dictionary<int, string> _feedNames = new();
+    private bool _loading = true;
+    private HubConnection? _hubConnection;
+    private System.Threading.Timer? _refreshTimer;
+
+    protected override async Task OnInitializedAsync()
     {
-        Logger.LogDebug("Downloads page initialized");
+        await LoadDataAsync();
+
+        // Set up SignalR connection
+        _hubConnection = new HubConnectionBuilder()
+            .WithUrl(Navigation.ToAbsoluteUri("/hubs/download-progress"))
+            .WithAutomaticReconnect()
+            .Build();
+
+        _hubConnection.On<int, string, int>("DownloadProgress", async (feedId, videoId, percent) =>
+        {
+            var item = _activeDownloads.FirstOrDefault(x => x.VideoId == videoId);
+            if (item != null)
+            {
+                item.ProgressPercent = percent;
+                await InvokeAsync(StateHasChanged);
+            }
+        });
+
+        _hubConnection.On<int, string, string>("DownloadCompleted", async (feedId, videoId, filename) =>
+        {
+            await LoadDataAsync();
+            await InvokeAsync(StateHasChanged);
+        });
+
+        _hubConnection.On<int, string, string>("DownloadFailed", async (feedId, videoId, error) =>
+        {
+            await LoadDataAsync();
+            await InvokeAsync(StateHasChanged);
+        });
+
+        try
+        {
+            await _hubConnection.StartAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to connect to SignalR hub");
+        }
+
+        // Refresh every 10 seconds
+        _refreshTimer = new System.Threading.Timer(async _ =>
+        {
+            await LoadDataAsync();
+            await InvokeAsync(StateHasChanged);
+        }, null, TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10));
+    }
+
+    private async Task LoadDataAsync()
+    {
+        try
+        {
+            var feeds = await Database.GetAllFeedsAsync();
+            _feedNames = feeds.ToDictionary(f => f.Id, f => f.Title);
+
+            var queue = await Database.GetDownloadQueueAsync();
+
+            _activeDownloads = queue.Where(q => q.Status == "downloading").ToList();
+            _queuedDownloads = queue.Where(q => q.Status == "queued").OrderBy(q => q.QueuedAt).ToList();
+            _completedDownloads = queue.Where(q => q.Status == "completed").OrderByDescending(q => q.CompletedAt).ToList();
+            _failedDownloads = queue.Where(q => q.Status == "failed").ToList();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load download queue");
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private Color GetStatusColor(string status) => status switch
+    {
+        "downloading" => Color.Primary,
+        "queued" => Color.Default,
+        "completed" => Color.Success,
+        "failed" => Color.Error,
+        _ => Color.Default
+    };
+
+    private async Task CancelDownload(DownloadQueueItem item)
+    {
+        try
+        {
+            await Database.RemoveFromDownloadQueueAsync(item.Id);
+            Snackbar.Add("Download cancelled", Severity.Info);
+            await LoadDataAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to cancel download");
+            Snackbar.Add("Failed to cancel download", Severity.Error);
+        }
+    }
+
+    private async Task RetryDownload(DownloadQueueItem item)
+    {
+        try
+        {
+            await Database.UpdateDownloadProgressAsync(item.Id, "queued", 0);
+            Snackbar.Add("Download queued for retry", Severity.Success);
+            await LoadDataAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to retry download");
+            Snackbar.Add("Failed to retry download", Severity.Error);
+        }
+    }
+
+    private async Task RemoveFromQueue(DownloadQueueItem item)
+    {
+        try
+        {
+            await Database.RemoveFromDownloadQueueAsync(item.Id);
+            Snackbar.Add("Removed from queue", Severity.Info);
+            await LoadDataAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to remove from queue");
+            Snackbar.Add("Failed to remove from queue", Severity.Error);
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _refreshTimer?.Dispose();
+        if (_hubConnection is not null)
+        {
+            await _hubConnection.DisposeAsync();
+        }
     }
 }

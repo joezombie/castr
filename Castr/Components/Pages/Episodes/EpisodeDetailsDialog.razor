@@ -1,0 +1,91 @@
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        @if (Episode != null)
+        {
+            <MudStack Spacing="3">
+                <MudStack Row="true">
+                    <MudText Typo="Typo.body2" Color="Color.Default" Style="width: 120px;">Filename:</MudText>
+                    <MudText Typo="Typo.body1">@Episode.Filename</MudText>
+                </MudStack>
+
+                @if (!string.IsNullOrEmpty(Episode.YoutubeTitle))
+                {
+                    <MudStack Row="true">
+                        <MudText Typo="Typo.body2" Color="Color.Default" Style="width: 120px;">YouTube Title:</MudText>
+                        <MudText Typo="Typo.body1">@Episode.YoutubeTitle</MudText>
+                    </MudStack>
+                }
+
+                @if (!string.IsNullOrEmpty(Episode.VideoId))
+                {
+                    <MudStack Row="true">
+                        <MudText Typo="Typo.body2" Color="Color.Default" Style="width: 120px;">Video ID:</MudText>
+                        <MudLink Href="@($"https://youtube.com/watch?v={Episode.VideoId}")" Target="_blank">
+                            @Episode.VideoId
+                        </MudLink>
+                    </MudStack>
+                }
+
+                <MudStack Row="true">
+                    <MudText Typo="Typo.body2" Color="Color.Default" Style="width: 120px;">Display Order:</MudText>
+                    <MudText Typo="Typo.body1">@Episode.DisplayOrder</MudText>
+                </MudStack>
+
+                @if (Episode.PublishDate.HasValue)
+                {
+                    <MudStack Row="true">
+                        <MudText Typo="Typo.body2" Color="Color.Default" Style="width: 120px;">Publish Date:</MudText>
+                        <MudText Typo="Typo.body1">@Episode.PublishDate.Value.ToString("f")</MudText>
+                    </MudStack>
+                }
+
+                <MudStack Row="true">
+                    <MudText Typo="Typo.body2" Color="Color.Default" Style="width: 120px;">Added:</MudText>
+                    <MudText Typo="Typo.body1">@Episode.AddedAt.ToString("f")</MudText>
+                </MudStack>
+
+                @if (Episode.MatchScore.HasValue)
+                {
+                    <MudStack Row="true">
+                        <MudText Typo="Typo.body2" Color="Color.Default" Style="width: 120px;">Match Score:</MudText>
+                        <MudText Typo="Typo.body1">@((Episode.MatchScore.Value * 100).ToString("F1"))%</MudText>
+                    </MudStack>
+                }
+
+                @if (!string.IsNullOrEmpty(Episode.Description))
+                {
+                    <MudDivider Class="my-2" />
+                    <MudText Typo="Typo.subtitle2">Description</MudText>
+                    <MudText Typo="Typo.body2" Style="white-space: pre-wrap; max-height: 200px; overflow-y: auto;">
+                        @Episode.Description
+                    </MudText>
+                }
+
+                @if (!string.IsNullOrEmpty(Episode.ThumbnailUrl))
+                {
+                    <MudDivider Class="my-2" />
+                    <MudText Typo="Typo.subtitle2">Thumbnail</MudText>
+                    <MudImage Src="@Episode.ThumbnailUrl" Alt="Thumbnail" Width="320" ObjectFit="ObjectFit.Contain" />
+                }
+            </MudStack>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Close">Close</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private MudDialogInstance? MudDialog { get; set; }
+
+    [Parameter]
+    public EpisodeRecord? Episode { get; set; }
+
+    [Parameter]
+    public string? FeedName { get; set; }
+
+    private void Close() => MudDialog?.Close();
+}
