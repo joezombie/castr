@@ -1,10 +1,20 @@
 <MudNavMenu>
     <MudText Typo="Typo.h6" Class="px-4 py-2">Navigation</MudText>
     <MudDivider Class="mb-2" />
-    <MudNavLink Href="/" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Dashboard">Dashboard</MudNavLink>
-    <MudNavLink Href="/feeds" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.RssFeed">Feeds</MudNavLink>
-    <MudNavLink Href="/downloads" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Download">Downloads</MudNavLink>
-    <MudNavLink Href="/settings" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Settings">Settings</MudNavLink>
+    <MudNavLink Href="/" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Dashboard" OnClick="@OnNavLinkClick">Dashboard</MudNavLink>
+    <MudNavLink Href="/feeds" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.RssFeed" OnClick="@OnNavLinkClick">Feeds</MudNavLink>
+    <MudNavLink Href="/downloads" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Download" OnClick="@OnNavLinkClick">Downloads</MudNavLink>
+    <MudNavLink Href="/settings" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Settings" OnClick="@OnNavLinkClick">Settings</MudNavLink>
     <MudDivider Class="my-2" />
-    <MudNavLink Href="/logout" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Logout">Logout</MudNavLink>
+    <MudNavLink Href="/logout" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Logout" OnClick="@OnNavLinkClick">Logout</MudNavLink>
 </MudNavMenu>
+
+@code {
+    [CascadingParameter]
+    private Action? CloseDrawer { get; set; }
+
+    private void OnNavLinkClick()
+    {
+        CloseDrawer?.Invoke();
+    }
+}
