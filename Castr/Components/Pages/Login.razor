@@ -1,0 +1,136 @@
+@page "/login"
+@using Microsoft.AspNetCore.Authentication
+@using Microsoft.AspNetCore.Authentication.Cookies
+@using System.Security.Claims
+@inject NavigationManager Navigation
+@inject IConfiguration Configuration
+@inject ILogger<Login> Logger
+
+<PageTitle>Login - Castr</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="mt-8">
+    <MudPaper Elevation="4" Class="pa-8">
+        <MudText Typo="Typo.h4" Align="Align.Center" GutterBottom="true">Castr</MudText>
+        <MudText Typo="Typo.subtitle1" Align="Align.Center" Class="mb-6">Dashboard Login</MudText>
+        
+        <EditForm Model="@_loginModel" OnValidSubmit="HandleLogin">
+            <DataAnnotationsValidator />
+            <MudTextField @bind-Value="_loginModel.Username" 
+                          Label="Username" 
+                          Variant="Variant.Outlined" 
+                          Required="true"
+                          Margin="Margin.Normal"
+                          FullWidth="true" />
+            <MudTextField @bind-Value="_loginModel.Password" 
+                          Label="Password" 
+                          Variant="Variant.Outlined" 
+                          InputType="InputType.Password" 
+                          Required="true"
+                          Margin="Margin.Normal"
+                          FullWidth="true" />
+            
+            @if (!string.IsNullOrEmpty(_errorMessage))
+            {
+                <MudAlert Severity="Severity.Error" Class="mt-4">@_errorMessage</MudAlert>
+            }
+            
+            <MudButton ButtonType="ButtonType.Submit" 
+                       Variant="Variant.Filled" 
+                       Color="Color.Primary" 
+                       FullWidth="true" 
+                       Class="mt-6"
+                       Disabled="_isLoading">
+                @if (_isLoading)
+                {
+                    <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+                }
+                else
+                {
+                    <span>Login</span>
+                }
+            </MudButton>
+        </EditForm>
+    </MudPaper>
+</MudContainer>
+
+@code {
+    [CascadingParameter]
+    private HttpContext? HttpContext { get; set; }
+
+    [SupplyParameterFromQuery]
+    private string? ReturnUrl { get; set; }
+
+    private LoginModel _loginModel = new();
+    private string _errorMessage = string.Empty;
+    private bool _isLoading = false;
+
+    private async Task HandleLogin()
+    {
+        _isLoading = true;
+        _errorMessage = string.Empty;
+
+        try
+        {
+            Logger.LogDebug("Login attempt for username: {Username}", _loginModel.Username);
+
+            var configUsername = Configuration["Dashboard:Username"];
+            var configPassword = Configuration["Dashboard:Password"];
+
+            if (string.IsNullOrEmpty(configUsername) || string.IsNullOrEmpty(configPassword))
+            {
+                Logger.LogError("Dashboard authentication not configured");
+                _errorMessage = "Authentication is not properly configured.";
+                return;
+            }
+
+            if (_loginModel.Username == configUsername && _loginModel.Password == configPassword)
+            {
+                Logger.LogInformation("Successful login for user: {Username}", _loginModel.Username);
+
+                if (HttpContext != null)
+                {
+                    var claims = new List<Claim>
+                    {
+                        new Claim(ClaimTypes.Name, _loginModel.Username),
+                        new Claim(ClaimTypes.Role, "Admin")
+                    };
+
+                    var claimsIdentity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
+                    var claimsPrincipal = new ClaimsPrincipal(claimsIdentity);
+
+                    await HttpContext.SignInAsync(
+                        CookieAuthenticationDefaults.AuthenticationScheme,
+                        claimsPrincipal,
+                        new AuthenticationProperties
+                        {
+                            IsPersistent = true,
+                            ExpiresUtc = DateTimeOffset.UtcNow.AddDays(7)
+                        });
+
+                    var redirectUrl = string.IsNullOrEmpty(ReturnUrl) ? "/" : ReturnUrl;
+                    Navigation.NavigateTo(redirectUrl, forceLoad: true);
+                }
+            }
+            else
+            {
+                Logger.LogWarning("Failed login attempt for username: {Username}", _loginModel.Username);
+                _errorMessage = "Invalid username or password.";
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error during login attempt");
+            _errorMessage = "An error occurred during login. Please try again.";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private class LoginModel
+    {
+        public string Username { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
+    }
+}

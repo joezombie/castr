@@ -1,0 +1,18 @@
+@page "/downloads"
+@attribute [Authorize]
+@inject ILogger<Downloads> Logger
+
+<PageTitle>Downloads - Castr</PageTitle>
+
+<MudText Typo="Typo.h3" Class="mb-4">Downloads</MudText>
+
+<MudPaper Elevation="2" Class="pa-4">
+    <MudText Typo="Typo.body1">Downloads monitoring interface coming in Phase 3</MudText>
+</MudPaper>
+
+@code {
+    protected override void OnInitialized()
+    {
+        Logger.LogDebug("Downloads page initialized");
+    }
+}

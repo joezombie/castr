@@ -1,0 +1,23 @@
+@page "/logout"
+@using Microsoft.AspNetCore.Authentication
+@using Microsoft.AspNetCore.Authentication.Cookies
+@inject NavigationManager Navigation
+@inject ILogger<Logout> Logger
+
+@code {
+    [CascadingParameter]
+    private HttpContext? HttpContext { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        Logger.LogInformation("User logout initiated");
+
+        if (HttpContext != null)
+        {
+            await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+            Logger.LogInformation("User signed out successfully");
+        }
+
+        Navigation.NavigateTo("/login", forceLoad: true);
+    }
+}
