@@ -21,3 +21,8 @@ html, body {
 * {
     transition: background-color 0.3s ease;
 }
+
+/* Cursor pointer for clickable elements */
+.cursor-pointer {
+    cursor: pointer;
+}
