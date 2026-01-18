@@ -1,10 +1,7 @@
 using Microsoft.AspNetCore.HttpOverrides;
-using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.Extensions.Options;
-using MudBlazor.Services;
 using Castr.Models;
 using Castr.Services;
-using Castr.Hubs;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -27,10 +24,7 @@ builder.Services.Configure<PodcastFeedsConfig>(
 // Add memory cache for RSS feed caching
 builder.Services.AddMemoryCache();
 
-// Central database service
-builder.Services.AddSingleton<ICentralDatabaseService, CentralDatabaseService>();
-
-// Database service for episode tracking (existing per-feed databases)
+// Database service for episode tracking
 builder.Services.AddSingleton<IPodcastDatabaseService, PodcastDatabaseService>();
 builder.Services.AddSingleton<PodcastFeedService>();
 
@@ -38,30 +32,6 @@ builder.Services.AddSingleton<PodcastFeedService>();
 builder.Services.AddSingleton<IYouTubeDownloadService, YouTubeDownloadService>();
 builder.Services.AddHostedService<PlaylistWatcherService>();
 
-// Add authentication
-builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
-    .AddCookie(options =>
-    {
-        options.LoginPath = "/login";
-        options.LogoutPath = "/logout";
-        options.ExpireTimeSpan = TimeSpan.FromDays(7);
-        options.SlidingExpiration = true;
-    });
-
-builder.Services.AddAuthorization();
-
-// Add Blazor and MudBlazor
-builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents();
-builder.Services.AddMudServices();
-
-// Add HttpClient for Login page
-builder.Services.AddHttpClient();
-
-// Add SignalR for real-time updates
-builder.Services.AddSignalR();
-
-// Add API controllers
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 
@@ -70,23 +40,8 @@ builder.Services.AddHealthChecks();
 
 var app = builder.Build();
 
-// Initialize central database at startup
-var logger = app.Services.GetRequiredService<ILogger<Program>>();
-var centralDatabase = app.Services.GetRequiredService<ICentralDatabaseService>();
-
-logger.LogInformation("Initializing central database");
-try
-{
-    await centralDatabase.InitializeDatabaseAsync();
-    logger.LogInformation("Central database initialized successfully");
-}
-catch (Exception ex)
-{
-    logger.LogError(ex, "Failed to initialize central database");
-    throw;
-}
-
 // Initialize databases for all configured feeds at startup
+var logger = app.Services.GetRequiredService<ILogger<Program>>();
 var config = app.Services.GetRequiredService<IOptions<PodcastFeedsConfig>>();
 var database = app.Services.GetRequiredService<IPodcastDatabaseService>();
 
@@ -165,16 +120,6 @@ logger.LogInformation("All databases initialized successfully");
 // Configure forwarded headers (MUST be before other middleware)
 app.UseForwardedHeaders();
 
-// Middleware for Blazor static files
-app.UseStaticFiles();
-
-// Authentication and authorization (BEFORE antiforgery)
-app.UseAuthentication();
-app.UseAuthorization();
-
-// Antiforgery must come after authentication/authorization
-app.UseAntiforgery();
-
 // Request logging middleware
 app.Use(async (context, next) =>
 {
@@ -216,14 +161,8 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
-// Map Blazor components
-app.MapRazorComponents<Castr.Components.App>()
-    .AddInteractiveServerRenderMode();
+app.UseAuthorization();
 
-// Map SignalR hubs
-app.MapHub<DownloadProgressHub>("/hubs/download-progress");
-
-// Map API controllers
 app.MapControllers();
 
 // Add health check endpoint for monitoring and container orchestration
