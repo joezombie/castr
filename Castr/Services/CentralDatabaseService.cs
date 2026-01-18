@@ -1016,6 +1016,35 @@ public partial class CentralDatabaseService : ICentralDatabaseService
         }
     }
 
+    public async Task RemoveDownloadedVideoAsync(int feedId, string videoId)
+    {
+        await InitializeDatabaseAsync();
+
+        await AcquireDatabaseLockAsync();
+        try
+        {
+            await using var connection = new SqliteConnection(GetConnectionString());
+            await connection.OpenAsync();
+
+            var command = connection.CreateCommand();
+            command.CommandText = @"
+                DELETE FROM downloaded_videos
+                WHERE feed_id = @feedId AND video_id = @videoId
+            ";
+            command.Parameters.AddWithValue("@feedId", feedId);
+            command.Parameters.AddWithValue("@videoId", videoId);
+
+            var rowsAffected = await command.ExecuteNonQueryAsync();
+
+            _logger.LogInformation("Removed downloaded video {VideoId} from feed {FeedId} (rows affected: {Rows})",
+                videoId, feedId, rowsAffected);
+        }
+        finally
+        {
+            _dbLock.Release();
+        }
+    }
+
     #endregion
 
     #region Activity Logging

@@ -184,10 +184,10 @@ else
             try
             {
                 // Remove from downloaded_videos to trigger redownload
-                // The video will be re-downloaded on the next playlist poll
+                await Database.RemoveDownloadedVideoAsync(_feed.Id, episode.VideoId);
                 await Database.LogActivityAsync(_feed.Id, "redownload",
                     $"Marked for redownload: {episode.Filename}");
-                Snackbar.Add("Episode marked for redownload", Severity.Success);
+                Snackbar.Add("Episode marked for redownload. It will be re-downloaded on the next playlist poll.", Severity.Success);
             }
             catch (Exception ex)
             {

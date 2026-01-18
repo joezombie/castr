@@ -34,6 +34,7 @@ public interface ICentralDatabaseService : IDisposable
     Task<bool> IsVideoDownloadedAsync(int feedId, string videoId);
     Task<HashSet<string>> GetDownloadedVideoIdsAsync(int feedId);
     Task MarkVideoDownloadedAsync(int feedId, string videoId, string filename);
+    Task RemoveDownloadedVideoAsync(int feedId, string videoId);
     
     // Activity logging
     Task LogActivityAsync(int? feedId, string activityType, string message, string? details = null);

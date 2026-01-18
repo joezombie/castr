@@ -150,10 +150,51 @@ foreach (var (feedName, feedConfig) in config.Value.Feeds)
 
 logger.LogInformation("All databases initialized successfully");
 
-// Initialize central database
+// Initialize central database and migrate feeds from appsettings.json
 var centralDatabase = app.Services.GetRequiredService<ICentralDatabaseService>();
 await centralDatabase.InitializeDatabaseAsync();
 logger.LogInformation("Central database initialized");
+
+// Migrate feeds from appsettings.json to central database (if not already present)
+var existingFeeds = await centralDatabase.GetAllFeedsAsync();
+if (existingFeeds.Count == 0 && config.Value.Feeds.Count > 0)
+{
+    logger.LogInformation("Migrating {Count} feed(s) from appsettings.json to central database", config.Value.Feeds.Count);
+    foreach (var (feedName, feedConfig) in config.Value.Feeds)
+    {
+        var feedRecord = new FeedRecord
+        {
+            Name = feedName,
+            Title = feedConfig.Title,
+            Description = feedConfig.Description ?? feedConfig.Title,
+            Directory = feedConfig.Directory,
+            Author = feedConfig.Author,
+            ImageUrl = feedConfig.ImageUrl,
+            Link = feedConfig.Link,
+            Language = feedConfig.Language ?? "en-us",
+            Category = feedConfig.Category,
+            FileExtensions = feedConfig.FileExtensions != null ? string.Join(",", feedConfig.FileExtensions) : ".mp3",
+            YouTubePlaylistUrl = feedConfig.YouTube?.PlaylistUrl,
+            YouTubePollIntervalMinutes = feedConfig.YouTube?.PollIntervalMinutes ?? 60,
+            YouTubeEnabled = feedConfig.YouTube?.Enabled ?? false,
+            YouTubeMaxConcurrentDownloads = feedConfig.YouTube?.MaxConcurrentDownloads ?? 1,
+            YouTubeAudioQuality = feedConfig.YouTube?.AudioQuality ?? "highest",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+            IsActive = true
+        };
+        await centralDatabase.AddFeedAsync(feedRecord);
+        logger.LogInformation("Migrated feed '{FeedName}' to central database", feedName);
+    }
+
+    // Migrate episode data from per-feed databases
+    await centralDatabase.MigrateFromPerFeedDatabasesAsync(config.Value.Feeds);
+    logger.LogInformation("Feed migration complete");
+}
+else if (existingFeeds.Count > 0)
+{
+    logger.LogInformation("Central database already contains {Count} feed(s), skipping migration", existingFeeds.Count);
+}
 
 // Configure forwarded headers (MUST be before other middleware)
 app.UseForwardedHeaders();
