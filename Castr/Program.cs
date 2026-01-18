@@ -55,6 +55,9 @@ builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 builder.Services.AddMudServices();
 
+// Add HttpClient for Login page
+builder.Services.AddHttpClient();
+
 // Add SignalR for real-time updates
 builder.Services.AddSignalR();
 
@@ -164,11 +167,13 @@ app.UseForwardedHeaders();
 
 // Middleware for Blazor static files
 app.UseStaticFiles();
-app.UseAntiforgery();
 
-// Authentication and authorization
+// Authentication and authorization (BEFORE antiforgery)
 app.UseAuthentication();
 app.UseAuthorization();
+
+// Antiforgery must come after authentication/authorization
+app.UseAntiforgery();
 
 // Request logging middleware
 app.Use(async (context, next) =>

@@ -1,8 +1,4 @@
 @page "/login"
-@using System.Security.Claims
-@using Microsoft.AspNetCore.Authentication
-@using Microsoft.AspNetCore.Authentication.Cookies
-@inject IConfiguration Configuration
 @inject NavigationManager Navigation
 
 <PageTitle>Login - Castr</PageTitle>
@@ -26,14 +22,16 @@
                          Label="Username" 
                          Variant="Variant.Outlined" 
                          Required="true"
-                         Class="mb-4" />
+                         Class="mb-4"
+                         Disabled="@_isLoading" />
             
             <MudTextField @bind-Value="_loginModel.Password" 
                          Label="Password" 
                          Variant="Variant.Outlined" 
                          InputType="InputType.Password"
                          Required="true"
-                         Class="mb-6" />
+                         Class="mb-6"
+                         Disabled="@_isLoading" />
             
             <MudButton ButtonType="ButtonType.Submit" 
                       Variant="Variant.Filled" 
@@ -56,21 +54,9 @@
 </MudContainer>
 
 @code {
-    [CascadingParameter]
-    private HttpContext? HttpContext { get; set; }
-
     private LoginModel _loginModel = new();
     private string? _errorMessage;
     private bool _isLoading;
-
-    protected override void OnInitialized()
-    {
-        // Redirect if already authenticated
-        if (HttpContext?.User?.Identity?.IsAuthenticated == true)
-        {
-            Navigation.NavigateTo("/");
-        }
-    }
 
     private async Task HandleLogin()
     {
@@ -79,33 +65,18 @@
 
         try
         {
-            var configUsername = Configuration.GetValue<string>("Dashboard:Username") ?? "admin";
-            var configPassword = Configuration.GetValue<string>("Dashboard:Password") ?? "changeme";
+            // Use HttpClient to call the login API endpoint
+            var httpClient = new HttpClient { BaseAddress = new Uri(Navigation.BaseUri) };
+            var response = await httpClient.PostAsJsonAsync("/api/auth/login", new 
+            { 
+                Username = _loginModel.Username, 
+                Password = _loginModel.Password 
+            });
 
-            if (_loginModel.Username == configUsername && _loginModel.Password == configPassword)
+            if (response.IsSuccessStatusCode)
             {
-                if (HttpContext != null)
-                {
-                    var claims = new List<Claim>
-                    {
-                        new Claim(ClaimTypes.Name, _loginModel.Username),
-                        new Claim(ClaimTypes.Role, "Administrator")
-                    };
-
-                    var claimsIdentity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
-                    var authProperties = new AuthenticationProperties
-                    {
-                        IsPersistent = true,
-                        ExpiresUtc = DateTimeOffset.UtcNow.AddDays(7)
-                    };
-
-                    await HttpContext.SignInAsync(
-                        CookieAuthenticationDefaults.AuthenticationScheme,
-                        new ClaimsPrincipal(claimsIdentity),
-                        authProperties);
-
-                    Navigation.NavigateTo("/", forceLoad: true);
-                }
+                // Force a full page reload to update the authentication state
+                Navigation.NavigateTo("/", forceLoad: true);
             }
             else
             {

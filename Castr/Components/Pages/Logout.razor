@@ -1,18 +1,20 @@
 @page "/logout"
-@using Microsoft.AspNetCore.Authentication
-@using Microsoft.AspNetCore.Authentication.Cookies
+@using System.Net.Http.Json
 @inject NavigationManager Navigation
 
 @code {
-    [CascadingParameter]
-    private HttpContext? HttpContext { get; set; }
-
     protected override async Task OnInitializedAsync()
     {
-        if (HttpContext != null)
+        try
         {
-            await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+            var httpClient = new HttpClient { BaseAddress = new Uri(Navigation.BaseUri) };
+            await httpClient.PostAsync("/api/auth/logout", null);
         }
+        catch
+        {
+            // Ignore errors during logout
+        }
+        
         Navigation.NavigateTo("/login", forceLoad: true);
     }
 }
