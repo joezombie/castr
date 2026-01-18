@@ -53,6 +53,7 @@ builder.Services.AddAuthorization();
 // Add Blazor Server with MudBlazor
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
+builder.Services.AddRazorPages();
 builder.Services.AddMudServices();
 
 // Add HttpContextAccessor for Blazor components
@@ -198,6 +199,9 @@ app.UseAuthorization();
 
 // Map API controllers (feed endpoints remain public)
 app.MapControllers();
+
+// Map Razor Pages (for login)
+app.MapRazorPages();
 
 // Map Blazor components (dashboard routes)
 app.MapRazorComponents<App>()
