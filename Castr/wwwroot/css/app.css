@@ -1,0 +1,9 @@
+/* Add custom styles here */
+body {
+    margin: 0;
+    font-family: 'Roboto', sans-serif;
+}
+
+.mud-main-content {
+    background-color: inherit;
+}

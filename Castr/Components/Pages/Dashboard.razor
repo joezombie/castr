@@ -1,0 +1,327 @@
+@page "/"
+@attribute [Authorize]
+@using Microsoft.AspNetCore.SignalR.Client
+@using System.Timers
+@inject ICentralDatabaseService CentralDatabase
+@inject NavigationManager Navigation
+@inject ILogger<Dashboard> Logger
+@implements IAsyncDisposable
+
+<PageTitle>Dashboard - Castr</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-4">Dashboard</MudText>
+
+<MudGrid>
+    <!-- Status Cards -->
+    <MudItem xs="12" sm="6" md="3">
+        <MudCard Elevation="3">
+            <MudCardContent>
+                <div class="d-flex align-center justify-space-between">
+                    <div>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">Server Status</MudText>
+                        <MudText Typo="Typo.h5" Class="mt-2">
+                            <MudIcon Icon="@Icons.Material.Filled.Circle" Color="Color.Success" Size="Size.Small" Class="mr-1" />
+                            Online
+                        </MudText>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-1">
+                            Uptime: @_uptime
+                        </MudText>
+                    </div>
+                    <MudIcon Icon="@Icons.Material.Filled.Cloud" Color="Color.Success" Size="Size.Large" />
+                </div>
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+
+    <MudItem xs="12" sm="6" md="3">
+        <MudCard Elevation="3">
+            <MudCardContent>
+                <div class="d-flex align-center justify-space-between">
+                    <div>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">Feeds</MudText>
+                        <MudText Typo="Typo.h5" Class="mt-2">@_feedsCount</MudText>
+                    </div>
+                    <MudIcon Icon="@Icons.Material.Filled.RssFeed" Color="Color.Primary" Size="Size.Large" />
+                </div>
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+
+    <MudItem xs="12" sm="6" md="3">
+        <MudCard Elevation="3">
+            <MudCardContent>
+                <div class="d-flex align-center justify-space-between">
+                    <div>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">Episodes</MudText>
+                        <MudText Typo="Typo.h5" Class="mt-2">@_episodesCount.ToString("N0")</MudText>
+                    </div>
+                    <MudIcon Icon="@Icons.Material.Filled.LibraryMusic" Color="Color.Info" Size="Size.Large" />
+                </div>
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+
+    <MudItem xs="12" sm="6" md="3">
+        <MudCard Elevation="3">
+            <MudCardContent>
+                <div class="d-flex align-center justify-space-between">
+                    <div>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">Active Downloads</MudText>
+                        <MudText Typo="Typo.h5" Class="mt-2">@_activeDownloadsCount</MudText>
+                    </div>
+                    <MudIcon Icon="@Icons.Material.Filled.Download" Color="Color.Warning" Size="Size.Large" />
+                </div>
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+
+    <!-- Active Downloads Section -->
+    <MudItem xs="12" md="7">
+        <MudCard Elevation="3">
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <MudText Typo="Typo.h6">Active Downloads</MudText>
+                </CardHeaderContent>
+            </MudCardHeader>
+            <MudCardContent>
+                @if (_activeDownloads.Any())
+                {
+                    @foreach (var download in _activeDownloads)
+                    {
+                        <div class="mb-4">
+                            <MudText Typo="Typo.body1">@(download.VideoTitle ?? download.VideoId)</MudText>
+                            <div class="d-flex align-center mt-2">
+                                <MudProgressLinear Color="Color.Primary" 
+                                                  Value="@download.ProgressPercent" 
+                                                  Class="flex-grow-1" />
+                                <MudText Typo="Typo.body2" Class="ml-2">@download.ProgressPercent%</MudText>
+                            </div>
+                        </div>
+                    }
+                }
+                else
+                {
+                    <div class="d-flex align-center justify-center pa-8">
+                        <MudText Typo="Typo.body1" Color="Color.Secondary">No active downloads</MudText>
+                    </div>
+                }
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+
+    <!-- Recent Activity Section -->
+    <MudItem xs="12" md="5">
+        <MudCard Elevation="3">
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <MudText Typo="Typo.h6">Recent Activity</MudText>
+                </CardHeaderContent>
+            </MudCardHeader>
+            <MudCardContent Style="max-height: 400px; overflow-y: auto;">
+                @if (_recentActivities.Any())
+                {
+                    <MudTimeline TimelinePosition="TimelinePosition.Start" TimelineOrientation="TimelineOrientation.Vertical">
+                        @foreach (var activity in _recentActivities)
+                        {
+                            <MudTimelineItem Color="@GetActivityColor(activity.ActivityType)" Size="Size.Small">
+                                <ItemContent>
+                                    <MudText Typo="Typo.body2">@activity.Message</MudText>
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                        @activity.CreatedAt.ToLocalTime().ToString("HH:mm:ss")
+                                    </MudText>
+                                </ItemContent>
+                            </MudTimelineItem>
+                        }
+                    </MudTimeline>
+                }
+                else
+                {
+                    <div class="d-flex align-center justify-center pa-8">
+                        <MudText Typo="Typo.body1" Color="Color.Secondary">No recent activity</MudText>
+                    </div>
+                }
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+</MudGrid>
+
+@code {
+    private HubConnection? _hubConnection;
+    private System.Timers.Timer? _refreshTimer;
+    private DateTime _startTime = DateTime.UtcNow;
+    
+    private int _feedsCount;
+    private int _episodesCount;
+    private int _activeDownloadsCount;
+    private List<DownloadQueueItem> _activeDownloads = new();
+    private List<ActivityLogRecord> _recentActivities = new();
+    
+    private string _uptime => FormatUptime(DateTime.UtcNow - _startTime);
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            // Load initial statistics
+            await RefreshStatisticsAsync();
+            await RefreshActiveDownloadsAsync();
+            await RefreshRecentActivitiesAsync();
+
+            // Set up SignalR connection
+            _hubConnection = new HubConnectionBuilder()
+                .WithUrl(Navigation.ToAbsoluteUri("/hubs/download-progress"))
+                .WithAutomaticReconnect()
+                .Build();
+
+            // Register SignalR event handlers
+            _hubConnection.On<int, string, string>("DownloadStarted", async (feedId, videoId, title) =>
+            {
+                Logger.LogDebug("Download started event received: {VideoId}", videoId);
+                await RefreshActiveDownloadsAsync();
+                await RefreshStatisticsAsync();
+                await InvokeAsync(StateHasChanged);
+            });
+
+            _hubConnection.On<int, string, int>("DownloadProgress", async (feedId, videoId, percent) =>
+            {
+                var download = _activeDownloads.FirstOrDefault(d => d.VideoId == videoId);
+                if (download != null)
+                {
+                    download.ProgressPercent = percent;
+                    await InvokeAsync(StateHasChanged);
+                }
+            });
+
+            _hubConnection.On<int, string, string>("DownloadCompleted", async (feedId, videoId, filename) =>
+            {
+                Logger.LogDebug("Download completed event received: {VideoId}", videoId);
+                await RefreshActiveDownloadsAsync();
+                await RefreshStatisticsAsync();
+                await RefreshRecentActivitiesAsync();
+                await InvokeAsync(StateHasChanged);
+            });
+
+            _hubConnection.On<int, string, string>("DownloadFailed", async (feedId, videoId, error) =>
+            {
+                Logger.LogWarning("Download failed event received: {VideoId}, Error: {Error}", videoId, error);
+                await RefreshActiveDownloadsAsync();
+                await RefreshRecentActivitiesAsync();
+                await InvokeAsync(StateHasChanged);
+            });
+
+            _hubConnection.On<string, string>("ActivityLogged", async (activityType, message) =>
+            {
+                await RefreshRecentActivitiesAsync();
+                await InvokeAsync(StateHasChanged);
+            });
+
+            _hubConnection.On<int, int, int>("StatisticsUpdated", async (feedsCount, episodesCount, activeDownloadsCount) =>
+            {
+                _feedsCount = feedsCount;
+                _episodesCount = episodesCount;
+                _activeDownloadsCount = activeDownloadsCount;
+                await InvokeAsync(StateHasChanged);
+            });
+
+            // Start SignalR connection
+            await _hubConnection.StartAsync();
+            Logger.LogInformation("Connected to DownloadProgressHub");
+
+            // Set up periodic refresh timer (every 30 seconds)
+            _refreshTimer = new System.Timers.Timer(30000);
+            _refreshTimer.Elapsed += async (sender, e) => await OnRefreshTimerElapsed();
+            _refreshTimer.Start();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error initializing dashboard");
+        }
+    }
+
+    private async Task OnRefreshTimerElapsed()
+    {
+        try
+        {
+            await RefreshStatisticsAsync();
+            await RefreshActiveDownloadsAsync();
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error refreshing dashboard data");
+        }
+    }
+
+    private async Task RefreshStatisticsAsync()
+    {
+        try
+        {
+            _feedsCount = await CentralDatabase.GetTotalFeedsCountAsync();
+            _episodesCount = await CentralDatabase.GetTotalEpisodesCountAsync();
+            _activeDownloadsCount = await CentralDatabase.GetActiveDownloadsCountAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error refreshing statistics");
+        }
+    }
+
+    private async Task RefreshActiveDownloadsAsync()
+    {
+        try
+        {
+            _activeDownloads = await CentralDatabase.GetActiveDownloadsAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error refreshing active downloads");
+        }
+    }
+
+    private async Task RefreshRecentActivitiesAsync()
+    {
+        try
+        {
+            _recentActivities = await CentralDatabase.GetRecentActivitiesAsync(20);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error refreshing recent activities");
+        }
+    }
+
+    private Color GetActivityColor(string activityType)
+    {
+        return activityType.ToLower() switch
+        {
+            "download" => Color.Primary,
+            "sync" => Color.Info,
+            "error" => Color.Error,
+            "warning" => Color.Warning,
+            _ => Color.Default
+        };
+    }
+
+    private string FormatUptime(TimeSpan uptime)
+    {
+        if (uptime.TotalDays >= 1)
+            return $"{(int)uptime.TotalDays}d {uptime.Hours}h";
+        if (uptime.TotalHours >= 1)
+            return $"{(int)uptime.TotalHours}h {uptime.Minutes}m";
+        return $"{uptime.Minutes}m {uptime.Seconds}s";
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_refreshTimer != null)
+        {
+            _refreshTimer.Stop();
+            _refreshTimer.Dispose();
+        }
+
+        if (_hubConnection != null)
+        {
+            await _hubConnection.DisposeAsync();
+        }
+    }
+}
