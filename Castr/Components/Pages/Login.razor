@@ -11,7 +11,7 @@
         <MudText Typo="Typo.h4" Align="Align.Center" Class="mb-4">Castr Login</MudText>
         <MudText Typo="Typo.body2" Align="Align.Center" Class="mb-6">Enter your credentials to access the dashboard</MudText>
         
-        <EditForm Model="@_loginModel" OnValidSubmit="HandleLogin">
+        <EditForm Model="@_loginModel" OnValidSubmit="HandleLogin" FormName="LoginForm">
             <DataAnnotationsValidator />
             
             <MudTextField @bind-Value="_loginModel.Username" 
