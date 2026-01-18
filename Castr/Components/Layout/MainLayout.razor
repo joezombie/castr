@@ -12,7 +12,7 @@
         <MudSpacer />
         <MudIconButton Icon="@Icons.Material.Filled.Brightness4" Color="Color.Inherit" OnClick="@ToggleDarkMode" />
     </MudAppBar>
-    <MudDrawer @bind-Open="_drawerOpen" ClipMode="DrawerClipMode.Always" Elevation="2" Variant="@DrawerVariant.Responsive" Breakpoint="Breakpoint.Md">
+    <MudDrawer Open="_drawerOpen" OpenChanged="OnDrawerOpenChanged" ClipMode="DrawerClipMode.Always" Elevation="2" Variant="@DrawerVariant.Responsive" Breakpoint="Breakpoint.Md">
         <CascadingValue Value="@CloseDrawer">
             <NavMenu />
         </CascadingValue>
@@ -32,6 +32,11 @@
     private void ToggleDrawer()
     {
         _drawerOpen = !_drawerOpen;
+    }
+
+    private void OnDrawerOpenChanged(bool value)
+    {
+        _drawerOpen = value;
     }
 
     private void CloseDrawer()
