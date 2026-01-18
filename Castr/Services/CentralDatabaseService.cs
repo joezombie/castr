@@ -3,12 +3,13 @@ using Castr.Models;
 
 namespace Castr.Services;
 
-public class CentralDatabaseService : ICentralDatabaseService
+public class CentralDatabaseService : ICentralDatabaseService, IDisposable
 {
     private readonly IConfiguration _configuration;
     private readonly ILogger<CentralDatabaseService> _logger;
     private readonly string _databasePath;
     private readonly SemaphoreSlim _dbLock = new(1, 1);
+    private bool _disposed;
 
     public CentralDatabaseService(
         IConfiguration configuration,
@@ -807,5 +808,14 @@ public class CentralDatabaseService : ICentralDatabaseService
         {
             _dbLock.Release();
         }
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+
+        _dbLock?.Dispose();
+        _disposed = true;
     }
 }
