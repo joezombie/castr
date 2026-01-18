@@ -24,6 +24,11 @@ public class CentralDatabaseService : ICentralDatabaseService
         _logger.LogInformation("Central database path: {Path}", _databasePath);
     }
 
+    private static DateTime ParseIso8601DateTime(string dateTimeString)
+    {
+        return DateTime.ParseExact(dateTimeString, "O", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.RoundtripKind);
+    }
+
     private string GetConnectionString()
     {
         return $"Data Source={_databasePath}";
@@ -218,8 +223,8 @@ public class CentralDatabaseService : ICentralDatabaseService
                     YoutubeEnabled = reader.GetInt32(13) == 1,
                     YoutubeMaxConcurrentDownloads = reader.GetInt32(14),
                     YoutubeAudioQuality = reader.GetString(15),
-                    CreatedAt = DateTime.Parse(reader.GetString(16)),
-                    UpdatedAt = DateTime.Parse(reader.GetString(17)),
+                    CreatedAt = ParseIso8601DateTime(reader.GetString(16)),
+                    UpdatedAt = ParseIso8601DateTime(reader.GetString(17)),
                     IsActive = reader.GetInt32(18) == 1
                 });
             }
@@ -272,8 +277,8 @@ public class CentralDatabaseService : ICentralDatabaseService
                     YoutubeEnabled = reader.GetInt32(13) == 1,
                     YoutubeMaxConcurrentDownloads = reader.GetInt32(14),
                     YoutubeAudioQuality = reader.GetString(15),
-                    CreatedAt = DateTime.Parse(reader.GetString(16)),
-                    UpdatedAt = DateTime.Parse(reader.GetString(17)),
+                    CreatedAt = ParseIso8601DateTime(reader.GetString(16)),
+                    UpdatedAt = ParseIso8601DateTime(reader.GetString(17)),
                     IsActive = reader.GetInt32(18) == 1
                 };
             }
@@ -326,8 +331,8 @@ public class CentralDatabaseService : ICentralDatabaseService
                     YoutubeEnabled = reader.GetInt32(13) == 1,
                     YoutubeMaxConcurrentDownloads = reader.GetInt32(14),
                     YoutubeAudioQuality = reader.GetString(15),
-                    CreatedAt = DateTime.Parse(reader.GetString(16)),
-                    UpdatedAt = DateTime.Parse(reader.GetString(17)),
+                    CreatedAt = ParseIso8601DateTime(reader.GetString(16)),
+                    UpdatedAt = ParseIso8601DateTime(reader.GetString(17)),
                     IsActive = reader.GetInt32(18) == 1
                 };
             }
@@ -518,7 +523,7 @@ public class CentralDatabaseService : ICentralDatabaseService
                     ActivityType = reader.GetString(2),
                     Message = reader.GetString(3),
                     Details = reader.IsDBNull(4) ? null : reader.GetString(4),
-                    CreatedAt = DateTime.Parse(reader.GetString(5))
+                    CreatedAt = DateTime.ParseExact(reader.GetString(5), "O", System.Globalization.CultureInfo.InvariantCulture)
                 });
             }
 
@@ -562,9 +567,9 @@ public class CentralDatabaseService : ICentralDatabaseService
                     Status = reader.GetString(4),
                     ProgressPercent = reader.GetInt32(5),
                     ErrorMessage = reader.IsDBNull(6) ? null : reader.GetString(6),
-                    QueuedAt = DateTime.Parse(reader.GetString(7)),
-                    StartedAt = reader.IsDBNull(8) ? null : DateTime.Parse(reader.GetString(8)),
-                    CompletedAt = reader.IsDBNull(9) ? null : DateTime.Parse(reader.GetString(9))
+                    QueuedAt = ParseIso8601DateTime(reader.GetString(7)),
+                    StartedAt = reader.IsDBNull(8) ? null : ParseIso8601DateTime(reader.GetString(8)),
+                    CompletedAt = reader.IsDBNull(9) ? null : ParseIso8601DateTime(reader.GetString(9))
                 });
             }
 
@@ -604,9 +609,9 @@ public class CentralDatabaseService : ICentralDatabaseService
                     Status = reader.GetString(4),
                     ProgressPercent = reader.GetInt32(5),
                     ErrorMessage = reader.IsDBNull(6) ? null : reader.GetString(6),
-                    QueuedAt = DateTime.Parse(reader.GetString(7)),
-                    StartedAt = reader.IsDBNull(8) ? null : DateTime.Parse(reader.GetString(8)),
-                    CompletedAt = reader.IsDBNull(9) ? null : DateTime.Parse(reader.GetString(9))
+                    QueuedAt = ParseIso8601DateTime(reader.GetString(7)),
+                    StartedAt = reader.IsDBNull(8) ? null : ParseIso8601DateTime(reader.GetString(8)),
+                    CompletedAt = reader.IsDBNull(9) ? null : ParseIso8601DateTime(reader.GetString(9))
                 };
             }
 
