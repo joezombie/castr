@@ -1682,7 +1682,7 @@ public partial class CentralDatabaseService : ICentralDatabaseService
                     DefaultLanguage = reader.GetString(3),
                     DefaultFileExtensions = reader.GetString(4),
                     DefaultCategory = reader.GetString(5),
-                    UpdatedAt = DateTime.Parse(reader.GetString(6))
+                    UpdatedAt = DateTime.Parse(reader.GetString(6), null, System.Globalization.DateTimeStyles.RoundtripKind)
                 };
             }
             
@@ -1748,11 +1748,8 @@ public partial class CentralDatabaseService : ICentralDatabaseService
         await AcquireDatabaseLockAsync();
         try
         {
-            if (!File.Exists(_databasePath))
-                return 0;
-            
             var fileInfo = new FileInfo(_databasePath);
-            return fileInfo.Length;
+            return fileInfo.Exists ? fileInfo.Length : 0;
         }
         finally
         {
