@@ -24,24 +24,7 @@ builder.Services.Configure<PodcastFeedsConfig>(
 // Add memory cache for RSS feed caching
 builder.Services.AddMemoryCache();
 
-// Central database service for all feeds
-builder.Services.AddSingleton<ICentralDatabaseService>(serviceProvider =>
-{
-    var logger = serviceProvider.GetRequiredService<ILogger<CentralDatabaseService>>();
-    var env = serviceProvider.GetRequiredService<IWebHostEnvironment>();
-    
-    // Use a configurable database path or default to app data directory
-    var dbPath = builder.Configuration.GetValue<string>("CentralDatabasePath");
-    if (string.IsNullOrWhiteSpace(dbPath))
-    {
-        // Default: store in ContentRootPath/Data directory
-        dbPath = Path.Combine(env.ContentRootPath, "Data", "central.db");
-    }
-    
-    return new CentralDatabaseService(logger, dbPath);
-});
-
-// Keep old database service for backward compatibility during migration
+// Database service for episode tracking
 builder.Services.AddSingleton<IPodcastDatabaseService, PodcastDatabaseService>();
 builder.Services.AddSingleton<PodcastFeedService>();
 
@@ -57,27 +40,17 @@ builder.Services.AddHealthChecks();
 
 var app = builder.Build();
 
-// Initialize central database and migrate feeds
+// Initialize databases for all configured feeds at startup
 var logger = app.Services.GetRequiredService<ILogger<Program>>();
 var config = app.Services.GetRequiredService<IOptions<PodcastFeedsConfig>>();
-var centralDatabase = app.Services.GetRequiredService<ICentralDatabaseService>();
-var legacyDatabase = app.Services.GetRequiredService<IPodcastDatabaseService>();
+var database = app.Services.GetRequiredService<IPodcastDatabaseService>();
 
-logger.LogInformation("=== Starting Central Database Initialization ===");
-
-// Step 1: Initialize central database
-logger.LogInformation("Step 1: Initializing central database");
-await centralDatabase.InitializeDatabaseAsync();
-logger.LogInformation("Central database initialized successfully");
-
-// Step 2: Load or migrate feeds from configuration
-logger.LogInformation("Step 2: Loading/migrating {Count} feed(s) from configuration", config.Value.Feeds.Count);
+logger.LogInformation("Initializing databases for {Count} configured feed(s)", config.Value.Feeds.Count);
 
 foreach (var (feedName, feedConfig) in config.Value.Feeds)
 {
-    logger.LogInformation("Processing feed: {FeedName}", feedName);
-    
     // Validate configuration
+    // Note: 'required' keyword ensures non-null, but we also check for empty/whitespace
     if (string.IsNullOrWhiteSpace(feedConfig.Directory))
         throw new InvalidOperationException($"Feed {feedName}: Directory cannot be empty");
     
@@ -117,72 +90,32 @@ foreach (var (feedName, feedConfig) in config.Value.Feeds)
         }
     }
     
-    // Add or update feed in central database
     try
     {
-        logger.LogDebug("Adding/updating feed {FeedName} in central database", feedName);
-        
-        var feedRecord = new FeedRecord
+        logger.LogDebug("Initializing database for feed: {FeedName}", feedName);
+
+        var dbPath = feedConfig.DatabasePath ?? Path.Combine(feedConfig.Directory, "podcast.db");
+        var dbExistedBefore = File.Exists(dbPath);
+
+        await database.InitializeDatabaseAsync(feedName);
+
+        if (dbExistedBefore)
         {
-            Name = feedName,
-            Title = feedConfig.Title,
-            Description = feedConfig.Description,
-            Directory = feedConfig.Directory,
-            Author = feedConfig.Author,
-            ImageUrl = feedConfig.ImageUrl,
-            Link = feedConfig.Link,
-            Language = feedConfig.Language ?? "en-us",
-            Category = feedConfig.Category,
-            FileExtensions = feedConfig.FileExtensions,
-            DatabasePath = feedConfig.DatabasePath,
-            YoutubePlaylistUrl = feedConfig.YouTube?.PlaylistUrl,
-            YoutubePollIntervalMinutes = feedConfig.YouTube?.PollIntervalMinutes ?? 60,
-            YoutubeEnabled = feedConfig.YouTube?.Enabled ?? false,
-            YoutubeMaxConcurrentDownloads = feedConfig.YouTube?.MaxConcurrentDownloads ?? 1,
-            YoutubeAudioQuality = feedConfig.YouTube?.AudioQuality ?? "highest",
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        };
-        
-        var feedId = await centralDatabase.AddOrUpdateFeedAsync(feedRecord);
-        logger.LogInformation("Feed {FeedName} registered in central database with ID {FeedId}", feedName, feedId);
-        
-        // Step 3: Migrate legacy per-feed database if it exists
-        var legacyDbPath = feedConfig.DatabasePath ?? Path.Combine(feedConfig.Directory, "podcast.db");
-        if (File.Exists(legacyDbPath))
-        {
-            logger.LogInformation("Found legacy database for {FeedName} at {Path}, starting migration", feedName, legacyDbPath);
-            
-            try
-            {
-                await centralDatabase.MigrateLegacyDatabaseAsync(feedName, legacyDbPath, feedId);
-                logger.LogInformation("Successfully migrated legacy database for {FeedName}", feedName);
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Failed to migrate legacy database for {FeedName}, continuing with empty feed", feedName);
-                // Don't fail startup, just log the error
-            }
+            logger.LogInformation("Database for feed {FeedName} already existed at {Path}", feedName, dbPath);
         }
         else
         {
-            logger.LogDebug("No legacy database found for {FeedName}, starting with clean state", feedName);
+            logger.LogInformation("Created new database for feed {FeedName} at {Path}", feedName, dbPath);
         }
-        
-        // Step 4: Sync directory to catch any existing files
-        logger.LogDebug("Syncing directory for feed {FeedName}", feedName);
-        await centralDatabase.SyncDirectoryAsync(feedId, feedConfig.Directory, feedConfig.FileExtensions ?? [".mp3"]);
-        logger.LogDebug("Directory sync completed for feed {FeedName}", feedName);
     }
     catch (Exception ex)
     {
-        logger.LogError(ex, "Failed to initialize feed {FeedName}", feedName);
+        logger.LogError(ex, "Failed to initialize database for feed {FeedName}", feedName);
         throw;
     }
 }
 
-logger.LogInformation("=== Central Database Initialization Complete ===");
-logger.LogInformation("All {Count} feed(s) initialized successfully", config.Value.Feeds.Count);
+logger.LogInformation("All databases initialized successfully");
 
 // Configure forwarded headers (MUST be before other middleware)
 app.UseForwardedHeaders();
