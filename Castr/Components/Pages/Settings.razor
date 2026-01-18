@@ -1,18 +1,289 @@
 @page "/settings"
 @attribute [Authorize]
+@inject ISettingsService SettingsService
+@inject ICentralDatabaseService Database
 @inject ILogger<Settings> Logger
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
 
 <PageTitle>Settings - Castr</PageTitle>
 
 <MudText Typo="Typo.h3" Class="mb-4">Settings</MudText>
 
-<MudPaper Elevation="2" Class="pa-4">
-    <MudText Typo="Typo.body1">Settings interface coming in Phase 3</MudText>
-</MudPaper>
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else
+{
+    <MudGrid>
+        <!-- Application Settings -->
+        <MudItem xs="12" md="6">
+            <MudPaper Elevation="2" Class="pa-4 mb-4">
+                <MudText Typo="Typo.h6" Class="mb-4">Application Settings</MudText>
+                
+                <MudStack Spacing="1" Class="mb-3">
+                    <MudSwitch @bind-Value="_settings.DarkMode" Label="Dark Mode" Color="Color.Primary" />
+                    <MudText Typo="Typo.body2" Color="Color.Default">Enable dark theme for the interface</MudText>
+                </MudStack>
+                
+                <MudNumericField @bind-Value="_settings.DefaultPollingIntervalMinutes" 
+                    Label="Default Polling Interval (minutes)" 
+                    Class="mt-3" Min="5" Max="1440"
+                    HelperText="How often to check for new episodes" />
+                
+                <MudSelect @bind-Value="_settings.DefaultAudioQuality" Label="Default Audio Quality" Class="mt-3"
+                    HelperText="Audio quality for new YouTube downloads">
+                    <MudSelectItem Value="@("highest")">Highest</MudSelectItem>
+                    <MudSelectItem Value="@("medium")">Medium</MudSelectItem>
+                    <MudSelectItem Value="@("lowest")">Lowest</MudSelectItem>
+                </MudSelect>
+            </MudPaper>
+        </MudItem>
+
+        <!-- Feed Defaults -->
+        <MudItem xs="12" md="6">
+            <MudPaper Elevation="2" Class="pa-4 mb-4">
+                <MudText Typo="Typo.h6" Class="mb-4">Feed Defaults</MudText>
+                
+                <MudSelect @bind-Value="_settings.DefaultLanguage" Label="Default Language" Class="mb-3"
+                    HelperText="Language for new feeds">
+                    <MudSelectItem Value="@("en-us")">English (US)</MudSelectItem>
+                    <MudSelectItem Value="@("en-gb")">English (UK)</MudSelectItem>
+                    <MudSelectItem Value="@("es")">Spanish</MudSelectItem>
+                    <MudSelectItem Value="@("fr")">French</MudSelectItem>
+                    <MudSelectItem Value="@("de")">German</MudSelectItem>
+                </MudSelect>
+                
+                <MudTextField @bind-Value="_settings.DefaultFileExtensions" 
+                    Label="Default File Extensions" Class="mb-3"
+                    HelperText="Comma-separated (e.g., '.mp3,.m4a')" />
+                
+                <MudTextField @bind-Value="_settings.DefaultCategory" 
+                    Label="Default Category" 
+                    HelperText="iTunes category for new feeds" />
+            </MudPaper>
+        </MudItem>
+
+        <!-- System Information -->
+        <MudItem xs="12" md="6">
+            <MudPaper Elevation="2" Class="pa-4 mb-4">
+                <MudText Typo="Typo.h6" Class="mb-4">System Information</MudText>
+                
+                <MudStack Spacing="2">
+                    <MudStack Row="true" Justify="Justify.SpaceBetween">
+                        <MudText Typo="Typo.body2" Color="Color.Default">Database Path:</MudText>
+                        <MudText Typo="Typo.body2">@_databasePath</MudText>
+                    </MudStack>
+                    
+                    <MudStack Row="true" Justify="Justify.SpaceBetween">
+                        <MudText Typo="Typo.body2" Color="Color.Default">Database Size:</MudText>
+                        <MudText Typo="Typo.body2">@FormatBytes(_databaseSize)</MudText>
+                    </MudStack>
+                    
+                    <MudStack Row="true" Justify="Justify.SpaceBetween">
+                        <MudText Typo="Typo.body2" Color="Color.Default">Version:</MudText>
+                        <MudText Typo="Typo.body2">@_version</MudText>
+                    </MudStack>
+                    
+                    <MudStack Row="true" Justify="Justify.SpaceBetween">
+                        <MudText Typo="Typo.body2" Color="Color.Default">Runtime:</MudText>
+                        <MudText Typo="Typo.body2">.NET @_runtimeVersion</MudText>
+                    </MudStack>
+                </MudStack>
+            </MudPaper>
+        </MudItem>
+
+        <!-- Danger Zone -->
+        <MudItem xs="12" md="6">
+            <MudPaper Elevation="2" Class="pa-4 mb-4" Style="border: 1px solid var(--mud-palette-error);">
+                <MudText Typo="Typo.h6" Class="mb-4" Color="Color.Error">Danger Zone</MudText>
+                
+                <MudStack Spacing="3">
+                    <div>
+                        <MudText Typo="Typo.body1">Clear Activity Log</MudText>
+                        <MudText Typo="Typo.body2" Color="Color.Default" Class="mb-2">
+                            Delete all activity log entries. This cannot be undone.
+                        </MudText>
+                        <MudButton Variant="Variant.Outlined" Color="Color.Warning" 
+                            OnClick="ClearActivityLog" Disabled="@_clearing">
+                            @if (_clearing)
+                            {
+                                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                            }
+                            Clear Activity Log
+                        </MudButton>
+                    </div>
+                    
+                    <MudDivider />
+                    
+                    <div>
+                        <MudText Typo="Typo.body1">Reset All Feeds</MudText>
+                        <MudText Typo="Typo.body2" Color="Color.Default" Class="mb-2">
+                            Delete all feeds, episodes, and download history. Files are not deleted.
+                        </MudText>
+                        <MudButton Variant="Variant.Outlined" Color="Color.Error" 
+                            OnClick="ResetAllFeeds" Disabled="@_resetting">
+                            @if (_resetting)
+                            {
+                                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                            }
+                            Reset All Feeds
+                        </MudButton>
+                    </div>
+                </MudStack>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+
+    <MudStack Row="true" Justify="Justify.FlexEnd" Class="mt-4">
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveSettings" Disabled="@_saving">
+            @if (_saving)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+            }
+            Save Settings
+        </MudButton>
+    </MudStack>
+}
 
 @code {
-    protected override void OnInitialized()
+    private UserSettings _settings = new();
+    private bool _loading = true;
+    private bool _saving;
+    private bool _clearing;
+    private bool _resetting;
+    
+    private string _databasePath = "";
+    private long _databaseSize = 0;
+    private string _version = "1.0.0";
+    private string _runtimeVersion = "";
+
+    protected override async Task OnInitializedAsync()
     {
         Logger.LogDebug("Settings page initialized");
+        await LoadSettingsAsync();
+    }
+
+    private async Task LoadSettingsAsync()
+    {
+        _loading = true;
+        try
+        {
+            _settings = await SettingsService.GetSettingsAsync();
+            _databaseSize = await Database.GetDatabaseSizeAsync();
+            
+            // Get system information
+            _runtimeVersion = Environment.Version.ToString();
+            _version = typeof(Settings).Assembly.GetName().Version?.ToString() ?? "1.0.0";
+            _databasePath = "/data/podcast_central.db"; // From configuration
+            
+            Logger.LogDebug("Settings loaded successfully");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load settings");
+            Snackbar.Add("Failed to load settings", Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task SaveSettings()
+    {
+        _saving = true;
+        try
+        {
+            await SettingsService.SaveSettingsAsync(_settings);
+            Snackbar.Add("Settings saved successfully", Severity.Success);
+            Logger.LogInformation("Settings saved successfully");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to save settings");
+            Snackbar.Add("Failed to save settings", Severity.Error);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task ClearActivityLog()
+    {
+        var result = await DialogService.ShowMessageBox(
+            "Clear Activity Log",
+            "Are you sure you want to delete all activity log entries? This action cannot be undone.",
+            yesText: "Clear Log",
+            cancelText: "Cancel");
+        
+        if (result != true)
+            return;
+
+        _clearing = true;
+        try
+        {
+            await Database.ClearActivityLogAsync();
+            Snackbar.Add("Activity log cleared successfully", Severity.Success);
+            Logger.LogInformation("Activity log cleared");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to clear activity log");
+            Snackbar.Add("Failed to clear activity log", Severity.Error);
+        }
+        finally
+        {
+            _clearing = false;
+        }
+    }
+
+    private async Task ResetAllFeeds()
+    {
+        var result = await DialogService.ShowMessageBox(
+            "Reset All Feeds",
+            "Are you sure you want to delete ALL feeds, episodes, and download history? Media files will not be deleted, but all database records will be lost. This action cannot be undone.",
+            yesText: "Reset Everything",
+            cancelText: "Cancel");
+        
+        if (result != true)
+            return;
+
+        _resetting = true;
+        try
+        {
+            var feeds = await Database.GetAllFeedsAsync();
+            foreach (var feed in feeds)
+            {
+                await Database.DeleteFeedAsync(feed.Id);
+            }
+            
+            Snackbar.Add("All feeds have been reset", Severity.Success);
+            Logger.LogWarning("All feeds reset by user");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to reset feeds");
+            Snackbar.Add("Failed to reset feeds", Severity.Error);
+        }
+        finally
+        {
+            _resetting = false;
+        }
+    }
+
+    private string FormatBytes(long bytes)
+    {
+        string[] sizes = { "B", "KB", "MB", "GB", "TB" };
+        double len = bytes;
+        int order = 0;
+        while (len >= 1024 && order < sizes.Length - 1)
+        {
+            order++;
+            len = len / 1024;
+        }
+        return $"{len:0.##} {sizes[order]}";
     }
 }

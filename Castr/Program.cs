@@ -32,6 +32,7 @@ builder.Services.AddMemoryCache();
 builder.Services.AddSingleton<IPodcastDatabaseService, PodcastDatabaseService>();
 builder.Services.AddSingleton<ICentralDatabaseService, CentralDatabaseService>();
 builder.Services.AddSingleton<PodcastFeedService>();
+builder.Services.AddSingleton<ISettingsService, SettingsService>();
 
 // YouTube download services
 builder.Services.AddSingleton<IYouTubeDownloadService, YouTubeDownloadService>();

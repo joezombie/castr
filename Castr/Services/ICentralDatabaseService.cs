@@ -46,4 +46,10 @@ public interface ICentralDatabaseService : IDisposable
     Task<List<DownloadQueueItem>> GetDownloadQueueAsync(int? feedId = null);
     Task<DownloadQueueItem?> GetQueueItemAsync(int feedId, string videoId);
     Task RemoveFromDownloadQueueAsync(int queueItemId);
+    
+    // User settings management
+    Task<UserSettings> GetUserSettingsAsync();
+    Task SaveUserSettingsAsync(UserSettings settings);
+    Task<long> GetDatabaseSizeAsync();
+    Task ClearActivityLogAsync();
 }

@@ -173,8 +173,27 @@ public partial class CentralDatabaseService : ICentralDatabaseService
 
                 CREATE INDEX IF NOT EXISTS idx_queue_feed_status ON download_queue(feed_id, status);
                 CREATE INDEX IF NOT EXISTS idx_queue_status ON download_queue(status);
+                
+                -- User settings table (single row)
+                CREATE TABLE IF NOT EXISTS user_settings (
+                    id INTEGER PRIMARY KEY CHECK (id = 1),
+                    dark_mode INTEGER DEFAULT 1,
+                    default_polling_interval_minutes INTEGER DEFAULT 60,
+                    default_audio_quality TEXT DEFAULT 'highest',
+                    default_language TEXT DEFAULT 'en-us',
+                    default_file_extensions TEXT DEFAULT '.mp3',
+                    default_category TEXT DEFAULT 'Society & Culture',
+                    updated_at TEXT NOT NULL
+                );
+                
+                -- Insert default settings if not exists
+                INSERT OR IGNORE INTO user_settings (id, dark_mode, default_polling_interval_minutes, 
+                    default_audio_quality, default_language, default_file_extensions, 
+                    default_category, updated_at)
+                VALUES (1, 1, 60, 'highest', 'en-us', '.mp3', 'Society & Culture', @now);
             ";
 
+            command.Parameters.AddWithValue("@now", DateTime.UtcNow.ToString("O"));
             await command.ExecuteNonQueryAsync();
 
             _initialized = true;
@@ -1632,6 +1651,140 @@ public partial class CentralDatabaseService : ICentralDatabaseService
         }
     }
 
+    #endregion
+
+    #region User Settings Management
+    
+    public async Task<UserSettings> GetUserSettingsAsync()
+    {
+        await AcquireDatabaseLockAsync();
+        try
+        {
+            await using var connection = new SqliteConnection(GetConnectionString());
+            await connection.OpenAsync();
+
+            var command = connection.CreateCommand();
+            command.CommandText = @"
+                SELECT dark_mode, default_polling_interval_minutes, default_audio_quality,
+                       default_language, default_file_extensions, default_category, updated_at
+                FROM user_settings WHERE id = 1
+            ";
+
+            await using var reader = await command.ExecuteReaderAsync();
+            if (await reader.ReadAsync())
+            {
+                return new UserSettings
+                {
+                    Id = 1,
+                    DarkMode = reader.GetInt32(0) == 1,
+                    DefaultPollingIntervalMinutes = reader.GetInt32(1),
+                    DefaultAudioQuality = reader.GetString(2),
+                    DefaultLanguage = reader.GetString(3),
+                    DefaultFileExtensions = reader.GetString(4),
+                    DefaultCategory = reader.GetString(5),
+                    UpdatedAt = DateTime.Parse(reader.GetString(6))
+                };
+            }
+            
+            // Return default settings if not found (should not happen due to INSERT OR IGNORE)
+            return new UserSettings
+            {
+                Id = 1,
+                DarkMode = true,
+                DefaultPollingIntervalMinutes = 60,
+                DefaultAudioQuality = "highest",
+                DefaultLanguage = "en-us",
+                DefaultFileExtensions = ".mp3",
+                DefaultCategory = "Society & Culture",
+                UpdatedAt = DateTime.UtcNow
+            };
+        }
+        finally
+        {
+            _dbLock.Release();
+        }
+    }
+    
+    public async Task SaveUserSettingsAsync(UserSettings settings)
+    {
+        await AcquireDatabaseLockAsync();
+        try
+        {
+            await using var connection = new SqliteConnection(GetConnectionString());
+            await connection.OpenAsync();
+
+            var command = connection.CreateCommand();
+            command.CommandText = @"
+                UPDATE user_settings SET
+                    dark_mode = @darkMode,
+                    default_polling_interval_minutes = @pollingInterval,
+                    default_audio_quality = @audioQuality,
+                    default_language = @language,
+                    default_file_extensions = @fileExtensions,
+                    default_category = @category,
+                    updated_at = @updatedAt
+                WHERE id = 1
+            ";
+            
+            command.Parameters.AddWithValue("@darkMode", settings.DarkMode ? 1 : 0);
+            command.Parameters.AddWithValue("@pollingInterval", settings.DefaultPollingIntervalMinutes);
+            command.Parameters.AddWithValue("@audioQuality", settings.DefaultAudioQuality);
+            command.Parameters.AddWithValue("@language", settings.DefaultLanguage);
+            command.Parameters.AddWithValue("@fileExtensions", settings.DefaultFileExtensions);
+            command.Parameters.AddWithValue("@category", settings.DefaultCategory);
+            command.Parameters.AddWithValue("@updatedAt", DateTime.UtcNow.ToString("O"));
+
+            await command.ExecuteNonQueryAsync();
+            _logger.LogInformation("User settings saved successfully");
+        }
+        finally
+        {
+            _dbLock.Release();
+        }
+    }
+    
+    public async Task<long> GetDatabaseSizeAsync()
+    {
+        await AcquireDatabaseLockAsync();
+        try
+        {
+            if (!File.Exists(_databasePath))
+                return 0;
+            
+            var fileInfo = new FileInfo(_databasePath);
+            return fileInfo.Length;
+        }
+        finally
+        {
+            _dbLock.Release();
+        }
+    }
+    
+    public async Task ClearActivityLogAsync()
+    {
+        await AcquireDatabaseLockAsync();
+        try
+        {
+            await using var connection = new SqliteConnection(GetConnectionString());
+            await connection.OpenAsync();
+
+            var command = connection.CreateCommand();
+            command.CommandText = "DELETE FROM activity_log";
+            
+            var deletedCount = await command.ExecuteNonQueryAsync();
+            _logger.LogInformation("Cleared {Count} activity log entries", deletedCount);
+            
+            // Vacuum database to reclaim space
+            var vacuumCommand = connection.CreateCommand();
+            vacuumCommand.CommandText = "VACUUM";
+            await vacuumCommand.ExecuteNonQueryAsync();
+        }
+        finally
+        {
+            _dbLock.Release();
+        }
+    }
+    
     #endregion
 
     public void Dispose()

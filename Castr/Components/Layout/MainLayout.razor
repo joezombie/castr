@@ -1,4 +1,7 @@
 @inherits LayoutComponentBase
+@inject ISettingsService SettingsService
+@inject ILogger<MainLayout> Logger
+@implements IAsyncDisposable
 
 <MudThemeProvider Theme="_theme" @bind-IsDarkMode="_isDarkMode" />
 <MudPopoverProvider />
@@ -29,6 +32,23 @@
     private bool _isDarkMode = true;
     private MudTheme _theme = new();
 
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var settings = await SettingsService.GetSettingsAsync();
+            _isDarkMode = settings.DarkMode;
+            Logger.LogDebug("Loaded dark mode preference: {DarkMode}", _isDarkMode);
+            
+            // Subscribe to settings changes
+            SettingsService.SettingsChanged += OnSettingsChanged;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load settings");
+        }
+    }
+
     private void ToggleDrawer()
     {
         _drawerOpen = !_drawerOpen;
@@ -44,8 +64,32 @@
         _drawerOpen = false;
     }
 
-    private void ToggleDarkMode()
+    private async void ToggleDarkMode()
     {
         _isDarkMode = !_isDarkMode;
+        
+        try
+        {
+            var settings = await SettingsService.GetSettingsAsync();
+            settings.DarkMode = _isDarkMode;
+            await SettingsService.SaveSettingsAsync(settings);
+            Logger.LogDebug("Dark mode preference saved: {DarkMode}", _isDarkMode);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to save dark mode preference");
+        }
+    }
+    
+    private void OnSettingsChanged(object? sender, UserSettings settings)
+    {
+        _isDarkMode = settings.DarkMode;
+        InvokeAsync(StateHasChanged);
+    }
+    
+    public async ValueTask DisposeAsync()
+    {
+        SettingsService.SettingsChanged -= OnSettingsChanged;
     }
 }
+
