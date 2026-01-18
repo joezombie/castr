@@ -75,8 +75,17 @@ export Dashboard__Username=admin
 export Dashboard__Password=your-secure-password
 ```
 
-> **⚠️ Security Note**: Credentials are NOT set by default. 
+> **Security Note**: Credentials are NOT set by default.
 > **You MUST configure these via environment variables** for the dashboard to function.
+
+### Central Database Configuration
+
+```bash
+# Set central database path (optional, default: /data/castr.db)
+export PodcastFeeds__CentralDatabasePath=/custom/path/castr.db
+```
+
+The central database stores all feed configurations, episodes, activity logs, and download queue. On first startup, feeds are automatically migrated from `appsettings.json` to the central database.
 
 ### Multiple Feeds
 

@@ -15,12 +15,21 @@ services:
     volumes:
       # Mount your media directories here
       - /mnt/user/Stuff/Podcasts:/Podcasts:rw
+      # Persist central database (recommended)
+      - castr-data:/data:rw
       # Add additional podcast directories as needed:
       # - /path/to/podcast:/path/to/podcast:ro
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
       # Configure forwarded headers for reverse proxy
       - ASPNETCORE_FORWARDEDHEADERS_ENABLED=true
+
+      # Dashboard authentication (REQUIRED - change these!)
+      - Dashboard__Username=admin
+      - Dashboard__Password=CHANGE_ME_TO_SECURE_PASSWORD
+
+      # Central database path (optional, default: /data/castr.db)
+      - PodcastFeeds__CentralDatabasePath=/data/castr.db
     networks:
       - traefik
     labels:
@@ -46,6 +55,10 @@ services:
       - "traefik.http.routers.castr-http.middlewares=redirect-to-https"
       - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
     restart: unless-stopped
+
+volumes:
+  castr-data:
+    # Named volume for central database persistence
 
 networks:
   traefik:

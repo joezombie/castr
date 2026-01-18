@@ -82,11 +82,15 @@ Feeds configured in `appsettings.json` under `PodcastFeeds.Feeds`. Each feed has
 ### Architecture
 
 - `Models/PodcastFeedConfig.cs` - Configuration models including YouTubePlaylistConfig
+- `Models/FeedRecord.cs`, `EpisodeRecord.cs`, etc. - Central database models
 - `Services/PodcastFeedService.cs` - RSS XML generation, reads ID3 tags via TagLibSharp
-- `Services/PodcastDatabaseService.cs` - SQLite database for episode tracking and ordering
+- `Services/CentralDatabaseService.cs` - Unified SQLite database for all feeds, episodes, and activity
+- `Services/PodcastDatabaseService.cs` - Legacy per-feed database (being phased out)
 - `Services/YouTubeDownloadService.cs` - YouTube playlist fetching and audio downloads via YouTubeExplode
 - `Services/PlaylistWatcherService.cs` - BackgroundService that monitors playlists and downloads new episodes
 - `Controllers/FeedController.cs` - API endpoints with range request support for streaming
+- `Hubs/DownloadProgressHub.cs` - SignalR hub for real-time download progress
+- `Components/` - Blazor components for the MudBlazor dashboard
 
 ### YouTube Playlist Watcher
 
@@ -108,7 +112,38 @@ Automatically monitors YouTube playlists and downloads new episodes:
 - Comprehensive logging
 
 **Database:**
-- `episodes` table - Tracks all episodes with display_order (newer = lower numbers)
-- `downloaded_videos` table - Prevents re-downloading YouTube videos
+- Central database (`/data/castr.db`): Unified storage for all feeds, episodes, activity logs
+- Legacy per-feed databases: Being migrated to central database on startup
 
 See `YOUTUBE_WATCHER_IMPLEMENTATION.md` for detailed documentation.
+
+### MudBlazor Dashboard
+
+Web-based management interface with cookie authentication.
+
+**Features:**
+- Real-time download progress via SignalR
+- Feed management (add/edit/delete feeds)
+- Episode management with redownload capability
+- Download queue monitoring
+- Activity logging
+
+**Routes:**
+- `/` - Dashboard with statistics and activity
+- `/feeds` - Feed list and management
+- `/feeds/{name}` - Feed details
+- `/feeds/{name}/episodes` - Episode list
+- `/downloads` - Download queue
+- `/login` - Authentication
+
+**Configuration:**
+```bash
+# Required - set via environment variables
+Dashboard__Username=admin
+Dashboard__Password=your-secure-password
+
+# Optional - central database path (default: /data/castr.db)
+PodcastFeeds__CentralDatabasePath=/custom/path/castr.db
+```
+
+See `DASHBOARD.md` for detailed documentation.
