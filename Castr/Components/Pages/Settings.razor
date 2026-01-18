@@ -2,6 +2,7 @@
 @attribute [Authorize]
 @inject ISettingsService SettingsService
 @inject ICentralDatabaseService Database
+@inject IConfiguration Configuration
 @inject ILogger<Settings> Logger
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
@@ -176,7 +177,7 @@ else
             // Get system information
             _runtimeVersion = Environment.Version.ToString();
             _version = typeof(Settings).Assembly.GetName().Version?.ToString() ?? "1.0.0";
-            _databasePath = "/data/podcast_central.db"; // From configuration
+            _databasePath = Configuration["PodcastFeeds:CentralDatabasePath"] ?? "/data/podcast_central.db";
             
             Logger.LogDebug("Settings loaded successfully");
         }

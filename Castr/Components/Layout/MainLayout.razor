@@ -64,21 +64,25 @@
         _drawerOpen = false;
     }
 
-    private async void ToggleDarkMode()
+    private void ToggleDarkMode()
     {
         _isDarkMode = !_isDarkMode;
         
-        try
+        // Save preference asynchronously without awaiting (fire-and-forget with error handling)
+        _ = Task.Run(async () =>
         {
-            var settings = await SettingsService.GetSettingsAsync();
-            settings.DarkMode = _isDarkMode;
-            await SettingsService.SaveSettingsAsync(settings);
-            Logger.LogDebug("Dark mode preference saved: {DarkMode}", _isDarkMode);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Failed to save dark mode preference");
-        }
+            try
+            {
+                var settings = await SettingsService.GetSettingsAsync();
+                settings.DarkMode = _isDarkMode;
+                await SettingsService.SaveSettingsAsync(settings);
+                Logger.LogDebug("Dark mode preference saved: {DarkMode}", _isDarkMode);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Failed to save dark mode preference");
+            }
+        });
     }
     
     private void OnSettingsChanged(object? sender, UserSettings settings)
