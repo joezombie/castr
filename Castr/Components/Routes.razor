@@ -1,7 +1,7 @@
 <CascadingAuthenticationState>
     <Router AppAssembly="typeof(Program).Assembly">
         <Found Context="routeData">
-            <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(Components.Layout.MainLayout)">
+            <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(Components.Layout.MainLayout)" @rendermode="InteractiveServer">
                 <NotAuthorized>
                     @if (context.User.Identity?.IsAuthenticated != true)
                     {
