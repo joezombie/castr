@@ -65,6 +65,19 @@ export Logging__LogLevel__Microsoft.AspNetCore=Information
 export Logging__LogLevel__PodcastFeedApi=Trace
 ```
 
+### Dashboard Authentication
+
+```bash
+# Set dashboard username (required - no default)
+export Dashboard__Username=admin
+
+# Set dashboard password (required - no default)
+export Dashboard__Password=your-secure-password
+```
+
+> **⚠️ Security Note**: Credentials are NOT set by default. 
+> **You MUST configure these via environment variables** for the dashboard to function.
+
 ### Multiple Feeds
 
 ```bash
@@ -109,6 +122,10 @@ services:
       # Use production paths
       - PodcastFeeds__Feeds__btb__Directory=/mnt/storage/podcasts/btb
       - PodcastFeeds__Feeds__btbc__Directory=/mnt/storage/podcasts/btbc
+      
+      # Dashboard authentication (CHANGE THESE!)
+      - Dashboard__Username=admin
+      - Dashboard__Password=YourSecurePasswordHere123!
       
       # Production logging (less verbose)
       - Logging__LogLevel__Default=Information

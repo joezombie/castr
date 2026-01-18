@@ -1,0 +1,18 @@
+@page "/settings"
+@attribute [Authorize]
+@inject ILogger<Settings> Logger
+
+<PageTitle>Settings - Castr</PageTitle>
+
+<MudText Typo="Typo.h3" Class="mb-4">Settings</MudText>
+
+<MudPaper Elevation="2" Class="pa-4">
+    <MudText Typo="Typo.body1">Settings interface coming in Phase 3</MudText>
+</MudPaper>
+
+@code {
+    protected override void OnInitialized()
+    {
+        Logger.LogDebug("Settings page initialized");
+    }
+}

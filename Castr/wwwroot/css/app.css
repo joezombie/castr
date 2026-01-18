@@ -1,0 +1,23 @@
+/* Custom styles for Castr dashboard */
+
+html, body {
+    font-family: 'Roboto', sans-serif;
+}
+
+.mud-main-content {
+    margin-top: 64px; /* AppBar height */
+}
+
+/* Login page styling */
+.pa-8 {
+    padding: 2rem;
+}
+
+.mt-8 {
+    margin-top: 2rem;
+}
+
+/* Ensure smooth transitions */
+* {
+    transition: background-color 0.3s ease;
+}

@@ -1,7 +1,10 @@
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.Extensions.Options;
 using Castr.Models;
 using Castr.Services;
+using Castr.Components;
+using MudBlazor.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -31,6 +34,31 @@ builder.Services.AddSingleton<PodcastFeedService>();
 // YouTube download services
 builder.Services.AddSingleton<IYouTubeDownloadService, YouTubeDownloadService>();
 builder.Services.AddHostedService<PlaylistWatcherService>();
+
+// Add authentication
+builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+    .AddCookie(options =>
+    {
+        options.LoginPath = "/login";
+        options.LogoutPath = "/logout";
+        options.ExpireTimeSpan = TimeSpan.FromDays(7);
+        options.SlidingExpiration = true;
+        options.Cookie.HttpOnly = true;
+        options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+        options.Cookie.SameSite = SameSiteMode.Lax;
+    });
+
+builder.Services.AddAuthorization();
+
+// Add Blazor Server with MudBlazor
+builder.Services.AddRazorComponents()
+    .AddInteractiveServerComponents();
+builder.Services.AddRazorPages();
+builder.Services.AddMudServices();
+
+// Add HttpContextAccessor for Blazor components
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddCascadingAuthenticationState();
 
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
@@ -161,9 +189,23 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
+// Serve static files for Blazor
+app.UseStaticFiles();
+app.UseAntiforgery();
+
+// Authentication & Authorization
+app.UseAuthentication();
 app.UseAuthorization();
 
+// Map API controllers (feed endpoints remain public)
 app.MapControllers();
+
+// Map Razor Pages (for login)
+app.MapRazorPages();
+
+// Map Blazor components (dashboard routes)
+app.MapRazorComponents<App>()
+    .AddInteractiveServerRenderMode();
 
 // Add health check endpoint for monitoring and container orchestration
 app.MapHealthChecks("/health");
