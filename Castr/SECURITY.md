@@ -1,16 +1,14 @@
 # Security Configuration
 
-## ⚠️ IMPORTANT: Default Credentials
+## ⚠️ CRITICAL: Credentials Required
 
-The `appsettings.json` file contains **default development credentials**:
-- Username: `admin`
-- Password: `changeme`
+The `appsettings.json` file does **NOT** contain default credentials. You **MUST** configure authentication credentials before the application will function.
 
-**These credentials are NOT secure and MUST be changed for production deployments!**
+**Credentials must be set via environment variables or configuration.**
 
 ## Production Configuration
 
-### Option 1: Environment Variables (Recommended)
+### Option 1: Environment Variables (Required for Production)
 
 Set these environment variables:
 
@@ -19,7 +17,7 @@ export Dashboard__Username="your-admin-username"
 export Dashboard__Password="your-secure-password"
 ```
 
-### Option 2: User Secrets (Development)
+### Option 2: User Secrets (Development Only)
 
 For local development, use .NET User Secrets:
 

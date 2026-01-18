@@ -68,17 +68,15 @@ export Logging__LogLevel__PodcastFeedApi=Trace
 ### Dashboard Authentication
 
 ```bash
-# Set dashboard username (default: admin)
+# Set dashboard username (required - no default)
 export Dashboard__Username=admin
 
-# Set dashboard password (default: changeme)
+# Set dashboard password (required - no default)
 export Dashboard__Password=your-secure-password
-
-# IMPORTANT: Change the default password in production!
 ```
 
-> **⚠️ Security Warning**: The default credentials are `admin` / `changeme`. 
-> **You MUST change these in production** to secure your dashboard.
+> **⚠️ Security Note**: Credentials are NOT set by default. 
+> **You MUST configure these via environment variables** for the dashboard to function.
 
 ### Multiple Feeds
 

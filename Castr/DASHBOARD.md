@@ -9,17 +9,24 @@ The Castr dashboard provides a web interface for managing podcast feeds, monitor
 - **Navigation**: Easy access to Dashboard, Feeds, Downloads, and Settings
 - **Public API**: RSS feed endpoints remain publicly accessible without authentication
 
-## Default Credentials
+## ⚠️ Required Configuration
 
-⚠️ **Security Warning**: The default credentials are:
-- **Username**: `admin`
-- **Password**: `changeme`
+**Dashboard credentials are NOT set by default.** You MUST configure them using environment variables before starting the application.
 
-**You MUST change these credentials in production!**
+The application will fail to start if credentials are not properly configured.
 
 ## Configuration
 
-### Using appsettings.json
+### Using Environment Variables (Required for Production)
+
+```bash
+export Dashboard__Username=admin
+export Dashboard__Password=your-secure-password
+```
+
+### Using appsettings.json (Development Only)
+
+**Note**: Do not commit credentials to version control. Use appsettings.Development.json or user secrets for local development.
 
 ```json
 {
