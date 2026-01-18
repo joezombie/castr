@@ -11,6 +11,7 @@ public interface ICentralDatabaseService : IDisposable
     // Database initialization
     Task InitializeDatabaseAsync();
     Task MigrateFromPerFeedDatabasesAsync(Dictionary<string, PodcastFeedConfig> feeds);
+    Task SyncEpisodesFromPerFeedDatabaseAsync(int feedId, string perFeedDbPath);
     
     // Feed management
     Task<List<FeedRecord>> GetAllFeedsAsync();

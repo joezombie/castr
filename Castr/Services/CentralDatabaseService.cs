@@ -1564,6 +1564,121 @@ public partial class CentralDatabaseService : ICentralDatabaseService
         }
     }
 
+    /// <summary>
+    /// Syncs episodes from a per-feed database to the central database.
+    /// This can be called repeatedly to keep data in sync.
+    /// </summary>
+    public async Task SyncEpisodesFromPerFeedDatabaseAsync(int feedId, string perFeedDbPath)
+    {
+        if (!File.Exists(perFeedDbPath))
+        {
+            _logger.LogDebug("Per-feed database not found at {Path}, skipping sync", perFeedDbPath);
+            return;
+        }
+
+        _logger.LogInformation("Syncing episodes from per-feed database: {Path}", perFeedDbPath);
+        await InitializeDatabaseAsync();
+
+        var connectionString = $"Data Source={perFeedDbPath}";
+
+        await using var perFeedConnection = new SqliteConnection(connectionString);
+        await perFeedConnection.OpenAsync();
+
+        var command = perFeedConnection.CreateCommand();
+        command.CommandText = @"
+            SELECT filename, video_id, youtube_title, description, thumbnail_url,
+                   display_order, added_at, publish_date, match_score
+            FROM episodes
+            ORDER BY display_order ASC
+        ";
+
+        var episodes = new List<EpisodeRecord>();
+        await using (var reader = await command.ExecuteReaderAsync())
+        {
+            while (await reader.ReadAsync())
+            {
+                episodes.Add(new EpisodeRecord
+                {
+                    Filename = reader.GetString(0),
+                    VideoId = reader.IsDBNull(1) ? null : reader.GetString(1),
+                    YoutubeTitle = reader.IsDBNull(2) ? null : reader.GetString(2),
+                    Description = reader.IsDBNull(3) ? null : reader.GetString(3),
+                    ThumbnailUrl = reader.IsDBNull(4) ? null : reader.GetString(4),
+                    DisplayOrder = reader.GetInt32(5),
+                    AddedAt = DateTime.Parse(reader.GetString(6)),
+                    PublishDate = reader.IsDBNull(7) ? null : DateTime.Parse(reader.GetString(7)),
+                    MatchScore = reader.IsDBNull(8) ? null : reader.GetDouble(8)
+                });
+            }
+        }
+
+        if (episodes.Count == 0)
+        {
+            _logger.LogDebug("No episodes found in per-feed database");
+            return;
+        }
+
+        _logger.LogInformation("Syncing {Count} episodes from per-feed database to central database", episodes.Count);
+
+        await AcquireDatabaseLockAsync();
+        try
+        {
+            await using var centralConnection = new SqliteConnection(GetConnectionString());
+            await centralConnection.OpenAsync();
+
+            await using var transaction = await centralConnection.BeginTransactionAsync();
+            try
+            {
+                var syncedCount = 0;
+                foreach (var episode in episodes)
+                {
+                    var insertCommand = centralConnection.CreateCommand();
+                    insertCommand.CommandText = @"
+                        INSERT INTO episodes
+                        (feed_id, filename, video_id, youtube_title, description, thumbnail_url,
+                         display_order, added_at, publish_date, match_score)
+                        VALUES (@feedId, @filename, @videoId, @youtubeTitle, @description,
+                                @thumbnailUrl, @displayOrder, @addedAt, @publishDate, @matchScore)
+                        ON CONFLICT(feed_id, filename) DO UPDATE SET
+                            video_id = excluded.video_id,
+                            youtube_title = excluded.youtube_title,
+                            description = COALESCE(excluded.description, description),
+                            thumbnail_url = COALESCE(excluded.thumbnail_url, thumbnail_url),
+                            display_order = excluded.display_order,
+                            publish_date = COALESCE(excluded.publish_date, publish_date),
+                            match_score = excluded.match_score
+                    ";
+                    insertCommand.Parameters.AddWithValue("@feedId", feedId);
+                    insertCommand.Parameters.AddWithValue("@filename", episode.Filename);
+                    insertCommand.Parameters.AddWithValue("@videoId", (object?)episode.VideoId ?? DBNull.Value);
+                    insertCommand.Parameters.AddWithValue("@youtubeTitle", (object?)episode.YoutubeTitle ?? DBNull.Value);
+                    insertCommand.Parameters.AddWithValue("@description", (object?)episode.Description ?? DBNull.Value);
+                    insertCommand.Parameters.AddWithValue("@thumbnailUrl", (object?)episode.ThumbnailUrl ?? DBNull.Value);
+                    insertCommand.Parameters.AddWithValue("@displayOrder", episode.DisplayOrder);
+                    insertCommand.Parameters.AddWithValue("@addedAt", episode.AddedAt.ToString("O"));
+                    insertCommand.Parameters.AddWithValue("@publishDate", episode.PublishDate.HasValue ? episode.PublishDate.Value.ToString("O") : DBNull.Value);
+                    insertCommand.Parameters.AddWithValue("@matchScore", (object?)episode.MatchScore ?? DBNull.Value);
+
+                    await insertCommand.ExecuteNonQueryAsync();
+                    syncedCount++;
+                }
+
+                await transaction.CommitAsync();
+                _logger.LogInformation("Successfully synced {Count} episodes to central database for feed {FeedId}", syncedCount, feedId);
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                _logger.LogError(ex, "Failed to sync episodes to central database");
+                throw;
+            }
+        }
+        finally
+        {
+            _dbLock.Release();
+        }
+    }
+
     private async Task MigrateDownloadedVideosFromPerFeedDatabase(int feedId, string perFeedDbPath)
     {
         var connectionString = $"Data Source={perFeedDbPath}";

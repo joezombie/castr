@@ -196,6 +196,24 @@ else if (existingFeeds.Count > 0)
     logger.LogInformation("Central database already contains {Count} feed(s), skipping migration", existingFeeds.Count);
 }
 
+// Sync episodes from per-feed databases to central database
+// This ensures the dashboard always has up-to-date episode data
+logger.LogInformation("Syncing episodes from per-feed databases to central database");
+var feedsToSync = await centralDatabase.GetAllFeedsAsync();
+foreach (var feed in feedsToSync)
+{
+    var perFeedDbPath = Path.Combine(feed.Directory, "podcast.db");
+    try
+    {
+        await centralDatabase.SyncEpisodesFromPerFeedDatabaseAsync(feed.Id, perFeedDbPath);
+    }
+    catch (Exception ex)
+    {
+        logger.LogWarning(ex, "Failed to sync episodes for feed {FeedName}, continuing with other feeds", feed.Name);
+    }
+}
+logger.LogInformation("Episode sync complete");
+
 // Configure forwarded headers (MUST be before other middleware)
 app.UseForwardedHeaders();
 
