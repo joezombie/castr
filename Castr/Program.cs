@@ -1,10 +1,12 @@
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.Extensions.Options;
+using Microsoft.EntityFrameworkCore;
 using Castr.Models;
 using Castr.Services;
 using Castr.Components;
 using Castr.Hubs;
+using Castr.Data;
 using MudBlazor.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -27,6 +29,13 @@ builder.Services.Configure<PodcastFeedsConfig>(
 
 // Add memory cache for RSS feed caching
 builder.Services.AddMemoryCache();
+
+// Entity Framework Core DbContext (temporary SQLite configuration)
+// TODO: Make database provider configurable via appsettings.json
+var centralDbPath = builder.Configuration["PodcastFeeds:CentralDatabasePath"] 
+    ?? "/data/podcast_central.db";
+builder.Services.AddDbContext<CastrDbContext>(options =>
+    options.UseSqlite($"Data Source={centralDbPath}"));
 
 // Database services for episode tracking
 builder.Services.AddSingleton<IPodcastDatabaseService, PodcastDatabaseService>();
