@@ -58,11 +58,11 @@ else if (_feeds.Any())
                 <CellTemplate>
                     <MudStack Row="true" Spacing="1">
                         <MudIconButton Icon="@Icons.Material.Filled.Visibility" Size="Size.Small"
-                            OnClick="() => ViewFeed(context.Item)" Title="View Details" />
+                            OnClick="() => ViewFeed(context.Item)" title="View Details" />
                         <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
-                            OnClick="() => EditFeed(context.Item)" Title="Edit" />
+                            OnClick="() => EditFeed(context.Item)" title="Edit" />
                         <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
-                            OnClick="() => DeleteFeed(context.Item)" Title="Delete" />
+                            OnClick="() => DeleteFeed(context.Item)" title="Delete" />
                     </MudStack>
                 </CellTemplate>
             </TemplateColumn>
