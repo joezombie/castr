@@ -91,11 +91,11 @@ else
                 <CellTemplate>
                     <MudStack Row="true" Spacing="1">
                         <MudIconButton Icon="@Icons.Material.Filled.Visibility" Size="Size.Small"
-                            OnClick="() => ViewEpisode(context.Item)" Title="View Details" />
+                            OnClick="() => ViewEpisode(context.Item)" title="View Details" />
                         <MudIconButton Icon="@Icons.Material.Filled.Refresh" Size="Size.Small" Color="Color.Warning"
-                            OnClick="() => RedownloadEpisode(context.Item)" Title="Redownload" />
+                            OnClick="() => RedownloadEpisode(context.Item)" title="Redownload" />
                         <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
-                            OnClick="() => DeleteEpisode(context.Item)" Title="Delete" />
+                            OnClick="() => DeleteEpisode(context.Item)" title="Delete" />
                     </MudStack>
                 </CellTemplate>
             </TemplateColumn>
