@@ -74,8 +74,19 @@
             try
             {
                 var settings = await SettingsService.GetSettingsAsync();
-                settings.DarkMode = _isDarkMode;
-                await SettingsService.SaveSettingsAsync(settings);
+                // Create new instance to avoid mutating cached object
+                var updatedSettings = new UserSettings
+                {
+                    Id = settings.Id,
+                    DarkMode = _isDarkMode,
+                    DefaultPollingIntervalMinutes = settings.DefaultPollingIntervalMinutes,
+                    DefaultAudioQuality = settings.DefaultAudioQuality,
+                    DefaultLanguage = settings.DefaultLanguage,
+                    DefaultFileExtensions = settings.DefaultFileExtensions,
+                    DefaultCategory = settings.DefaultCategory,
+                    UpdatedAt = settings.UpdatedAt
+                };
+                await SettingsService.SaveSettingsAsync(updatedSettings);
                 Logger.LogDebug("Dark mode preference saved: {DarkMode}", _isDarkMode);
             }
             catch (Exception ex)

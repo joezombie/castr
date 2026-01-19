@@ -149,7 +149,13 @@ else
 }
 
 @code {
-    private UserSettings _settings = new();
+    private UserSettings _settings = new()
+    {
+        DefaultAudioQuality = "highest",
+        DefaultLanguage = "en-us",
+        DefaultFileExtensions = ".mp3",
+        DefaultCategory = "Society & Culture"
+    };
     private bool _loading = true;
     private bool _saving;
     private bool _clearing;
@@ -197,6 +203,37 @@ else
         _saving = true;
         try
         {
+            // Validate input before saving
+            if (_settings.DefaultPollingIntervalMinutes < 5 || _settings.DefaultPollingIntervalMinutes > 1440)
+            {
+                Snackbar.Add("Polling interval must be between 5 and 1440 minutes", Severity.Warning);
+                return;
+            }
+            
+            if (string.IsNullOrWhiteSpace(_settings.DefaultAudioQuality))
+            {
+                Snackbar.Add("Audio quality is required", Severity.Warning);
+                return;
+            }
+            
+            if (string.IsNullOrWhiteSpace(_settings.DefaultLanguage))
+            {
+                Snackbar.Add("Language is required", Severity.Warning);
+                return;
+            }
+            
+            if (string.IsNullOrWhiteSpace(_settings.DefaultFileExtensions))
+            {
+                Snackbar.Add("File extensions are required", Severity.Warning);
+                return;
+            }
+            
+            if (string.IsNullOrWhiteSpace(_settings.DefaultCategory))
+            {
+                Snackbar.Add("Category is required", Severity.Warning);
+                return;
+            }
+            
             await SettingsService.SaveSettingsAsync(_settings);
             Snackbar.Add("Settings saved successfully", Severity.Success);
             Logger.LogInformation("Settings saved successfully");
@@ -227,6 +264,10 @@ else
         try
         {
             await Database.ClearActivityLogAsync();
+            
+            // Refresh database size after VACUUM
+            _databaseSize = await Database.GetDatabaseSizeAsync();
+            
             Snackbar.Add("Activity log cleared successfully", Severity.Success);
             Logger.LogInformation("Activity log cleared");
         }

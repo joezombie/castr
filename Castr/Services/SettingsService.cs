@@ -5,12 +5,13 @@ using Castr.Models;
 /// <summary>
 /// Implementation of settings service with caching and change notification.
 /// </summary>
-public class SettingsService : ISettingsService
+public class SettingsService : ISettingsService, IDisposable
 {
     private readonly ICentralDatabaseService _database;
     private readonly ILogger<SettingsService> _logger;
     private readonly SemaphoreSlim _lock = new(1, 1);
     private UserSettings? _cachedSettings;
+    private bool _disposed;
     
     public event EventHandler<UserSettings>? SettingsChanged;
     
@@ -52,8 +53,15 @@ public class SettingsService : ISettingsService
             _cachedSettings = settings;
             _logger.LogInformation("Settings saved successfully");
             
-            // Notify listeners
-            SettingsChanged?.Invoke(this, settings);
+            // Notify listeners (wrapped in try-catch to ensure cache consistency)
+            try
+            {
+                SettingsChanged?.Invoke(this, settings);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error notifying settings change listeners");
+            }
         }
         finally
         {
@@ -76,5 +84,14 @@ public class SettingsService : ISettingsService
         {
             _lock.Release();
         }
+    }
+    
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+            
+        _lock.Dispose();
+        _disposed = true;
     }
 }

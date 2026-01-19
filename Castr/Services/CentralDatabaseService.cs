@@ -1707,6 +1707,26 @@ public partial class CentralDatabaseService : ICentralDatabaseService
     
     public async Task SaveUserSettingsAsync(UserSettings settings)
     {
+        // Validate input parameters
+        if (settings == null)
+            throw new ArgumentNullException(nameof(settings));
+        
+        if (settings.DefaultPollingIntervalMinutes < 5 || settings.DefaultPollingIntervalMinutes > 1440)
+            throw new ArgumentOutOfRangeException(nameof(settings.DefaultPollingIntervalMinutes), 
+                "Polling interval must be between 5 and 1440 minutes");
+        
+        if (string.IsNullOrWhiteSpace(settings.DefaultAudioQuality))
+            throw new ArgumentException("Audio quality cannot be null or empty", nameof(settings.DefaultAudioQuality));
+        
+        if (string.IsNullOrWhiteSpace(settings.DefaultLanguage))
+            throw new ArgumentException("Language cannot be null or empty", nameof(settings.DefaultLanguage));
+        
+        if (string.IsNullOrWhiteSpace(settings.DefaultFileExtensions))
+            throw new ArgumentException("File extensions cannot be null or empty", nameof(settings.DefaultFileExtensions));
+        
+        if (string.IsNullOrWhiteSpace(settings.DefaultCategory))
+            throw new ArgumentException("Category cannot be null or empty", nameof(settings.DefaultCategory));
+        
         await AcquireDatabaseLockAsync();
         try
         {
@@ -1743,18 +1763,11 @@ public partial class CentralDatabaseService : ICentralDatabaseService
         }
     }
     
-    public async Task<long> GetDatabaseSizeAsync()
+    public Task<long> GetDatabaseSizeAsync()
     {
-        await AcquireDatabaseLockAsync();
-        try
-        {
-            var fileInfo = new FileInfo(_databasePath);
-            return fileInfo.Exists ? fileInfo.Length : 0;
-        }
-        finally
-        {
-            _dbLock.Release();
-        }
+        var fileInfo = new FileInfo(_databasePath);
+        var size = fileInfo.Exists ? fileInfo.Length : 0L;
+        return Task.FromResult(size);
     }
     
     public async Task ClearActivityLogAsync()

@@ -11,12 +11,12 @@ public class UserSettings
     // Application Settings
     public bool DarkMode { get; set; } = true;
     public int DefaultPollingIntervalMinutes { get; set; } = 60;
-    public string DefaultAudioQuality { get; set; } = "highest";
+    public required string DefaultAudioQuality { get; set; } = "highest";
     
     // Feed Defaults
-    public string DefaultLanguage { get; set; } = "en-us";
-    public string DefaultFileExtensions { get; set; } = ".mp3";
-    public string DefaultCategory { get; set; } = "Society & Culture";
+    public required string DefaultLanguage { get; set; } = "en-us";
+    public required string DefaultFileExtensions { get; set; } = ".mp3";
+    public required string DefaultCategory { get; set; } = "Society & Culture";
     
     // Metadata
     public DateTime UpdatedAt { get; set; }
