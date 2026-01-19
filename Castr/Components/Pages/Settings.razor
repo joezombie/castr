@@ -30,7 +30,7 @@ else
                 
                 <MudNumericField @bind-Value="_settings.DefaultPollingIntervalMinutes" 
                     Label="Default Polling Interval (minutes)" 
-                    Class="mt-3" Min="5" Max="1440"
+                    Class="mt-3" Min="@UserSettings.MinPollingIntervalMinutes" Max="@UserSettings.MaxPollingIntervalMinutes"
                     HelperText="How often to check for new episodes" />
                 
                 <MudSelect @bind-Value="_settings.DefaultAudioQuality" Label="Default Audio Quality" Class="mt-3"
@@ -204,9 +204,10 @@ else
         try
         {
             // Validate input before saving
-            if (_settings.DefaultPollingIntervalMinutes < 5 || _settings.DefaultPollingIntervalMinutes > 1440)
+            if (_settings.DefaultPollingIntervalMinutes < UserSettings.MinPollingIntervalMinutes || 
+                _settings.DefaultPollingIntervalMinutes > UserSettings.MaxPollingIntervalMinutes)
             {
-                Snackbar.Add("Polling interval must be between 5 and 1440 minutes", Severity.Warning);
+                Snackbar.Add($"Polling interval must be between {UserSettings.MinPollingIntervalMinutes} and {UserSettings.MaxPollingIntervalMinutes} minutes", Severity.Warning);
                 return;
             }
             

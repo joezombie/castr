@@ -1711,9 +1711,10 @@ public partial class CentralDatabaseService : ICentralDatabaseService
         if (settings == null)
             throw new ArgumentNullException(nameof(settings));
         
-        if (settings.DefaultPollingIntervalMinutes < 5 || settings.DefaultPollingIntervalMinutes > 1440)
+        if (settings.DefaultPollingIntervalMinutes < UserSettings.MinPollingIntervalMinutes || 
+            settings.DefaultPollingIntervalMinutes > UserSettings.MaxPollingIntervalMinutes)
             throw new ArgumentOutOfRangeException(nameof(settings.DefaultPollingIntervalMinutes), 
-                "Polling interval must be between 5 and 1440 minutes");
+                $"Polling interval must be between {UserSettings.MinPollingIntervalMinutes} and {UserSettings.MaxPollingIntervalMinutes} minutes");
         
         if (string.IsNullOrWhiteSpace(settings.DefaultAudioQuality))
             throw new ArgumentException("Audio quality cannot be null or empty", nameof(settings.DefaultAudioQuality));

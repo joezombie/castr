@@ -6,6 +6,16 @@ namespace Castr.Models;
 /// </summary>
 public class UserSettings
 {
+    /// <summary>
+    /// Minimum allowed polling interval in minutes.
+    /// </summary>
+    public const int MinPollingIntervalMinutes = 5;
+    
+    /// <summary>
+    /// Maximum allowed polling interval in minutes (24 hours).
+    /// </summary>
+    public const int MaxPollingIntervalMinutes = 1440;
+    
     public int Id { get; set; }
     
     // Application Settings
