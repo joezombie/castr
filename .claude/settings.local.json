@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3:*)",
+      "Bash(~/.dotnet/dotnet add:*)",
+      "Bash(~/.dotnet/dotnet build:*)",
+      "Bash(curl:*)",
+      "Bash(~/.dotnet/dotnet run:*)",
+      "Bash(pkill:*)",
+      "Bash(killall dotnet:*)",
+      "Bash(lsof:*)",
+      "Bash(xargs kill)",
+      "WebSearch",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nAdd Dockerfile and docker-compose for PodcastFeedApi\n\nMulti-stage build targeting .NET 10.0 with volume mounts for media directories.\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git push)"
+    ]
+  },
+  "outputStyle": "default"
+}
