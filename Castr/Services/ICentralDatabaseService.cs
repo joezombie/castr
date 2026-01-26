@@ -40,6 +40,7 @@ public interface ICentralDatabaseService : IDisposable
     // Activity logging
     Task LogActivityAsync(int? feedId, string activityType, string message, string? details = null);
     Task<List<ActivityLogRecord>> GetRecentActivityAsync(int? feedId = null, int count = 100);
+    Task ClearActivityLogAsync();
     
     // Download queue management
     Task<DownloadQueueItem> AddToDownloadQueueAsync(int feedId, string videoId, string? videoTitle = null);

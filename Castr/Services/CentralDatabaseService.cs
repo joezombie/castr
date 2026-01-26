@@ -1127,6 +1127,28 @@ public partial class CentralDatabaseService : ICentralDatabaseService
         return activities;
     }
 
+    public async Task ClearActivityLogAsync()
+    {
+        await InitializeDatabaseAsync();
+
+        await AcquireDatabaseLockAsync();
+        try
+        {
+            await using var connection = new SqliteConnection(GetConnectionString());
+            await connection.OpenAsync();
+
+            await using var command = connection.CreateCommand();
+            command.CommandText = "DELETE FROM activity_log";
+            await command.ExecuteNonQueryAsync();
+
+            _logger.LogInformation("Cleared all activity log entries");
+        }
+        finally
+        {
+            _dbLock.Release();
+        }
+    }
+
     #endregion
 
     #region Download Queue Management

@@ -229,6 +229,23 @@ public class AdditionalServiceTests : IDisposable
         Assert.Equal("First message", activities[1].Message);
     }
 
+    [Fact]
+    public async Task ClearActivityLogAsync_DeletesAllEntries()
+    {
+        // Arrange
+        await _service.InitializeDatabaseAsync();
+        await _service.LogActivityAsync(null, "test", "Message 1");
+        await _service.LogActivityAsync(null, "test", "Message 2");
+        await _service.LogActivityAsync(null, "test", "Message 3");
+
+        // Act
+        await _service.ClearActivityLogAsync();
+
+        // Assert
+        var activities = await _service.GetRecentActivityAsync();
+        Assert.Empty(activities);
+    }
+
     #endregion
 
     #region Feed Edge Cases
