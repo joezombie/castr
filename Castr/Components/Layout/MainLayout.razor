@@ -1,4 +1,5 @@
 @inherits LayoutComponentBase
+@inject ISettingsService SettingsService
 
 <MudThemeProvider Theme="_theme" @bind-IsDarkMode="_isDarkMode" />
 <MudPopoverProvider />
@@ -10,7 +11,7 @@
         <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="@ToggleDrawer" />
         <MudText Typo="Typo.h5" Class="ml-3">Castr</MudText>
         <MudSpacer />
-        <MudIconButton Icon="@Icons.Material.Filled.Brightness4" Color="Color.Inherit" OnClick="@ToggleDarkMode" />
+        <MudIconButton Icon="@(_isDarkMode ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)" Color="Color.Inherit" OnClick="@ToggleDarkMode" title="@(_isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode")" />
     </MudAppBar>
     <MudDrawer Open="_drawerOpen" OpenChanged="OnDrawerOpenChanged" ClipMode="DrawerClipMode.Always" Elevation="2" Variant="@DrawerVariant.Responsive" Breakpoint="Breakpoint.Md">
         <CascadingValue Value="@CloseDrawer">
@@ -28,6 +29,17 @@
     private bool _drawerOpen = false;
     private bool _isDarkMode = true;
     private MudTheme _theme = new();
+    private bool _initialized = false;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !_initialized)
+        {
+            _initialized = true;
+            _isDarkMode = await SettingsService.GetDarkModeAsync();
+            StateHasChanged();
+        }
+    }
 
     private void ToggleDrawer()
     {
@@ -44,8 +56,9 @@
         _drawerOpen = false;
     }
 
-    private void ToggleDarkMode()
+    private async Task ToggleDarkMode()
     {
         _isDarkMode = !_isDarkMode;
+        await SettingsService.SetDarkModeAsync(_isDarkMode);
     }
 }
