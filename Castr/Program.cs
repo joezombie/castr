@@ -37,6 +37,9 @@ builder.Services.AddSingleton<PodcastFeedService>();
 builder.Services.AddSingleton<IYouTubeDownloadService, YouTubeDownloadService>();
 builder.Services.AddHostedService<PlaylistWatcherService>();
 
+// Settings service for localStorage persistence (scoped for Blazor)
+builder.Services.AddScoped<ISettingsService, SettingsService>();
+
 // SignalR for real-time updates
 builder.Services.AddSignalR();
 
