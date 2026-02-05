@@ -252,7 +252,7 @@ When contributing to this project:
 
 ## License
 
-This project's license is to be determined. Please contact the project maintainer for licensing information.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## Support
 
