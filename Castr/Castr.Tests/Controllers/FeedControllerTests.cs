@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Castr.Tests.TestHelpers;
+using Castr.Data.Entities;
 
 namespace Castr.Tests.Controllers;
 
@@ -37,16 +38,17 @@ public class FeedControllerTests : IDisposable
         var mockConfig = new Mock<IOptions<PodcastFeedsConfig>>();
         mockConfig.Setup(x => x.Value).Returns(config);
 
-        var mockDbService = new Mock<IPodcastDatabaseService>();
-        mockDbService.Setup(x => x.GetEpisodesAsync(It.IsAny<string>()))
-            .ReturnsAsync(new List<EpisodeRecord>());
+        var mockDataService = new Mock<IPodcastDataService>();
+        // Return null for feed lookup to simulate feed not in database (falls back to alphabetical order)
+        mockDataService.Setup(x => x.GetFeedByNameAsync(It.IsAny<string>()))
+            .ReturnsAsync((Feed?)null);
 
         var cache = new MemoryCache(new MemoryCacheOptions());
         var mockFeedLogger = new Mock<ILogger<PodcastFeedService>>();
 
         _feedService = new PodcastFeedService(
             mockConfig.Object,
-            mockDbService.Object,
+            mockDataService.Object,
             cache,
             mockFeedLogger.Object);
 

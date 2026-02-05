@@ -47,11 +47,14 @@ export Dashboard__Username=admin
 export Dashboard__Password=your-secure-password
 ```
 
-### Optional: Central Database Path
+### Optional: Database Configuration
 
 ```bash
-# Default: /data/castr.db
-export PodcastFeeds__CentralDatabasePath=/custom/path/castr.db
+# Database provider (SQLite, PostgreSQL, SQLServer, MySQL)
+export Database__Provider=SQLite
+
+# Connection string (default shown for SQLite)
+export Database__ConnectionString="Data Source=/data/castr.db"
 ```
 
 ### Docker Compose Example
@@ -64,32 +67,41 @@ services:
       # Dashboard authentication (REQUIRED)
       - Dashboard__Username=admin
       - Dashboard__Password=YourSecurePasswordHere123!
-      # Optional: Custom database path
-      - PodcastFeeds__CentralDatabasePath=/data/castr.db
+      # Optional: Database configuration
+      - Database__Provider=SQLite
+      - Database__ConnectionString=Data Source=/data/castr.db
     volumes:
       - /host/podcasts:/Podcasts:rw
-      - castr-data:/data:rw  # Persist central database
+      - castr-data:/data:rw  # Persist database
 
 volumes:
   castr-data:
 ```
 
-## Central Database
+## Database
 
-The dashboard uses a central SQLite database that stores:
+The dashboard uses an EF Core database that stores:
 
-- **feeds**: All feed configurations (migrated from appsettings.json on first run)
-- **episodes**: Episode metadata, ordering, and YouTube info
-- **downloaded_videos**: Tracks which videos have been downloaded
-- **activity_log**: Activity history for monitoring
-- **download_queue**: Active and completed downloads
+- **Feeds**: All feed configurations (migrated from appsettings.json on first run)
+- **Episodes**: Episode metadata, ordering, and YouTube info
+- **DownloadedVideos**: Tracks which videos have been downloaded
+- **ActivityLogs**: Activity history for monitoring
+- **DownloadQueueItems**: Active and completed downloads
+
+### Supported Providers
+
+Configure the database provider via `Database__Provider`:
+
+- **SQLite** (default) - `Data Source=/data/castr.db`
+- **PostgreSQL** - `Host=localhost;Database=castr;Username=user;Password=pass`
+- **SQLServer** - `Server=localhost;Database=castr;User Id=user;Password=pass`
+- **MySQL** - `Server=localhost;Database=castr;User=user;Password=pass`
 
 ### Migration
 
-On first startup, if the central database is empty:
-1. Feeds are migrated from `appsettings.json` configuration
-2. Episode data is migrated from per-feed databases
-3. Legacy databases are preserved as backups
+On first startup, if the database is empty:
+1. EF Core applies migrations automatically
+2. Feeds are migrated from `appsettings.json` configuration
 
 ## Redownload Feature
 
@@ -167,8 +179,18 @@ Components/
 Hubs/
 └── DownloadProgressHub.cs  # SignalR hub for real-time updates
 
+Data/
+├── CastrDbContext.cs       # EF Core database context
+├── Entities/               # Entity models
+│   ├── Feed.cs
+│   ├── Episode.cs
+│   ├── DownloadedVideo.cs
+│   ├── DownloadQueueItem.cs
+│   └── ActivityLog.cs
+└── Repositories/           # Repository pattern for data access
+
 Services/
-└── CentralDatabaseService.cs  # Central database operations
+└── PodcastDataService.cs   # High-level data service facade
 ```
 
 ## Related Documentation

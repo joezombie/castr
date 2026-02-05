@@ -204,9 +204,9 @@ public class PodcastDatabaseService : IPodcastDatabaseService, IDisposable
 **File:** `README.md`
 
 ```markdown
-# Behind the Bastards Podcast Manager
+# Podcast Manager
 
-Tools for managing "Behind the Bastards" podcast episodes with fuzzy matching and automated RSS feed generation.
+Tools for managing podcast episodes with fuzzy matching and automated RSS feed generation.
 
 ## Components
 
@@ -309,7 +309,7 @@ from match_episodes import (
 
 class TestFuzzyMatching(unittest.TestCase):
     def test_normalize_title(self):
-        title = "Episode Name | BEHIND THE BASTARDS"
+        title = "Episode Name | SOME CHANNEL"
         expected = "Episode Name"
         self.assertEqual(normalize_title(title), expected)
     
@@ -352,7 +352,7 @@ public class FeedControllerTests
         var controller = new FeedController(mockService.Object, mockLogger.Object);
         
         // Act
-        var result = controller.GetMedia("btb", "../../../etc/passwd");
+        var result = controller.GetMedia("mypodcast", "../../../etc/passwd");
         
         // Assert
         Assert.IsType<BadRequestObjectResult>(result);

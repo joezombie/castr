@@ -2,19 +2,22 @@ using Xunit;
 using Moq;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Caching.Memory;
 using Castr.Services;
 using Castr.Models;
+using Castr.Data.Entities;
 
 namespace Castr.Tests;
 
 /// <summary>
-/// Tests for PodcastFeedService focusing on feed management, 
+/// Tests for PodcastFeedService focusing on feed management,
 /// RSS generation, and media file path resolution.
 /// </summary>
 public class PodcastFeedServiceTests : IDisposable
 {
-    private readonly Mock<IPodcastDatabaseService> _mockDatabase;
+    private readonly Mock<IPodcastDataService> _mockDataService;
     private readonly Mock<ILogger<PodcastFeedService>> _mockLogger;
+    private readonly IMemoryCache _cache;
     private readonly PodcastFeedService _service;
     private readonly string _testDirectory;
 
@@ -47,15 +50,20 @@ public class PodcastFeedServiceTests : IDisposable
             }
         };
 
-        _mockDatabase = new Mock<IPodcastDatabaseService>();
+        _mockDataService = new Mock<IPodcastDataService>();
+        // Return null for feed lookup to simulate feed not in database (falls back to alphabetical order)
+        _mockDataService.Setup(x => x.GetFeedByNameAsync(It.IsAny<string>()))
+            .ReturnsAsync((Feed?)null);
         _mockLogger = new Mock<ILogger<PodcastFeedService>>();
-        
+        _cache = new MemoryCache(new MemoryCacheOptions());
+
         var options = Options.Create(config);
-        _service = new PodcastFeedService(options, _mockDatabase.Object, _mockLogger.Object);
+        _service = new PodcastFeedService(options, _mockDataService.Object, _cache, _mockLogger.Object);
     }
 
     public void Dispose()
     {
+        _cache.Dispose();
         if (Directory.Exists(_testDirectory))
         {
             try
@@ -130,10 +138,6 @@ public class PodcastFeedServiceTests : IDisposable
     [Fact]
     public async Task GenerateFeedAsync_WithValidFeed_ReturnsXml()
     {
-        // Arrange
-        _mockDatabase.Setup(d => d.GetEpisodesAsync("testfeed"))
-            .ReturnsAsync(new List<EpisodeRecord>());
-
         // Act
         var result = await _service.GenerateFeedAsync("testfeed", "http://localhost");
 
@@ -153,9 +157,6 @@ public class PodcastFeedServiceTests : IDisposable
         var testFile = Path.Combine(_testDirectory, "episode001.mp3");
         File.WriteAllText(testFile, "test content");
 
-        _mockDatabase.Setup(d => d.GetEpisodesAsync("testfeed"))
-            .ReturnsAsync(new List<EpisodeRecord>());
-
         // Act
         var result = await _service.GenerateFeedAsync("testfeed", "http://localhost");
 
@@ -169,8 +170,6 @@ public class PodcastFeedServiceTests : IDisposable
     {
         // Arrange
         var baseUrl = "https://podcast.example.com";
-        _mockDatabase.Setup(d => d.GetEpisodesAsync("testfeed"))
-            .ReturnsAsync(new List<EpisodeRecord>());
 
         // Act
         var result = await _service.GenerateFeedAsync("testfeed", baseUrl);
@@ -185,10 +184,6 @@ public class PodcastFeedServiceTests : IDisposable
     [Fact]
     public async Task GenerateFeedAsync_IncludesItunesNamespace()
     {
-        // Arrange
-        _mockDatabase.Setup(d => d.GetEpisodesAsync("testfeed"))
-            .ReturnsAsync(new List<EpisodeRecord>());
-
         // Act
         var result = await _service.GenerateFeedAsync("testfeed", "http://localhost");
 
@@ -201,10 +196,6 @@ public class PodcastFeedServiceTests : IDisposable
     [Fact]
     public async Task GenerateFeedAsync_IncludesChannelMetadata()
     {
-        // Arrange
-        _mockDatabase.Setup(d => d.GetEpisodesAsync("testfeed"))
-            .ReturnsAsync(new List<EpisodeRecord>());
-
         // Act
         var result = await _service.GenerateFeedAsync("testfeed", "http://localhost");
 
@@ -219,10 +210,6 @@ public class PodcastFeedServiceTests : IDisposable
     [Fact]
     public async Task GenerateFeedAsync_IncludesImageWhenConfigured()
     {
-        // Arrange
-        _mockDatabase.Setup(d => d.GetEpisodesAsync("testfeed"))
-            .ReturnsAsync(new List<EpisodeRecord>());
-
         // Act
         var result = await _service.GenerateFeedAsync("testfeed", "http://localhost");
 
@@ -372,7 +359,7 @@ public class PodcastFeedServiceTests : IDisposable
         var options = Options.Create(emptyConfig);
 
         // Act
-        var service = new PodcastFeedService(options, _mockDatabase.Object, _mockLogger.Object);
+        var service = new PodcastFeedService(options, _mockDataService.Object, _cache, _mockLogger.Object);
         var feedNames = service.GetFeedNames().ToList();
 
         // Assert

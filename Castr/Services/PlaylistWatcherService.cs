@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Options;
 using Castr.Models;
+using Castr.Data.Entities;
 
 namespace Castr.Services;
 
@@ -142,7 +143,16 @@ public class PlaylistWatcherService : BackgroundService
 
         using var scope = _serviceProvider.CreateScope();
         var youtubeService = scope.ServiceProvider.GetRequiredService<IYouTubeDownloadService>();
-        var database = scope.ServiceProvider.GetRequiredService<IPodcastDatabaseService>();
+        var dataService = scope.ServiceProvider.GetRequiredService<IPodcastDataService>();
+
+        // Look up feed by name to get feedId
+        var feed = await dataService.GetFeedByNameAsync(feedName);
+        if (feed == null)
+        {
+            _logger.LogWarning("Feed {FeedName} not found in database, skipping", feedName);
+            return;
+        }
+        var feedId = feed.Id;
 
         var youtubeConfig = feedConfig.YouTube!;
 
@@ -159,7 +169,7 @@ public class PlaylistWatcherService : BackgroundService
 
         // Step 2: Check which videos already have files and fetch details only for new ones
         _logger.LogDebug("Checking which videos already have files on disk to optimize metadata fetch");
-        var downloadedIds = await database.GetDownloadedVideoIdsAsync(feedName);
+        var downloadedIds = await dataService.GetDownloadedVideoIdsAsync(feedId);
         _logger.LogDebug("Found {Count} already downloaded videos in database", downloadedIds.Count);
 
         _logger.LogInformation("Fetching detailed metadata for videos (skipping {SkipCount} already downloaded)",
@@ -224,11 +234,11 @@ public class PlaylistWatcherService : BackgroundService
 
         // Step 3: Sync playlist info with database using fuzzy matching
         _logger.LogInformation("Syncing {Count} playlist videos to database with fuzzy matching", playlistInfos.Count);
-        await database.SyncPlaylistInfoAsync(feedName, playlistInfos, feedConfig.Directory);
+        await dataService.SyncPlaylistInfoAsync(feedId, playlistInfos, feedConfig.Directory);
 
         // Step 4: Check for new videos to download
         _logger.LogDebug("Re-checking downloaded video list after sync");
-        downloadedIds = await database.GetDownloadedVideoIdsAsync(feedName);
+        downloadedIds = await dataService.GetDownloadedVideoIdsAsync(feedId);
         _logger.LogDebug("Found {Count} downloaded videos in database after sync", downloadedIds.Count);
 
         var newVideos = videos
@@ -240,7 +250,7 @@ public class PlaylistWatcherService : BackgroundService
         {
             _logger.LogInformation("No new videos to download for feed {FeedName}", feedName);
             _logger.LogDebug("Syncing directory to catch any manually added files");
-            await database.SyncDirectoryAsync(feedName, feedConfig.Directory,
+            await dataService.SyncDirectoryAsync(feedId, feedConfig.Directory,
                 feedConfig.FileExtensions ?? [".mp3"]);
             return;
         }
@@ -254,7 +264,7 @@ public class PlaylistWatcherService : BackgroundService
             string.Join(", ", newVideos.Select(v => $"{v.Id.Value} ({v.Title})")));
 
         var semaphore = new SemaphoreSlim(youtubeConfig.MaxConcurrentDownloads);
-        var newEpisodes = new ConcurrentBag<EpisodeRecord>();
+        var newEpisodes = new ConcurrentBag<Episode>();
 
         _logger.LogDebug("Starting downloads with max concurrency: {MaxConcurrent}",
             youtubeConfig.MaxConcurrentDownloads);
@@ -282,20 +292,22 @@ public class PlaylistWatcherService : BackgroundService
                     video.Title,
                     existingPath);
 
-                await database.MarkVideoDownloadedAsync(feedName, video.Id.Value, Path.GetFileName(existingPath));
+                await dataService.MarkVideoDownloadedAsync(feedId, video.Id.Value, Path.GetFileName(existingPath));
 
                 // Get video details for existing file
                 _logger.LogDebug("Fetching metadata for existing file");
                 var details = await youtubeService.GetVideoDetailsAsync(video.Id.Value, stoppingToken);
 
-                newEpisodes.Add(new EpisodeRecord
+                newEpisodes.Add(new Episode
                 {
+                    FeedId = feedId,
                     Filename = Path.GetFileName(existingPath),
                     VideoId = video.Id.Value,
                     YoutubeTitle = video.Title,
                     Description = details?.Description,
                     ThumbnailUrl = details?.ThumbnailUrl,
                     PublishDate = details?.UploadDate,
+                    DisplayOrder = 0,
                     AddedAt = DateTime.UtcNow
                 });
                 continue;
@@ -326,15 +338,17 @@ public class PlaylistWatcherService : BackgroundService
                     _logger.LogInformation("Download completed in {ElapsedSec:N1}s: {Filename}",
                         downloadElapsed.TotalSeconds, filename);
 
-                    await database.MarkVideoDownloadedAsync(feedName, video.Id.Value, filename);
-                    newEpisodes.Add(new EpisodeRecord
+                    await dataService.MarkVideoDownloadedAsync(feedId, video.Id.Value, filename);
+                    newEpisodes.Add(new Episode
                     {
+                        FeedId = feedId,
                         Filename = filename,
                         VideoId = video.Id.Value,
                         YoutubeTitle = video.Title,
                         Description = details?.Description,
                         ThumbnailUrl = details?.ThumbnailUrl,
                         PublishDate = details?.UploadDate,
+                        DisplayOrder = 0,
                         AddedAt = DateTime.UtcNow
                     });
                 }
@@ -357,7 +371,7 @@ public class PlaylistWatcherService : BackgroundService
         if (newEpisodes.Count > 0)
         {
             _logger.LogInformation("Adding {Count} new episodes to database", newEpisodes.Count);
-            await database.AddEpisodesAsync(feedName, newEpisodes);
+            await dataService.AddEpisodesAsync(newEpisodes);
             _logger.LogDebug("Episodes added to database successfully");
         }
         else
@@ -367,7 +381,7 @@ public class PlaylistWatcherService : BackgroundService
 
         // Step 6: Sync any files in directory that aren't in the database
         _logger.LogDebug("Performing final directory sync to catch any manually added files");
-        await database.SyncDirectoryAsync(feedName, feedConfig.Directory,
+        await dataService.SyncDirectoryAsync(feedId, feedConfig.Directory,
             feedConfig.FileExtensions ?? [".mp3"]);
 
         _logger.LogInformation(

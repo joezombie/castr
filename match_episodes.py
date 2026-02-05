@@ -59,8 +59,8 @@ def extract_part_number(title):
 
 def normalize_title(title):
     """Normalize title for better matching."""
-    # Remove " | BEHIND THE BASTARDS" suffix
-    title = re.sub(r'\s*[｜|]\s*BEHIND THE BASTARDS\s*$', '', title, flags=re.IGNORECASE)
+    # Remove trailing YouTube channel name suffix (e.g., " | CHANNEL NAME")
+    title = re.sub(r'\s*[｜|]\s*[^|｜]+\s*$', '', title)
 
     # Normalize unicode characters
     title = title.replace('：', ':').replace('？', '?').replace('｜', '|')

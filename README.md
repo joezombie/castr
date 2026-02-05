@@ -1,6 +1,6 @@
-# Behind the Bastards Podcast Manager
+# Podcast Manager
 
-A comprehensive toolkit for managing "Behind the Bastards" podcast episodes, featuring intelligent fuzzy matching for episode files and an automated RSS feed generation API.
+A comprehensive toolkit for managing podcast episodes, featuring intelligent fuzzy matching for episode files and an automated RSS feed generation API.
 
 ## Overview
 
@@ -67,7 +67,7 @@ docker-compose up -d
 - **ID3 Tag Reading** - Extracts metadata from MP3 files
 - **Range Request Support** - Efficient media streaming with resume capability
 - **Multiple Feed Support** - Manage multiple podcast feeds from one instance
-- **Database Tracking** - SQLite database for download history
+- **Database Tracking** - EF Core database with multiple provider support
 
 ## API Endpoints
 
@@ -85,10 +85,10 @@ Once running, the Castr API provides:
 curl http://localhost:5000/feed
 
 # Get RSS feed
-curl http://localhost:5000/feed/btb
+curl http://localhost:5000/feed/mypodcast
 
 # Access in podcast app
-http://your-domain.com/feed/btb
+http://your-domain.com/feed/mypodcast
 ```
 
 ## Configuration
@@ -101,11 +101,11 @@ Edit `Castr/appsettings.json` to configure podcast feeds:
 {
   "PodcastFeeds": {
     "Feeds": {
-      "btb": {
-        "Title": "Behind the Bastards",
-        "Description": "Behind the Bastards podcast episodes",
-        "Directory": "/Podcasts/Behind the Bastards",
-        "Author": "Robert Evans",
+      "mypodcast": {
+        "Title": "My Podcast",
+        "Description": "My podcast episodes",
+        "Directory": "/Podcasts/My Podcast",
+        "Author": "Author Name",
         "Language": "en-us",
         "Category": "Society & Culture",
         "ImageUrl": "https://example.com/image.jpg",
@@ -127,11 +127,11 @@ Override configuration using environment variables:
 
 ```bash
 # Feed directory
-export PodcastFeeds__Feeds__btb__Directory="/custom/path"
+export PodcastFeeds__Feeds__mypodcast__Directory="/custom/path"
 
 # YouTube settings
-export PodcastFeeds__Feeds__btb__YouTube__Enabled=false
-export PodcastFeeds__Feeds__btb__YouTube__PollIntervalMinutes=120
+export PodcastFeeds__Feeds__mypodcast__YouTube__Enabled=false
+export PodcastFeeds__Feeds__mypodcast__YouTube__PollIntervalMinutes=120
 
 # Logging level
 export Logging__LogLevel__Default=Debug
@@ -196,9 +196,12 @@ ASP.NET Core Web API with modular service architecture:
 
 - **Controllers/FeedController.cs** - API endpoints with range request support
 - **Services/PodcastFeedService.cs** - RSS XML generation, ID3 tag reading via TagLibSharp
-- **Services/PodcastDatabaseService.cs** - SQLite database operations
+- **Services/PodcastDataService.cs** - High-level data service facade
 - **Services/YouTubeDownloadService.cs** - YouTube audio downloads
 - **Services/PlaylistWatcherService.cs** - Background service for playlist monitoring
+- **Data/CastrDbContext.cs** - EF Core database context
+- **Data/Entities/** - Entity models (Feed, Episode, DownloadedVideo, etc.)
+- **Data/Repositories/** - Repository pattern for data access
 - **Models/PodcastFeedConfig.cs** - Configuration models
 
 ## Deployment
@@ -261,7 +264,6 @@ For questions, issues, or feature requests:
 
 ## Acknowledgments
 
-- Built for the "Behind the Bastards" podcast by Robert Evans
 - Uses TagLibSharp for ID3 tag reading
 - Uses YoutubeExplode for YouTube integration
 - Fuzzy matching powered by Python's difflib

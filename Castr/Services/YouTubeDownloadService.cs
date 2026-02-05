@@ -251,10 +251,13 @@ public partial class YouTubeDownloadService : IYouTubeDownloadService
             .Replace("｜", "|")
             .Replace("：", ":")
             .Replace("？", "?")
-            .Replace(" | BEHIND THE BASTARDS", "", StringComparison.OrdinalIgnoreCase)
-            .Replace("| BEHIND THE BASTARDS", "", StringComparison.OrdinalIgnoreCase)
             .ToLowerInvariant()
             .Trim();
+
+        // Remove trailing YouTube channel name suffix (e.g., " | channel name")
+        var pipeIdx = normalized.LastIndexOf('|');
+        if (pipeIdx > 0)
+            normalized = normalized[..pipeIdx].TrimEnd();
 
         // Remove extra whitespace
         normalized = WhitespaceRegex().Replace(normalized, " ");

@@ -25,20 +25,20 @@ class TestNormalizeTitle(unittest.TestCase):
     """Test the normalize_title function."""
 
     def test_normalize_basic_suffix(self):
-        """Test removal of standard suffix."""
-        title = "Episode Name | BEHIND THE BASTARDS"
+        """Test removal of standard trailing suffix."""
+        title = "Episode Name | SOME CHANNEL"
         expected = "Episode Name"
         self.assertEqual(normalize_title(title), expected)
 
     def test_normalize_unicode_separator(self):
         """Test removal of suffix with unicode separator."""
-        title = "Episode Name ｜ BEHIND THE BASTARDS"
+        title = "Episode Name ｜ SOME CHANNEL"
         expected = "Episode Name"
         self.assertEqual(normalize_title(title), expected)
 
-    def test_normalize_case_insensitive(self):
-        """Test case insensitive suffix removal."""
-        title = "Episode Name | behind the bastards"
+    def test_normalize_trailing_suffix(self):
+        """Test trailing suffix removal."""
+        title = "Episode Name | some channel name"
         expected = "Episode Name"
         self.assertEqual(normalize_title(title), expected)
 
@@ -147,14 +147,14 @@ class TestNormalizeForComparison(unittest.TestCase):
         self.assertEqual(normalize_for_comparison(title), expected)
 
     def test_normalize_removes_suffix(self):
-        """Test that BTB suffix is also removed."""
-        title = "Part One: Episode Name | BEHIND THE BASTARDS"
+        """Test that trailing channel suffix is also removed."""
+        title = "Part One: Episode Name | SOME CHANNEL"
         expected = "Episode Name"
         self.assertEqual(normalize_for_comparison(title), expected)
 
     def test_normalize_no_part_number(self):
         """Test normalization without part number."""
-        title = "Episode Name | BEHIND THE BASTARDS"
+        title = "Episode Name | SOME CHANNEL"
         expected = "Episode Name"
         self.assertEqual(normalize_for_comparison(title), expected)
 
@@ -239,7 +239,7 @@ class TestExtractFilenameFromLsLine(unittest.TestCase):
 
     def test_extract_long_path(self):
         """Test extraction from long path."""
-        line = self._make_ls_line("/mnt/user/media/podcasts/btb/Episode.mp3")
+        line = self._make_ls_line("/mnt/user/media/podcasts/mypodcast/Episode.mp3")
         expected = "Episode.mp3"
         self.assertEqual(extract_filename_from_ls_line(line), expected)
 
@@ -338,7 +338,7 @@ class TestEdgeCases(unittest.TestCase):
 
     def test_normalize_title_with_only_suffix(self):
         """Test title that is only the suffix."""
-        title = "| BEHIND THE BASTARDS"
+        title = "| SOME CHANNEL"
         result = normalize_title(title)
         self.assertEqual(result, "")
 
@@ -387,7 +387,7 @@ class TestEdgeCases(unittest.TestCase):
 
     def test_unicode_in_all_functions(self):
         """Test unicode handling across functions."""
-        title = "Episode： Name ｜ BEHIND THE BASTARDS"
+        title = "Episode： Name ｜ SOME CHANNEL"
         normalized = normalize_title(title)
         self.assertEqual(normalized, "Episode: Name")
 

@@ -1,4 +1,5 @@
 @inject ISnackbar Snackbar
+@using Castr.Data.Entities
 
 <MudDialog>
     <DialogContent>
@@ -82,7 +83,7 @@
     private MudDialogInstance? MudDialog { get; set; }
 
     [Parameter]
-    public EpisodeRecord? Episode { get; set; }
+    public Episode? Episode { get; set; }
 
     [Parameter]
     public string? FeedName { get; set; }

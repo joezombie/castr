@@ -264,3 +264,97 @@ build:
   only:
     - main
 ```
+
+## Database Migrations
+
+Castr uses EF Core migrations for schema management across all supported database providers.
+
+### Automatic Migrations (Default)
+
+Migrations apply automatically on startup via `Database.MigrateAsync()`. This is suitable for:
+- Development environments
+- Simple deployments
+- Docker containers
+
+No action needed - the application handles migrations on startup.
+
+### Creating New Migrations
+
+When entity models change, create a new migration:
+
+```bash
+cd Castr
+
+# Install EF Core tools (one-time setup)
+dotnet tool install --global dotnet-ef
+
+# Default (SQLite)
+dotnet ef migrations add <MigrationName> --output-dir Data/Migrations
+
+# PostgreSQL
+EF_PROVIDER=PostgreSQL EF_CONNECTION="Host=localhost;Database=castr;Username=user;Password=pass" \
+  dotnet ef migrations add <MigrationName> --output-dir Data/Migrations
+
+# SQL Server
+EF_PROVIDER=SqlServer EF_CONNECTION="Server=localhost;Database=castr;User Id=user;Password=pass" \
+  dotnet ef migrations add <MigrationName> --output-dir Data/Migrations
+
+# MariaDB/MySQL
+EF_PROVIDER=MariaDB EF_CONNECTION="Server=localhost;Database=castr;User=user;Password=pass" \
+  dotnet ef migrations add <MigrationName> --output-dir Data/Migrations
+```
+
+### Manual Migration (Production)
+
+For production environments where automatic migrations are not desired, use migration bundles or SQL scripts:
+
+```bash
+# Generate idempotent SQL script
+dotnet ef migrations script --idempotent --output deploy.sql
+
+# Or use migration bundle (recommended for production)
+dotnet ef migrations bundle --output efbundle
+./efbundle --connection "your-connection-string"
+```
+
+### Supported Database Providers
+
+Configure via `appsettings.json` or environment variables:
+
+| Provider | Config Value | Example Connection String |
+|----------|--------------|---------------------------|
+| SQLite | `SQLite` | `Data Source=/data/castr.db` |
+| PostgreSQL | `PostgreSQL` | `Host=localhost;Database=castr;Username=user;Password=pass` |
+| SQL Server | `SqlServer` | `Server=localhost;Database=castr;User Id=user;Password=pass` |
+| MariaDB/MySQL | `MariaDB` | `Server=localhost;Database=castr;User=user;Password=pass` |
+
+### Rolling Back Migrations
+
+```bash
+# Rollback to a specific migration
+dotnet ef database update <PreviousMigrationName>
+
+# Rollback all migrations (reset database)
+dotnet ef database update 0
+
+# Remove the most recent migration (if not applied)
+dotnet ef migrations remove
+```
+
+### Viewing Migration Status
+
+```bash
+# List all migrations and their status
+dotnet ef migrations list
+
+# Get current database info
+dotnet ef dbcontext info
+```
+
+### Migration Best Practices
+
+1. **Always test migrations** on a copy of production data before applying
+2. **Back up the database** before applying migrations in production
+3. **Review generated migrations** - EF Core may generate suboptimal SQL
+4. **Use idempotent scripts** (`--idempotent`) for manual deployment
+5. **Keep migrations small** - one logical change per migration

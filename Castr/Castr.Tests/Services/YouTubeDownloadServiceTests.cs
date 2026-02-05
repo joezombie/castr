@@ -40,12 +40,12 @@ public class YouTubeDownloadServiceTests : IDisposable
     {
         // Arrange
         var service = new YouTubeDownloadService(_mockLogger.Object);
-        var fileName = "Behind the Bastards - Episode 123.mp3";
+        var fileName = "My Podcast - Episode 123.mp3";
         var filePath = Path.Combine(_testDirectory, fileName);
         File.WriteAllText(filePath, "test content");
 
         // Act - search with slightly different title
-        var result = service.GetExistingFilePath("Behind the Bastards Episode 123", _testDirectory);
+        var result = service.GetExistingFilePath("My Podcast Episode 123", _testDirectory);
 
         // Assert
         Assert.NotNull(result);

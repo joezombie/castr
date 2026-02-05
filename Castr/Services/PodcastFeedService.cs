@@ -4,6 +4,7 @@ using System.Text;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Caching.Memory;
 using Castr.Models;
+using Castr.Data.Entities;
 using TagLib;
 
 namespace Castr.Services;
@@ -11,7 +12,7 @@ namespace Castr.Services;
 public class PodcastFeedService
 {
     private readonly PodcastFeedsConfig _config;
-    private readonly IPodcastDatabaseService _database;
+    private readonly IPodcastDataService _dataService;
     private readonly IMemoryCache _cache;
     private readonly ILogger<PodcastFeedService> _logger;
 
@@ -19,12 +20,12 @@ public class PodcastFeedService
 
     public PodcastFeedService(
         IOptions<PodcastFeedsConfig> config,
-        IPodcastDatabaseService database,
+        IPodcastDataService dataService,
         IMemoryCache cache,
         ILogger<PodcastFeedService> logger)
     {
         _config = config.Value;
-        _database = database;
+        _dataService = dataService;
         _cache = cache;
         _logger = logger;
     }
@@ -226,8 +227,17 @@ public class PodcastFeedService
 
     private async Task<List<EpisodeInfo>> SortEpisodesAsync(string feedName, List<EpisodeInfo> episodes)
     {
+        // Look up feed by name to get feedId
+        var feed = await _dataService.GetFeedByNameAsync(feedName);
+        if (feed == null)
+        {
+            // No feed in database - sort by filename (alphabetical)
+            _logger.LogDebug("Feed '{FeedName}' not found in database, using alphabetical order", feedName);
+            return episodes.OrderBy(e => e.FileName).ToList();
+        }
+
         // Get episode order from database
-        var dbEpisodes = await _database.GetEpisodesAsync(feedName);
+        var dbEpisodes = await _dataService.GetEpisodesAsync(feed.Id);
         var episodeMap = dbEpisodes
             .ToDictionary(e => e.Filename, e => e, StringComparer.OrdinalIgnoreCase);
 

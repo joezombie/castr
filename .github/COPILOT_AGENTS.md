@@ -2,7 +2,7 @@
 
 ## Agent Definitions
 
-This document defines specialized Copilot agents for different tasks in the btb_pod project.
+This document defines specialized Copilot agents for different tasks in this project.
 
 ---
 

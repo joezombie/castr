@@ -1,10 +1,11 @@
 @page "/feeds/{FeedName}/episodes"
 @attribute [Authorize]
-@inject ICentralDatabaseService Database
+@inject IPodcastDataService DataService
 @inject ILogger<EpisodeList> Logger
 @inject NavigationManager Navigation
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
+@using Castr.Data.Entities
 
 <PageTitle>Episodes - @(_feed?.Title ?? FeedName) - Castr</PageTitle>
 
@@ -46,7 +47,7 @@ else
     <MudDataGrid Items="@FilteredEpisodes" Hover="true" Bordered="true" Dense="true" MultiSelection="true"
         @bind-SelectedItems="_selectedEpisodes" SortMode="SortMode.Single">
         <Columns>
-            <SelectColumn T="EpisodeRecord" />
+            <SelectColumn T="Episode" />
             <PropertyColumn Property="x => x.DisplayOrder" Title="#" SortBy="x => x.DisplayOrder" />
             <PropertyColumn Property="x => x.Filename" Title="Filename" />
             <TemplateColumn Title="YouTube Title">
@@ -101,7 +102,7 @@ else
             </TemplateColumn>
         </Columns>
         <PagerContent>
-            <MudDataGridPager T="EpisodeRecord" />
+            <MudDataGridPager T="Episode" />
         </PagerContent>
     </MudDataGrid>
 }
@@ -110,13 +111,13 @@ else
     [Parameter]
     public string? FeedName { get; set; }
 
-    private FeedRecord? _feed;
-    private List<EpisodeRecord> _episodes = new();
-    private HashSet<EpisodeRecord> _selectedEpisodes = new();
+    private Feed? _feed;
+    private List<Episode> _episodes = new();
+    private HashSet<Episode> _selectedEpisodes = new();
     private string _searchText = "";
     private bool _loading = true;
 
-    private IEnumerable<EpisodeRecord> FilteredEpisodes => string.IsNullOrWhiteSpace(_searchText)
+    private IEnumerable<Episode> FilteredEpisodes => string.IsNullOrWhiteSpace(_searchText)
         ? _episodes
         : _episodes.Where(e =>
             e.Filename.Contains(_searchText, StringComparison.OrdinalIgnoreCase) ||
@@ -137,14 +138,14 @@ else
 
         try
         {
-            _feed = await Database.GetFeedByNameAsync(FeedName);
+            _feed = await DataService.GetFeedByNameAsync(FeedName);
             if (_feed == null)
             {
                 Snackbar.Add("Feed not found", Severity.Error);
                 return;
             }
 
-            _episodes = await Database.GetEpisodesAsync(_feed.Id);
+            _episodes = await DataService.GetEpisodesAsync(_feed.Id);
             _episodes = _episodes.OrderBy(e => e.DisplayOrder).ToList();
         }
         catch (Exception ex)
@@ -158,7 +159,7 @@ else
         }
     }
 
-    private async Task ViewEpisode(EpisodeRecord episode)
+    private async Task ViewEpisode(Episode episode)
     {
         var parameters = new DialogParameters<EpisodeDetailsDialog>
         {
@@ -169,7 +170,7 @@ else
         await DialogService.ShowAsync<EpisodeDetailsDialog>("Episode Details", parameters, options);
     }
 
-    private async Task RedownloadEpisode(EpisodeRecord episode)
+    private async Task RedownloadEpisode(Episode episode)
     {
         if (_feed == null || string.IsNullOrEmpty(episode.VideoId)) return;
 
@@ -184,8 +185,8 @@ else
             try
             {
                 // Remove from downloaded_videos to trigger redownload
-                await Database.RemoveDownloadedVideoAsync(_feed.Id, episode.VideoId);
-                await Database.LogActivityAsync(_feed.Id, "redownload",
+                await DataService.RemoveDownloadedVideoAsync(_feed.Id, episode.VideoId);
+                await DataService.LogActivityAsync(_feed.Id, "redownload",
                     $"Marked for redownload: {episode.Filename}");
                 Snackbar.Add("Episode marked for redownload. It will be re-downloaded on the next playlist poll.", Severity.Success);
             }
@@ -197,11 +198,11 @@ else
         }
     }
 
-    private async Task DeleteEpisode(EpisodeRecord episode)
+    private async Task DeleteEpisode(Episode episode)
     {
         var result = await DialogService.ShowMessageBox(
             "Delete Episode",
-            $"Are you sure you want to delete '{episode.Filename}'? This will remove it from the database.",
+            $"Are you sure you want to remove '{episode.Filename}' from the database? This will not delete the file.",
             yesText: "Delete",
             cancelText: "Cancel");
 
@@ -209,13 +210,13 @@ else
         {
             try
             {
-                // Note: This only removes from database, not the file
+                await DataService.DeleteEpisodeAsync(episode.Id);
                 Snackbar.Add("Episode removed from database", Severity.Success);
                 await LoadDataAsync();
             }
             catch (Exception ex)
             {
-                Logger.LogError(ex, "Failed to delete episode");
+                Logger.LogError(ex, "Failed to delete episode {EpisodeId}", episode.Id);
                 Snackbar.Add("Failed to delete episode", Severity.Error);
             }
         }
@@ -223,19 +224,35 @@ else
 
     private async Task RedownloadSelected()
     {
-        if (!_selectedEpisodes.Any()) return;
+        var withVideoIds = _selectedEpisodes.Where(e => !string.IsNullOrEmpty(e.VideoId)).ToList();
+        if (withVideoIds.Count == 0)
+        {
+            Snackbar.Add("No episodes with video IDs selected", Severity.Warning);
+            return;
+        }
 
-        var count = _selectedEpisodes.Count;
         var result = await DialogService.ShowMessageBox(
             "Redownload Episodes",
-            $"Are you sure you want to mark {count} episode(s) for redownload?",
+            $"Mark {withVideoIds.Count} episode(s) for redownload?",
             yesText: "Redownload",
             cancelText: "Cancel");
 
         if (result == true)
         {
-            Snackbar.Add($"{count} episode(s) marked for redownload", Severity.Success);
-            _selectedEpisodes.Clear();
+            try
+            {
+                foreach (var episode in withVideoIds)
+                {
+                    await DataService.RemoveDownloadedVideoAsync(_feed!.Id, episode.VideoId!);
+                }
+                Snackbar.Add($"{withVideoIds.Count} episode(s) marked for redownload", Severity.Success);
+                _selectedEpisodes.Clear();
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Failed to mark episodes for redownload");
+                Snackbar.Add("Failed to mark episodes for redownload", Severity.Error);
+            }
         }
     }
 
@@ -246,15 +263,27 @@ else
         var count = _selectedEpisodes.Count;
         var result = await DialogService.ShowMessageBox(
             "Delete Episodes",
-            $"Are you sure you want to delete {count} episode(s) from the database?",
+            $"Remove {count} episode(s) from database? This will not delete the files.",
             yesText: "Delete",
             cancelText: "Cancel");
 
         if (result == true)
         {
-            Snackbar.Add($"{count} episode(s) removed from database", Severity.Success);
-            _selectedEpisodes.Clear();
-            await LoadDataAsync();
+            try
+            {
+                foreach (var episode in _selectedEpisodes)
+                {
+                    await DataService.DeleteEpisodeAsync(episode.Id);
+                }
+                Snackbar.Add($"{count} episode(s) removed from database", Severity.Success);
+                _selectedEpisodes.Clear();
+                await LoadDataAsync();
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Failed to delete episodes");
+                Snackbar.Add("Failed to delete episodes", Severity.Error);
+            }
         }
     }
 

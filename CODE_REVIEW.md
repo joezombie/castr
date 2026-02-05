@@ -493,8 +493,8 @@ builder.Services.Configure<FormOptions>(options =>
 **Recommendation:** Document how to override appsettings.json with environment variables:
 
 ```bash
-export PodcastFeeds__Feeds__btb__Directory="/custom/path"
-export PodcastFeeds__Feeds__btb__YouTube__Enabled=false
+export PodcastFeeds__Feeds__mypodcast__Directory="/custom/path"
+export PodcastFeeds__Feeds__mypodcast__YouTube__Enabled=false
 ```
 
 ---

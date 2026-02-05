@@ -23,12 +23,6 @@ public class PodcastFeedConfig
     public string[]? FileExtensions { get; set; } = [".mp3"];
 
     /// <summary>
-    /// Path to SQLite database for episode tracking and ordering.
-    /// If not specified, defaults to {Directory}/podcast.db
-    /// </summary>
-    public string? DatabasePath { get; set; }
-
-    /// <summary>
     /// YouTube playlist configuration for automatic downloading.
     /// </summary>
     public YouTubePlaylistConfig? YouTube { get; set; }

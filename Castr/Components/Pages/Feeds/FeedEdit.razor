@@ -1,10 +1,11 @@
 @page "/feeds/new"
 @page "/feeds/{Name}/edit"
 @attribute [Authorize]
-@inject ICentralDatabaseService Database
+@inject IPodcastDataService DataService
 @inject ILogger<FeedEdit> Logger
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
+@using Castr.Data.Entities
 
 <PageTitle>@(_isNew ? "New Feed" : "Edit Feed") - Castr</PageTitle>
 
@@ -26,7 +27,7 @@ else
                     <MudText Typo="Typo.h6" Class="mb-4">Basic Information</MudText>
 
                     <MudTextField @bind-Value="_feed.Name" Label="Slug" Required="true" Disabled="@(!_isNew)"
-                        HelperText="Unique identifier for URL (e.g., 'btb')"
+                        HelperText="Unique identifier for URL (e.g., 'mypodcast')"
                         Validation="@(new Func<string, string?>(ValidateSlug))" />
 
                     <MudTextField @bind-Value="_feed.Title" Label="Title" Required="true" Class="mt-3"
@@ -107,7 +108,7 @@ else
     [Parameter]
     public string? Name { get; set; }
 
-    private FeedRecord _feed = new()
+    private Feed _feed = new()
     {
         Name = "",
         Title = "",
@@ -144,7 +145,7 @@ else
     {
         try
         {
-            var feed = await Database.GetFeedByNameAsync(Name!);
+            var feed = await DataService.GetFeedByNameAsync(Name!);
             if (feed == null)
             {
                 Snackbar.Add("Feed not found", Severity.Error);
@@ -187,13 +188,13 @@ else
             {
                 _feed.CreatedAt = DateTime.UtcNow;
                 _feed.UpdatedAt = DateTime.UtcNow;
-                await Database.AddFeedAsync(_feed);
+                await DataService.AddFeedAsync(_feed);
                 Snackbar.Add("Feed created successfully", Severity.Success);
             }
             else
             {
                 _feed.UpdatedAt = DateTime.UtcNow;
-                await Database.UpdateFeedAsync(_feed);
+                await DataService.UpdateFeedAsync(_feed);
                 Snackbar.Add("Feed updated successfully", Severity.Success);
             }
             Navigation.NavigateTo("/feeds");

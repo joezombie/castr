@@ -1,9 +1,10 @@
 @page "/feeds/{Name}"
 @attribute [Authorize]
-@inject ICentralDatabaseService Database
+@inject IPodcastDataService DataService
 @inject ILogger<FeedDetails> Logger
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
+@using Castr.Data.Entities
 
 <PageTitle>@(_feed?.Title ?? "Feed Details") - Castr</PageTitle>
 
@@ -84,11 +85,11 @@ else
                         </MudStack>
                         <MudStack Row="true">
                             <MudText Typo="Typo.body2" Color="Color.Default" Style="width: 120px;">Poll Interval:</MudText>
-                            <MudText Typo="Typo.body1">@(_feed.YouTubePollIntervalMinutes ?? 60) minutes</MudText>
+                            <MudText Typo="Typo.body1">@_feed.YouTubePollIntervalMinutes minutes</MudText>
                         </MudStack>
                         <MudStack Row="true">
                             <MudText Typo="Typo.body2" Color="Color.Default" Style="width: 120px;">Max Downloads:</MudText>
-                            <MudText Typo="Typo.body1">@(_feed.YouTubeMaxConcurrentDownloads ?? 1)</MudText>
+                            <MudText Typo="Typo.body1">@_feed.YouTubeMaxConcurrentDownloads</MudText>
                         </MudStack>
                         <MudStack Row="true">
                             <MudText Typo="Typo.body2" Color="Color.Default" Style="width: 120px;">Audio Quality:</MudText>
@@ -111,7 +112,7 @@ else
 
                 @if (_episodes.Any())
                 {
-                    <MudList T="EpisodeRecord" Dense="true">
+                    <MudList T="Episode" Dense="true">
                         @foreach (var episode in _episodes.Take(10))
                         {
                             <MudListItem>
@@ -175,9 +176,9 @@ else
     [Parameter]
     public string? Name { get; set; }
 
-    private FeedRecord? _feed;
-    private List<EpisodeRecord> _episodes = new();
-    private List<ActivityLogRecord> _activities = new();
+    private Feed? _feed;
+    private List<Episode> _episodes = new();
+    private List<ActivityLog> _activities = new();
     private bool _loading = true;
 
     protected override async Task OnInitializedAsync()
@@ -195,15 +196,15 @@ else
 
         try
         {
-            _feed = await Database.GetFeedByNameAsync(Name);
+            _feed = await DataService.GetFeedByNameAsync(Name);
             if (_feed == null)
             {
                 Snackbar.Add("Feed not found", Severity.Error);
                 return;
             }
 
-            _episodes = await Database.GetEpisodesAsync(_feed.Id);
-            _activities = await Database.GetRecentActivityAsync(_feed.Id, 10);
+            _episodes = await DataService.GetEpisodesAsync(_feed.Id);
+            _activities = await DataService.GetRecentActivityAsync(_feed.Id, 10);
         }
         catch (Exception ex)
         {

@@ -1,4 +1,4 @@
-# GitHub Copilot Instructions for btb_pod
+# GitHub Copilot Instructions
 
 ## Project Overview
 

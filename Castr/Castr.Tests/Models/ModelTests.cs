@@ -76,55 +76,6 @@ public class ModelTests
 
     #endregion
 
-    #region EpisodeRecord Tests
-
-    [Fact]
-    public void EpisodeRecord_WithRequiredProperties_InitializesCorrectly()
-    {
-        // Act
-        var episode = new EpisodeRecord
-        {
-            Filename = "test.mp3"
-        };
-
-        // Assert
-        Assert.Equal(0, episode.Id);
-        Assert.Equal(0, episode.DisplayOrder);
-        Assert.Null(episode.VideoId);
-        Assert.Null(episode.YoutubeTitle);
-        Assert.Null(episode.Description);
-        Assert.Null(episode.ThumbnailUrl);
-        Assert.Null(episode.PublishDate);
-        Assert.Null(episode.MatchScore);
-    }
-
-    [Fact]
-    public void EpisodeRecord_CanSetAllProperties()
-    {
-        // Arrange & Act
-        var episode = new EpisodeRecord
-        {
-            Id = 1,
-            Filename = "episode.mp3",
-            VideoId = "abc123",
-            YoutubeTitle = "YouTube Title",
-            Description = "Description",
-            ThumbnailUrl = "https://example.com/thumb.jpg",
-            DisplayOrder = 5,
-            AddedAt = DateTime.UtcNow,
-            PublishDate = DateTime.UtcNow,
-            MatchScore = 0.95
-        };
-
-        // Assert
-        Assert.Equal(1, episode.Id);
-        Assert.Equal("episode.mp3", episode.Filename);
-        Assert.Equal("abc123", episode.VideoId);
-        Assert.Equal(0.95, episode.MatchScore);
-    }
-
-    #endregion
-
     #region DownloadQueueItem Tests
 
     [Fact]
@@ -278,7 +229,6 @@ public class ModelTests
             Language = "en-us",
             Category = "Technology",
             FileExtensions = new[] { ".mp3", ".m4a" },
-            DatabasePath = "/data/podcast.db",
             YouTube = new YouTubePlaylistConfig
             {
                 PlaylistUrl = "https://youtube.com/playlist",

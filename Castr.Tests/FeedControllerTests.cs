@@ -1,20 +1,23 @@
 using Xunit;
 using Moq;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
 using Castr.Controllers;
 using Castr.Services;
 using Castr.Models;
+using Castr.Data.Entities;
 
 namespace Castr.Tests;
 
 public class FeedControllerTests : IDisposable
 {
-    private readonly Mock<IPodcastDatabaseService> _mockDatabase;
+    private readonly Mock<IPodcastDataService> _mockDataService;
     private readonly Mock<ILogger<FeedController>> _mockLogger;
     private readonly Mock<ILogger<PodcastFeedService>> _mockFeedServiceLogger;
+    private readonly IMemoryCache _cache;
     private readonly PodcastFeedService _feedService;
     private readonly FeedController _controller;
     private readonly string _testDirectory;
@@ -28,28 +31,33 @@ public class FeedControllerTests : IDisposable
         {
             Feeds = new Dictionary<string, PodcastFeedConfig>
             {
-                ["btb"] = new PodcastFeedConfig
+                ["mypodcast"] = new PodcastFeedConfig
                 {
-                    Title = "Behind The Bastards",
+                    Title = "My Podcast",
                     Description = "Test Feed",
                     Directory = _testDirectory
                 }
             }
         };
 
-        _mockDatabase = new Mock<IPodcastDatabaseService>();
+        _mockDataService = new Mock<IPodcastDataService>();
+        // Return null for feed lookup to simulate feed not in database (falls back to alphabetical order)
+        _mockDataService.Setup(x => x.GetFeedByNameAsync(It.IsAny<string>()))
+            .ReturnsAsync((Feed?)null);
         _mockFeedServiceLogger = new Mock<ILogger<PodcastFeedService>>();
         _mockLogger = new Mock<ILogger<FeedController>>();
-        
+        _cache = new MemoryCache(new MemoryCacheOptions());
+
         // Create real PodcastFeedService with mocked dependencies
         _feedService = new PodcastFeedService(
             Options.Create(config),
-            _mockDatabase.Object,
+            _mockDataService.Object,
+            _cache,
             _mockFeedServiceLogger.Object
         );
-        
+
         _controller = new FeedController(_feedService, _mockLogger.Object);
-        
+
         // Setup HttpContext for base URL generation
         _controller.ControllerContext = new ControllerContext
         {
@@ -61,6 +69,7 @@ public class FeedControllerTests : IDisposable
 
     public void Dispose()
     {
+        _cache.Dispose();
         if (Directory.Exists(_testDirectory))
         {
             try
@@ -94,7 +103,8 @@ public class FeedControllerTests : IDisposable
         var emptyConfig = new PodcastFeedsConfig { Feeds = new Dictionary<string, PodcastFeedConfig>() };
         var emptyFeedService = new PodcastFeedService(
             Options.Create(emptyConfig),
-            _mockDatabase.Object,
+            _mockDataService.Object,
+            _cache,
             _mockFeedServiceLogger.Object
         );
         var emptyController = new FeedController(emptyFeedService, _mockLogger.Object);
@@ -115,9 +125,7 @@ public class FeedControllerTests : IDisposable
     public async Task GetFeed_WithValidFeedName_ReturnsRssXml()
     {
         // Arrange
-        var feedName = "btb";
-        _mockDatabase.Setup(d => d.GetEpisodesAsync(feedName))
-            .ReturnsAsync(new List<EpisodeRecord>());
+        var feedName = "mypodcast";
 
         // Act
         var result = await _controller.GetFeed(feedName);
@@ -181,7 +189,7 @@ public class FeedControllerTests : IDisposable
     public void GetMedia_WithValidFile_ReturnsPhysicalFile()
     {
         // Arrange
-        var feedName = "btb";
+        var feedName = "mypodcast";
         var fileName = "episode001.mp3";
         
         // Create a temporary file for testing
@@ -201,7 +209,7 @@ public class FeedControllerTests : IDisposable
     public void GetMedia_WithPathTraversal_ReturnsBadRequest()
     {
         // Arrange
-        var feedName = "btb";
+        var feedName = "mypodcast";
         var fileName = "../../../etc/passwd";
 
         // Act
@@ -216,7 +224,7 @@ public class FeedControllerTests : IDisposable
     public void GetMedia_WithBackslashPathTraversal_ReturnsBadRequest()
     {
         // Arrange
-        var feedName = "btb";
+        var feedName = "mypodcast";
         var fileName = "..\\..\\..\\Windows\\System32\\config\\SAM";
 
         // Act
@@ -230,7 +238,7 @@ public class FeedControllerTests : IDisposable
     public void GetMedia_WithForwardSlash_ReturnsBadRequest()
     {
         // Arrange
-        var feedName = "btb";
+        var feedName = "mypodcast";
         var fileName = "subdir/episode.mp3";
 
         // Act
@@ -244,7 +252,7 @@ public class FeedControllerTests : IDisposable
     public void GetMedia_WithEmptyFileName_ReturnsBadRequest()
     {
         // Arrange
-        var feedName = "btb";
+        var feedName = "mypodcast";
 
         // Act
         var result = _controller.GetMedia(feedName, "");
@@ -257,7 +265,7 @@ public class FeedControllerTests : IDisposable
     public void GetMedia_WithTooLongFileName_ReturnsBadRequest()
     {
         // Arrange
-        var feedName = "btb";
+        var feedName = "mypodcast";
         var fileName = new string('a', 256); // 256 characters
 
         // Act
@@ -281,7 +289,7 @@ public class FeedControllerTests : IDisposable
     public void GetMedia_WhenFileNotFound_ReturnsNotFound()
     {
         // Arrange
-        var feedName = "btb";
+        var feedName = "mypodcast";
         var fileName = "nonexistent.mp3";
 
         // Act
@@ -302,7 +310,7 @@ public class FeedControllerTests : IDisposable
     public void GetMedia_ReturnCorrectMimeType(string fileName, string expectedMimeType)
     {
         // Arrange
-        var feedName = "btb";
+        var feedName = "mypodcast";
         var testFile = Path.Combine(_testDirectory, fileName);
         File.WriteAllText(testFile, "test content");
 

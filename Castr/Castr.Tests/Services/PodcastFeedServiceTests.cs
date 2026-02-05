@@ -1,4 +1,5 @@
 using Castr.Tests.TestHelpers;
+using Castr.Data.Entities;
 
 namespace Castr.Tests.Services;
 
@@ -6,7 +7,7 @@ public class PodcastFeedServiceTests : IDisposable
 {
     private readonly string _testDirectory;
     private readonly Mock<IOptions<PodcastFeedsConfig>> _mockConfig;
-    private readonly Mock<IPodcastDatabaseService> _mockDbService;
+    private readonly Mock<IPodcastDataService> _mockDataService;
     private readonly IMemoryCache _cache;
     private readonly Mock<ILogger<PodcastFeedService>> _mockLogger;
     private readonly PodcastFeedsConfig _config;
@@ -38,9 +39,10 @@ public class PodcastFeedServiceTests : IDisposable
         _mockConfig = new Mock<IOptions<PodcastFeedsConfig>>();
         _mockConfig.Setup(x => x.Value).Returns(_config);
 
-        _mockDbService = new Mock<IPodcastDatabaseService>();
-        _mockDbService.Setup(x => x.GetEpisodesAsync(It.IsAny<string>()))
-            .ReturnsAsync(new List<EpisodeRecord>());
+        _mockDataService = new Mock<IPodcastDataService>();
+        // Return null for feed lookup to simulate feed not in database (falls back to alphabetical order)
+        _mockDataService.Setup(x => x.GetFeedByNameAsync(It.IsAny<string>()))
+            .ReturnsAsync((Feed?)null);
 
         _cache = new MemoryCache(new MemoryCacheOptions());
         _mockLogger = new Mock<ILogger<PodcastFeedService>>();
@@ -56,7 +58,7 @@ public class PodcastFeedServiceTests : IDisposable
     {
         return new PodcastFeedService(
             _mockConfig.Object,
-            _mockDbService.Object,
+            _mockDataService.Object,
             _cache,
             _mockLogger.Object);
     }

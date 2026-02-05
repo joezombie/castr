@@ -24,7 +24,7 @@ public class YouTubeDownloadServiceExtendedTests : IDisposable
     [Theory]
     [InlineData("Test Episode", "Test Episode.mp3", true)]
     [InlineData("Episode One Two Three", "Episode One Two Three.mp3", true)]
-    [InlineData("Behind the Bastards", "Behind the Bastards.mp3", true)]
+    [InlineData("My Podcast", "My Podcast.mp3", true)]
     [InlineData("Short", "S.mp3", false)] // Too short to match
     public void GetExistingFilePath_MatchesSimilarTitles(string searchTitle, string fileName, bool shouldMatch)
     {
@@ -158,14 +158,14 @@ public class YouTubeDownloadServiceExtendedTests : IDisposable
     }
 
     [Fact]
-    public void GetExistingFilePath_WithBTBSuffix_Normalizes()
+    public void GetExistingFilePath_WithChannelSuffix_Normalizes()
     {
         // Arrange
         var service = new YouTubeDownloadService(_mockLogger.Object);
         File.WriteAllText(Path.Combine(_testDirectory, "The History of Something.mp3"), "test");
 
-        // Act - search with BTB suffix that should be normalized out
-        var result = service.GetExistingFilePath("The History of Something | BEHIND THE BASTARDS", _testDirectory);
+        // Act - search with channel suffix that should be normalized out
+        var result = service.GetExistingFilePath("The History of Something | SOME CHANNEL", _testDirectory);
 
         // Assert
         Assert.NotNull(result);

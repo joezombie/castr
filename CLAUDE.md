@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a podcast episode management tool for "Behind the Bastards" that matches YouTube playlist episode titles to downloaded MP3 files using fuzzy string matching, then optionally renames files with playlist order prefixes.
+This is a podcast episode management tool that matches YouTube playlist episode titles to downloaded MP3 files using fuzzy string matching, then optionally renames files with playlist order prefixes.
 
 ## Commands
 
@@ -68,10 +68,19 @@ cd Castr
 
 ### Configuration
 
+**Database Configuration** in `appsettings.json`:
+```json
+{
+  "Database": {
+    "Provider": "SQLite",  // or "PostgreSQL", "SQLServer", "MySQL"
+    "ConnectionString": "Data Source=/data/castr.db"
+  }
+}
+```
+
 Feeds configured in `appsettings.json` under `PodcastFeeds.Feeds`. Each feed has:
 - `Title`, `Description`, `Directory` (required)
 - `Author`, `ImageUrl`, `Link`, `Language`, `Category`, `FileExtensions` (optional)
-- `DatabasePath` - Path to SQLite database (optional, defaults to `{Directory}/podcast.db`)
 - `YouTube` - YouTube playlist monitoring configuration (optional):
   - `PlaylistUrl` - YouTube playlist URL or ID
   - `PollIntervalMinutes` - How often to check for new videos (default: 60)
@@ -82,10 +91,11 @@ Feeds configured in `appsettings.json` under `PodcastFeeds.Feeds`. Each feed has
 ### Architecture
 
 - `Models/PodcastFeedConfig.cs` - Configuration models including YouTubePlaylistConfig
-- `Models/FeedRecord.cs`, `EpisodeRecord.cs`, etc. - Central database models
+- `Data/CastrDbContext.cs` - EF Core database context
+- `Data/Entities/` - Entity models (Feed, Episode, DownloadedVideo, DownloadQueueItem, ActivityLog)
+- `Data/Repositories/` - Repository pattern for data access
+- `Services/PodcastDataService.cs` - High-level data service facade
 - `Services/PodcastFeedService.cs` - RSS XML generation, reads ID3 tags via TagLibSharp
-- `Services/CentralDatabaseService.cs` - Unified SQLite database for all feeds, episodes, and activity
-- `Services/PodcastDatabaseService.cs` - Legacy per-feed database (being phased out)
 - `Services/YouTubeDownloadService.cs` - YouTube playlist fetching and audio downloads via YouTubeExplode
 - `Services/PlaylistWatcherService.cs` - BackgroundService that monitors playlists and downloads new episodes
 - `Controllers/FeedController.cs` - API endpoints with range request support for streaming
@@ -112,8 +122,8 @@ Automatically monitors YouTube playlists and downloads new episodes:
 - Comprehensive logging
 
 **Database:**
-- Central database (`/data/castr.db`): Unified storage for all feeds, episodes, activity logs
-- Legacy per-feed databases: Being migrated to central database on startup
+- EF Core database: Unified storage for all feeds, episodes, activity logs
+- Supports multiple providers: SQLite, PostgreSQL, SQL Server, MySQL
 
 See `YOUTUBE_WATCHER_IMPLEMENTATION.md` for detailed documentation.
 
@@ -142,8 +152,9 @@ Web-based management interface with cookie authentication.
 Dashboard__Username=admin
 Dashboard__Password=your-secure-password
 
-# Optional - central database path (default: /data/castr.db)
-PodcastFeeds__CentralDatabasePath=/custom/path/castr.db
+# Database configuration (default: SQLite at /data/castr.db)
+Database__Provider=SQLite
+Database__ConnectionString="Data Source=/data/castr.db"
 ```
 
 See `DASHBOARD.md` for detailed documentation.

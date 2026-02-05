@@ -1,4 +1,5 @@
 using Castr.Tests.TestHelpers;
+using Castr.Data.Entities;
 
 namespace Castr.Tests.Services;
 
@@ -9,7 +10,7 @@ public class PodcastFeedServiceIntegrationTests : IDisposable
 {
     private readonly string _testDirectory;
     private readonly Mock<IOptions<PodcastFeedsConfig>> _mockConfig;
-    private readonly Mock<IPodcastDatabaseService> _mockDbService;
+    private readonly Mock<IPodcastDataService> _mockDataService;
     private readonly IMemoryCache _cache;
     private readonly Mock<ILogger<PodcastFeedService>> _mockLogger;
     private readonly PodcastFeedsConfig _config;
@@ -40,9 +41,10 @@ public class PodcastFeedServiceIntegrationTests : IDisposable
         _mockConfig = new Mock<IOptions<PodcastFeedsConfig>>();
         _mockConfig.Setup(x => x.Value).Returns(_config);
 
-        _mockDbService = new Mock<IPodcastDatabaseService>();
-        _mockDbService.Setup(x => x.GetEpisodesAsync(It.IsAny<string>()))
-            .ReturnsAsync(new List<EpisodeRecord>());
+        _mockDataService = new Mock<IPodcastDataService>();
+        // Return null for feed lookup by default to simulate feed not in database (falls back to alphabetical order)
+        _mockDataService.Setup(x => x.GetFeedByNameAsync(It.IsAny<string>()))
+            .ReturnsAsync((Feed?)null);
 
         _cache = new MemoryCache(new MemoryCacheOptions());
         _mockLogger = new Mock<ILogger<PodcastFeedService>>();
@@ -58,7 +60,7 @@ public class PodcastFeedServiceIntegrationTests : IDisposable
     {
         return new PodcastFeedService(
             _mockConfig.Object,
-            _mockDbService.Object,
+            _mockDataService.Object,
             _cache,
             _mockLogger.Object);
     }
@@ -148,10 +150,13 @@ public class PodcastFeedServiceIntegrationTests : IDisposable
     public async Task GenerateFeedAsync_AppliesEpisodeMetadataFromDatabase()
     {
         // Arrange
-        var dbEpisodes = new List<EpisodeRecord>
+        var testFeed = new Feed { Id = 1, Name = "testfeed", Title = "Test Feed" };
+        var dbEpisodes = new List<Episode>
         {
-            new EpisodeRecord
+            new Episode
             {
+                Id = 1,
+                FeedId = 1,
                 Filename = "episode1.mp3",
                 VideoId = "vid1",
                 YoutubeTitle = "Episode Title from YouTube",
@@ -162,7 +167,9 @@ public class PodcastFeedServiceIntegrationTests : IDisposable
             }
         };
 
-        _mockDbService.Setup(x => x.GetEpisodesAsync("testfeed"))
+        _mockDataService.Setup(x => x.GetFeedByNameAsync("testfeed"))
+            .ReturnsAsync(testFeed);
+        _mockDataService.Setup(x => x.GetEpisodesAsync(1))
             .ReturnsAsync(dbEpisodes);
 
         // Create matching file
@@ -294,14 +301,17 @@ public class PodcastFeedServiceIntegrationTests : IDisposable
     public async Task GenerateFeedAsync_SortsEpisodesByDatabaseOrder()
     {
         // Arrange
-        var dbEpisodes = new List<EpisodeRecord>
+        var testFeed = new Feed { Id = 1, Name = "testfeed", Title = "Test Feed" };
+        var dbEpisodes = new List<Episode>
         {
-            new EpisodeRecord { Filename = "episode3.mp3", DisplayOrder = 3 },
-            new EpisodeRecord { Filename = "episode1.mp3", DisplayOrder = 1 },
-            new EpisodeRecord { Filename = "episode2.mp3", DisplayOrder = 2 }
+            new Episode { Id = 1, FeedId = 1, Filename = "episode3.mp3", DisplayOrder = 3 },
+            new Episode { Id = 2, FeedId = 1, Filename = "episode1.mp3", DisplayOrder = 1 },
+            new Episode { Id = 3, FeedId = 1, Filename = "episode2.mp3", DisplayOrder = 2 }
         };
 
-        _mockDbService.Setup(x => x.GetEpisodesAsync("testfeed"))
+        _mockDataService.Setup(x => x.GetFeedByNameAsync("testfeed"))
+            .ReturnsAsync(testFeed);
+        _mockDataService.Setup(x => x.GetEpisodesAsync(1))
             .ReturnsAsync(dbEpisodes);
 
         // Create files

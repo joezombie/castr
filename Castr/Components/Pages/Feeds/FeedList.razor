@@ -1,10 +1,11 @@
 @page "/feeds"
 @attribute [Authorize]
-@inject ICentralDatabaseService Database
+@inject IPodcastDataService DataService
 @inject ILogger<FeedList> Logger
 @inject NavigationManager Navigation
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
+@using Castr.Data.Entities
 
 <PageTitle>Feeds - Castr</PageTitle>
 
@@ -84,7 +85,7 @@ else
 }
 
 @code {
-    private List<FeedRecord> _feeds = new();
+    private List<Feed> _feeds = new();
     private Dictionary<int, int> _episodeCounts = new();
     private bool _loading = true;
 
@@ -98,11 +99,11 @@ else
         _loading = true;
         try
         {
-            _feeds = await Database.GetAllFeedsAsync();
+            _feeds = await DataService.GetAllFeedsAsync();
             _episodeCounts.Clear();
             foreach (var feed in _feeds)
             {
-                var episodes = await Database.GetEpisodesAsync(feed.Id);
+                var episodes = await DataService.GetEpisodesAsync(feed.Id);
                 _episodeCounts[feed.Id] = episodes.Count;
             }
         }
@@ -122,17 +123,17 @@ else
         Navigation.NavigateTo("/feeds/new");
     }
 
-    private void ViewFeed(FeedRecord feed)
+    private void ViewFeed(Feed feed)
     {
         Navigation.NavigateTo($"/feeds/{feed.Name}");
     }
 
-    private void EditFeed(FeedRecord feed)
+    private void EditFeed(Feed feed)
     {
         Navigation.NavigateTo($"/feeds/{feed.Name}/edit");
     }
 
-    private async Task DeleteFeed(FeedRecord feed)
+    private async Task DeleteFeed(Feed feed)
     {
         var result = await DialogService.ShowMessageBox(
             "Delete Feed",
@@ -144,7 +145,7 @@ else
         {
             try
             {
-                await Database.DeleteFeedAsync(feed.Id);
+                await DataService.DeleteFeedAsync(feed.Id);
                 Snackbar.Add($"Feed '{feed.Title}' deleted", Severity.Success);
                 await LoadFeedsAsync();
             }

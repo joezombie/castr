@@ -16,7 +16,7 @@
 
 ## Executive Summary
 
-A comprehensive code review was conducted on the btb_pod repository, covering both the Python episode matching script and the .NET Castr podcast API. The codebase is well-structured, compiles successfully, and demonstrates good engineering practices.
+A comprehensive code review was conducted on the castr repository, covering both the Python episode matching script and the .NET Castr podcast API. The codebase is well-structured, compiles successfully, and demonstrates good engineering practices.
 
 ### Overall Results
 
@@ -299,5 +299,5 @@ The codebase demonstrates solid engineering practices and is suitable for produc
 
 **Review completed by:** GitHub Copilot  
 **Review date:** 2026-01-17  
-**Repository:** joezombie/btb_pod  
+**Repository:** joezombie/castr  
 **Branch:** copilot/review-code-structure

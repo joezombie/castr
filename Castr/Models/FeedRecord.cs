@@ -9,7 +9,7 @@ public class FeedRecord
     public int Id { get; set; }
     
     /// <summary>
-    /// Unique identifier for the feed (e.g., "btb", "btbc").
+    /// Unique identifier for the feed (e.g., "mypodcast").
     /// </summary>
     public required string Name { get; set; }
     

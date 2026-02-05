@@ -15,7 +15,7 @@ ASP.NET Core uses a hierarchical configuration system with double underscores (`
 
 ```
 JSON:                    appsettings.json path
-PodcastFeeds.Feeds.btb   →  PodcastFeeds__Feeds__btb
+PodcastFeeds.Feeds.mypodcast   →  PodcastFeeds__Feeds__btb
 ```
 
 ## Environment Variable Examples
@@ -24,32 +24,32 @@ PodcastFeeds.Feeds.btb   →  PodcastFeeds__Feeds__btb
 
 ```bash
 # Override feed directory
-export PodcastFeeds__Feeds__btb__Directory="/custom/path"
+export PodcastFeeds__Feeds__mypodcast__Directory="/custom/path"
 
 # Override feed title
-export PodcastFeeds__Feeds__btb__Title="Custom Feed Title"
+export PodcastFeeds__Feeds__mypodcast__Title="Custom Feed Title"
 
 # Override feed author
-export PodcastFeeds__Feeds__btb__Author="Custom Author Name"
+export PodcastFeeds__Feeds__mypodcast__Author="Custom Author Name"
 
 # Override database path
-export PodcastFeeds__Feeds__btb__DatabasePath="/custom/path/podcast.db"
+export PodcastFeeds__Feeds__mypodcast__DatabasePath="/custom/path/podcast.db"
 ```
 
 ### YouTube Integration Settings
 
 ```bash
 # Disable YouTube integration
-export PodcastFeeds__Feeds__btb__YouTube__Enabled=false
+export PodcastFeeds__Feeds__mypodcast__YouTube__Enabled=false
 
 # Change polling interval (in minutes)
-export PodcastFeeds__Feeds__btb__YouTube__PollIntervalMinutes=120
+export PodcastFeeds__Feeds__mypodcast__YouTube__PollIntervalMinutes=120
 
 # Change max concurrent downloads
-export PodcastFeeds__Feeds__btb__YouTube__MaxConcurrentDownloads=2
+export PodcastFeeds__Feeds__mypodcast__YouTube__MaxConcurrentDownloads=2
 
 # Override playlist URL
-export PodcastFeeds__Feeds__btb__YouTube__PlaylistUrl="PLxxx..."
+export PodcastFeeds__Feeds__mypodcast__YouTube__PlaylistUrl="PLxxx..."
 ```
 
 ### Logging Configuration
@@ -90,11 +90,11 @@ The central database stores all feed configurations, episodes, activity logs, an
 ### Multiple Feeds
 
 ```bash
-# Configure the 'btb' feed
-export PodcastFeeds__Feeds__btb__Directory="/podcasts/btb"
+# Configure the 'mypodcast' feed
+export PodcastFeeds__Feeds__mypodcast__Directory="/podcasts/mypodcast"
 
-# Configure the 'btbc' feed
-export PodcastFeeds__Feeds__btbc__Directory="/podcasts/btbc"
+# Configure the 'anotherfeed' feed
+export PodcastFeeds__Feeds__anotherfeed__Directory="/podcasts/anotherfeed"
 ```
 
 ## Docker Compose Configuration
@@ -109,14 +109,14 @@ services:
     image: reg.ht2.io/castr:latest
     environment:
       # Feed configuration
-      - PodcastFeeds__Feeds__btb__Directory=/podcasts
+      - PodcastFeeds__Feeds__mypodcast__Directory=/podcasts
       
       # Logging
       - Logging__LogLevel__Default=Information
       
       # YouTube settings
-      - PodcastFeeds__Feeds__btb__YouTube__Enabled=true
-      - PodcastFeeds__Feeds__btb__YouTube__PollIntervalMinutes=60
+      - PodcastFeeds__Feeds__mypodcast__YouTube__Enabled=true
+      - PodcastFeeds__Feeds__mypodcast__YouTube__PollIntervalMinutes=60
     volumes:
       - /host/podcasts:/podcasts:rw
 ```
@@ -129,8 +129,8 @@ services:
     image: reg.ht2.io/castr:latest
     environment:
       # Use production paths
-      - PodcastFeeds__Feeds__btb__Directory=/mnt/storage/podcasts/btb
-      - PodcastFeeds__Feeds__btbc__Directory=/mnt/storage/podcasts/btbc
+      - PodcastFeeds__Feeds__mypodcast__Directory=/mnt/storage/podcasts/mypodcast
+      - PodcastFeeds__Feeds__anotherfeed__Directory=/mnt/storage/podcasts/anotherfeed
       
       # Dashboard authentication (CHANGE THESE!)
       - Dashboard__Username=admin
@@ -156,7 +156,7 @@ services:
     image: reg.ht2.io/castr:latest
     environment:
       # Use local development paths
-      - PodcastFeeds__Feeds__btb__Directory=/app/test-data
+      - PodcastFeeds__Feeds__mypodcast__Directory=/app/test-data
       
       # Verbose logging for debugging
       - Logging__LogLevel__Default=Debug
@@ -164,7 +164,7 @@ services:
       - Logging__LogLevel__PodcastFeedApi=Trace
       
       # Disable YouTube for faster testing
-      - PodcastFeeds__Feeds__btb__YouTube__Enabled=false
+      - PodcastFeeds__Feeds__mypodcast__YouTube__Enabled=false
       
       # Development environment
       - ASPNETCORE_ENVIRONMENT=Development
@@ -192,10 +192,10 @@ services:
   castr:
     image: reg.ht2.io/castr:latest
     environment:
-      - PodcastFeeds__Feeds__btb__Directory=${PODCAST_DIR}/Behind the Bastards
+      - PodcastFeeds__Feeds__mypodcast__Directory=${PODCAST_DIR}/My Podcast
       - Logging__LogLevel__Default=${LOG_LEVEL}
-      - PodcastFeeds__Feeds__btb__YouTube__Enabled=${YOUTUBE_ENABLED}
-      - PodcastFeeds__Feeds__btb__YouTube__PollIntervalMinutes=${POLL_INTERVAL}
+      - PodcastFeeds__Feeds__mypodcast__YouTube__Enabled=${YOUTUBE_ENABLED}
+      - PodcastFeeds__Feeds__mypodcast__YouTube__PollIntervalMinutes=${POLL_INTERVAL}
 ```
 
 **Note:** Don't commit `.env` files with secrets to version control!
@@ -207,7 +207,7 @@ To verify environment variables are working:
 1. **Set environment variables:**
    ```bash
    export Logging__LogLevel__Default=Debug
-   export PodcastFeeds__Feeds__btb__Directory="/test/path"
+   export PodcastFeeds__Feeds__mypodcast__Directory="/test/path"
    ```
 
 2. **Run the application:**
@@ -234,20 +234,20 @@ This means environment variables will override values in JSON files, but command
 
 ### Scenario 1: Override Directory for All Feeds
 ```bash
-export PodcastFeeds__Feeds__btb__Directory="/media/podcasts/btb"
-export PodcastFeeds__Feeds__btbc__Directory="/media/podcasts/btbc"
+export PodcastFeeds__Feeds__mypodcast__Directory="/media/podcasts/mypodcast"
+export PodcastFeeds__Feeds__anotherfeed__Directory="/media/podcasts/anotherfeed"
 ```
 
 ### Scenario 2: Disable YouTube for Testing
 ```bash
-export PodcastFeeds__Feeds__btb__YouTube__Enabled=false
-export PodcastFeeds__Feeds__btbc__YouTube__Enabled=false
+export PodcastFeeds__Feeds__mypodcast__YouTube__Enabled=false
+export PodcastFeeds__Feeds__anotherfeed__YouTube__Enabled=false
 ```
 
 ### Scenario 3: Increase Polling Interval
 ```bash
-export PodcastFeeds__Feeds__btb__YouTube__PollIntervalMinutes=180
-export PodcastFeeds__Feeds__btbc__YouTube__PollIntervalMinutes=180
+export PodcastFeeds__Feeds__mypodcast__YouTube__PollIntervalMinutes=180
+export PodcastFeeds__Feeds__anotherfeed__YouTube__PollIntervalMinutes=180
 ```
 
 ### Scenario 4: Debug Logging for Troubleshooting
@@ -282,7 +282,7 @@ Logging
 
 PodcastFeeds
   └─ Feeds
-       ├─ btb
+       ├─ mypodcast
        │    ├─ Title
        │    ├─ Description
        │    ├─ Directory
@@ -297,7 +297,7 @@ PodcastFeeds
        │         ├─ Enabled
        │         ├─ MaxConcurrentDownloads
        │         └─ AudioQuality
-       └─ btbc (same structure as btb)
+       └─ anotherfeed (same structure)
 ```
 
 ## Troubleshooting

@@ -82,7 +82,7 @@ gh auth status
 | `-b, --base BRANCH` | Base branch for PR | `--base develop` |
 | `-a, --agent AGENT` | Custom agent name | `--agent api-dev` |
 | `-f, --follow` | Follow logs in real-time | `--follow` |
-| `-R, --repo REPO` | Repository (OWNER/REPO) | `--repo joezombie/btb_pod` |
+| `-R, --repo REPO` | Repository (OWNER/REPO) | `--repo OWNER/REPO` |
 | `-i, --instructions` | Additional instructions | `--instructions "Use async/await"` |
 | `--no-confirm` | Skip confirmation | `--no-confirm` |
 
@@ -518,7 +518,7 @@ mutation {
 
 ### Support
 
-- GitHub Issues: https://github.com/joezombie/btb_pod/issues
+- GitHub Issues: Check the repository's issue tracker
 - Copilot Feedback: https://github.com/github/copilot-cli/issues
 
 ---

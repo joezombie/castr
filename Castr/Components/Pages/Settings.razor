@@ -1,11 +1,12 @@
 @page "/settings"
 @attribute [Authorize]
 @inject ISettingsService SettingsService
-@inject ICentralDatabaseService DatabaseService
+@inject IPodcastDataService DataService
 @inject IConfiguration Configuration
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 @inject ILogger<Settings> Logger
+@using Castr.Data.Entities
 
 <PageTitle>Settings - Castr</PageTitle>
 
@@ -220,12 +221,12 @@ else
             _dotnetVersion = Environment.Version.ToString();
 
             // Load feed/episode counts
-            var feeds = await DatabaseService.GetAllFeedsAsync();
+            var feeds = await DataService.GetAllFeedsAsync();
             _totalFeeds = feeds.Count;
             _totalEpisodes = 0;
             foreach (var feed in feeds)
             {
-                var episodes = await DatabaseService.GetEpisodesAsync(feed.Id);
+                var episodes = await DataService.GetEpisodesAsync(feed.Id);
                 _totalEpisodes += episodes.Count;
             }
         }
@@ -286,7 +287,7 @@ else
 
             try
             {
-                await DatabaseService.ClearActivityLogAsync();
+                await DataService.ClearActivityLogAsync();
                 Snackbar.Add("Activity log cleared", Severity.Success);
                 Logger.LogInformation("Activity log cleared by user");
             }
@@ -324,10 +325,10 @@ else
 
                 try
                 {
-                    var feeds = await DatabaseService.GetAllFeedsAsync();
+                    var feeds = await DataService.GetAllFeedsAsync();
                     foreach (var feed in feeds)
                     {
-                        await DatabaseService.DeleteFeedAsync(feed.Id);
+                        await DataService.DeleteFeedAsync(feed.Id);
                     }
 
                     _totalFeeds = 0;

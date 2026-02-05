@@ -14,9 +14,9 @@ public class FuzzyMatchingTests
 
     [Theory]
     [InlineData("Test Episode", "test episode")]
-    [InlineData("Test Episode | BEHIND THE BASTARDS", "test episode")]
+    [InlineData("Test Episode | SOME CHANNEL", "test episode")]
     [InlineData("Test  Episode  With  Spaces", "test episode with spaces")]
-    [InlineData("Test｜Episode：With？Unicode", "test|episode:with?unicode")]
+    [InlineData("Test｜Episode：With？Unicode", "test")]
     [InlineData("  Leading and Trailing  ", "leading and trailing")]
     public void NormalizeForComparison_StandardCases(string input, string expected)
     {
@@ -28,12 +28,12 @@ public class FuzzyMatchingTests
     }
 
     [Fact]
-    public void NormalizeForComparison_RemovesBehindTheBastardsSuffix()
+    public void NormalizeForComparison_RemovesTrailingChannelSuffix()
     {
         // Arrange
-        var input1 = "Episode Title | BEHIND THE BASTARDS";
-        var input2 = "Episode Title| BEHIND THE BASTARDS";
-        var input3 = "Episode Title | behind the bastards";
+        var input1 = "Episode Title | SOME CHANNEL";
+        var input2 = "Episode Title| SOME CHANNEL";
+        var input3 = "Episode Title | some channel";
 
         // Act
         var result1 = CallNormalizeForComparison(input1);
@@ -49,14 +49,14 @@ public class FuzzyMatchingTests
     [Fact]
     public void NormalizeForComparison_HandlesUnicodeCharacters()
     {
-        // Arrange
+        // Arrange - unicode pipe acts as channel name separator, so text after it is stripped
         var input = "Episode｜With：Special？Characters";
 
         // Act
         var result = CallNormalizeForComparison(input);
 
         // Assert
-        Assert.Equal("episode|with:special?characters", result);
+        Assert.Equal("episode", result);
     }
 
     [Fact]
@@ -240,16 +240,8 @@ public class FuzzyMatchingTests
         // We need to test the private method NormalizeForComparison from YouTubeDownloadService
         // Using reflection to access it
         var type = typeof(YouTubeDownloadService);
-        var method = type.GetMethod("NormalizeForComparison", 
+        var method = type.GetMethod("NormalizeForComparison",
             BindingFlags.NonPublic | BindingFlags.Static);
-        
-        if (method == null)
-        {
-            // If not in YouTubeDownloadService, try PodcastDatabaseService
-            type = typeof(PodcastDatabaseService);
-            method = type.GetMethod("NormalizeForComparison", 
-                BindingFlags.NonPublic | BindingFlags.Static);
-        }
 
         Assert.NotNull(method);
         var result = method.Invoke(null, new object[] { input });
@@ -259,15 +251,8 @@ public class FuzzyMatchingTests
     private static double CallCalculateSimilarity(string a, string b)
     {
         var type = typeof(YouTubeDownloadService);
-        var method = type.GetMethod("CalculateSimilarity", 
+        var method = type.GetMethod("CalculateSimilarity",
             BindingFlags.NonPublic | BindingFlags.Static);
-        
-        if (method == null)
-        {
-            type = typeof(PodcastDatabaseService);
-            method = type.GetMethod("CalculateSimilarity", 
-                BindingFlags.NonPublic | BindingFlags.Static);
-        }
 
         Assert.NotNull(method);
         var result = method.Invoke(null, new object[] { a, b });
@@ -277,15 +262,8 @@ public class FuzzyMatchingTests
     private static int CallLongestCommonSubsequenceLength(string a, string b)
     {
         var type = typeof(YouTubeDownloadService);
-        var method = type.GetMethod("LongestCommonSubsequenceLength", 
+        var method = type.GetMethod("LongestCommonSubsequenceLength",
             BindingFlags.NonPublic | BindingFlags.Static);
-        
-        if (method == null)
-        {
-            type = typeof(PodcastDatabaseService);
-            method = type.GetMethod("LongestCommonSubsequenceLength", 
-                BindingFlags.NonPublic | BindingFlags.Static);
-        }
 
         Assert.NotNull(method);
         var result = method.Invoke(null, new object[] { a, b });

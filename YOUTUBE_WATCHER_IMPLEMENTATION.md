@@ -19,7 +19,7 @@ Added `YouTubePlaylistConfig` class with properties:
 
 **File:** `Castr/appsettings.json`
 
-Both feeds (`btb` and `btbc`) configured with YouTube settings:
+Feeds configured with YouTube settings:
 ```json
 "YouTube": {
   "PlaylistUrl": "PLsVdUE90nBgqw3GaeI0zHAEVtQhkoK4Lv",
@@ -189,9 +189,9 @@ Expected log output:
 Playlist Watcher Service starting
 Initial delay: 10 seconds before first poll
 Starting playlist polling loop (checking every 1 minute)
-Checking playlist for feed: btb
-Fetching playlist videos for btb
-Found X videos in playlist for btb
+Checking playlist for feed: mypodcast
+Fetching playlist videos for mypodcast
+Found X videos in playlist for mypodcast
 Syncing X playlist videos to database with fuzzy matching
 ```
 
@@ -199,7 +199,7 @@ Syncing X playlist videos to database with fuzzy matching
 
 After first poll, check database:
 ```bash
-sqlite3 "/Podcasts/Behind the Bastards/podcast.db"
+sqlite3 "/Podcasts/My Podcast/podcast.db"
 
 -- Check downloaded videos
 SELECT COUNT(*) FROM downloaded_videos;
@@ -215,13 +215,13 @@ LIMIT 10;
 
 Check for new files:
 ```bash
-ls -lt "/Podcasts/Behind the Bastards/" | head -20
+ls -lt "/Podcasts/My Podcast/" | head -20
 ```
 
 ### 5. Verify RSS Feed
 
 ```bash
-curl http://localhost:5000/feed/btb | head -50
+curl http://localhost:5000/feed/mypodcast | head -50
 ```
 
 Should show episodes with YouTube metadata (description, thumbnails).

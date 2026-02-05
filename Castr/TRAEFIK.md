@@ -70,7 +70,7 @@ All URLs in the RSS feed are generated using:
 
 Behind Traefik, this becomes:
 ```
-https://your-domain.com/feed/btb/media/episode.mp3
+https://your-domain.com/feed/mypodcast/media/episode.mp3
 ```
 
 ### Traefik Labels Explained

@@ -1,10 +1,12 @@
 @page "/"
 @attribute [Authorize]
-@inject ICentralDatabaseService Database
+@inject IPodcastDataService DataService
 @inject ILogger<Dashboard> Logger
 @inject NavigationManager Navigation
 @implements IAsyncDisposable
 @using Microsoft.AspNetCore.SignalR.Client
+@using Castr.Data.Entities
+@using DownloadQueueItemEntity = Castr.Data.Entities.DownloadQueueItem
 
 <PageTitle>Dashboard - Castr</PageTitle>
 
@@ -106,10 +108,11 @@
     private int _episodeCount;
     private int _activeDownloads;
     private string _uptime = "0s";
-    private List<DownloadQueueItem> _activeDownloadItems = new();
-    private List<ActivityLogRecord> _recentActivity = new();
+    private List<DownloadQueueItemEntity> _activeDownloadItems = new();
+    private List<ActivityLog> _recentActivity = new();
     private HubConnection? _hubConnection;
     private System.Threading.Timer? _refreshTimer;
+    private bool _disposed;
 
     protected override async Task OnInitializedAsync()
     {
@@ -160,9 +163,21 @@
         // Refresh statistics every 30 seconds
         _refreshTimer = new System.Threading.Timer(async _ =>
         {
-            await LoadStatisticsAsync();
-            UpdateUptime();
-            await InvokeAsync(StateHasChanged);
+            if (_disposed) return;
+            try
+            {
+                await LoadStatisticsAsync();
+                UpdateUptime();
+                await InvokeAsync(StateHasChanged);
+            }
+            catch (ObjectDisposedException)
+            {
+                // Expected during disposal, ignore
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Error in dashboard refresh timer");
+            }
         }, null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
     }
 
@@ -170,21 +185,21 @@
     {
         try
         {
-            var feeds = await Database.GetAllFeedsAsync();
+            var feeds = await DataService.GetAllFeedsAsync();
             _feedCount = feeds.Count;
 
             _episodeCount = 0;
             foreach (var feed in feeds)
             {
-                var episodes = await Database.GetEpisodesAsync(feed.Id);
+                var episodes = await DataService.GetEpisodesAsync(feed.Id);
                 _episodeCount += episodes.Count;
             }
 
-            var queue = await Database.GetDownloadQueueAsync();
+            var queue = await DataService.GetQueueAsync();
             _activeDownloadItems = queue.Where(q => q.Status == "downloading" || q.Status == "queued").ToList();
             _activeDownloads = _activeDownloadItems.Count;
 
-            _recentActivity = await Database.GetRecentActivityAsync(count: 20);
+            _recentActivity = await DataService.GetRecentActivityAsync(count: 20);
 
             UpdateUptime();
         }
@@ -219,6 +234,7 @@
 
     public async ValueTask DisposeAsync()
     {
+        _disposed = true;
         _refreshTimer?.Dispose();
         if (_hubConnection is not null)
         {
