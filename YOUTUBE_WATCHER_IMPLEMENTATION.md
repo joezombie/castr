@@ -97,38 +97,39 @@ BackgroundService that:
 - Skips metadata fetch for existing files (performance optimization)
 - Comprehensive progress logging
 
-### 6. Database Service (✅ Complete)
+### 6. Data Service (✅ Complete)
 
-**File:** `Castr/Services/PodcastDatabaseService.cs` (728 lines)
+**File:** `Castr/Services/PodcastDataService.cs`
 
-Database tables:
+Uses EF Core with repository pattern for data access. All data stored in a central database.
 
-**`episodes` table:**
+**EF Core Entities:**
+
+**`Episode` entity:**
 - Tracks all episode files with metadata
-- `display_order` - Lower numbers = newer episodes
-- `video_id` - Links to YouTube video
-- `youtube_title`, `description`, `thumbnail_url`
-- `publish_date`, `added_at`, `match_score`
+- `DisplayOrder` - Lower numbers = newer episodes
+- `VideoId` - Links to YouTube video
+- `YoutubeTitle`, `Description`, `ThumbnailUrl`
+- `PublishDate`, `AddedAt`, `MatchScore`
 - New episodes prepended (lower order numbers)
 
-**`downloaded_videos` table:**
+**`DownloadedVideo` entity:**
 - Tracks which YouTube videos have been downloaded
 - Prevents re-downloading
-- Stores video_id, filename, downloaded_at
+- Stores VideoId, Filename, DownloadedAt
 
-**Key Methods:**
-- `InitializeDatabaseAsync()` - Creates schema, runs migrations
-- `GetEpisodesAsync()` - Retrieves episodes ordered by display_order
+**Key Methods (via IPodcastDataService):**
+- `GetEpisodesAsync()` - Retrieves episodes ordered by DisplayOrder
 - `MarkVideoDownloadedAsync()` - Marks video as downloaded
 - `GetDownloadedVideoIdsAsync()` - Returns all downloaded video IDs
-- `AddEpisodesAsync()` - Adds new episodes (prepends to top)
+- `AddEpisodeAsync()` / `AddEpisodesAsync()` - Adds new episodes
 - `SyncPlaylistInfoAsync()` - **Critical: Fuzzy matches YouTube videos to local files**
 - `SyncDirectoryAsync()` - Syncs manually added files
 - `UpdateEpisodeAsync()` - Updates episode metadata
 
 **Fuzzy Matching Algorithm:**
 - Uses Longest Common Subsequence (LCS) similarity
-- Normalizes titles (removes suffixes, special chars)
+- Normalizes titles (removes trailing channel suffixes, special chars)
 - 60% match threshold for SyncPlaylistInfo
 - 80% threshold for download duplicate detection
 - Ensures each file matched to only one video
@@ -143,9 +144,9 @@ The implementation is **more sophisticated** than the original plan:
 - File-based tracking
 
 ### Actual Implementation
-- SQLite database with two tables
-- Thread-safe operations with SemaphoreSlim
-- Automatic schema migrations
+- EF Core database with multi-provider support (SQLite, PostgreSQL, SQL Server, MariaDB)
+- Repository pattern for clean data access
+- Automatic schema migrations via EF Core
 - Fuzzy matching to link existing files to YouTube videos
 - Metadata sync (description, thumbnail, publish date)
 - Handles both new downloads AND existing files
@@ -199,7 +200,7 @@ Syncing X playlist videos to database with fuzzy matching
 
 After first poll, check database:
 ```bash
-sqlite3 "/Podcasts/My Podcast/podcast.db"
+sqlite3 "/data/castr.db"
 
 -- Check downloaded videos
 SELECT COUNT(*) FROM downloaded_videos;
@@ -280,10 +281,10 @@ Set `"Enabled": false` to stop monitoring a playlist without removing config.
 - Won't re-download if fuzzy match found
 - Syncs metadata to existing files
 
-### Database Per Feed
-- Each feed has its own SQLite database
-- Default: `{FeedDirectory}/podcast.db`
-- Can override with `DatabasePath` config
+### Central Database
+- All feeds share a single EF Core database
+- Default: SQLite at `/data/castr.db`
+- Configurable via `Database__Provider` and `Database__ConnectionString`
 
 ## Testing Recommendations
 
@@ -311,7 +312,7 @@ Run with Debug logging to see detailed progress:
 ### 3. Check Database
 Verify data after first poll:
 ```bash
-sqlite3 /tmp/test-feed/podcast.db
+sqlite3 /data/castr.db
 .tables
 .schema episodes
 SELECT * FROM episodes;
@@ -399,14 +400,14 @@ Watch logs for:
 ✅ **Configuration:** Complete
 ✅ **Dependencies:** YoutubeExplode packages added
 ✅ **Services:** YouTubeDownloadService, PlaylistWatcherService implemented
-✅ **Database:** PodcastDatabaseService with fuzzy matching
+✅ **Database:** EF Core with PodcastDataService and fuzzy matching
 ✅ **Program.cs:** Services registered
 ✅ **Build:** Successful (0 warnings, 0 errors)
 
 **Status:** Production ready
 
 The implementation exceeds the original plan with:
-- Database-backed tracking (vs. text files)
+- EF Core database with multi-provider support
 - Intelligent fuzzy matching
 - Metadata synchronization
 - Thread-safe operations

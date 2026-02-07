@@ -25,15 +25,15 @@ This repository contains **Castr**, a podcast RSS feed API with YouTube playlist
 
 **Key Services:**
 - `PodcastFeedService` - RSS XML generation, episode ordering
-- `PodcastDatabaseService` - SQLite database operations, fuzzy matching
+- `PodcastDataService` - High-level data service facade over EF Core repositories
 - `YouTubeDownloadService` - YouTube playlist fetching and audio downloads
 - `PlaylistWatcherService` - Background service for polling playlists
 
 **Database:**
-- SQLite with schema migrations
-- Episodes table with fuzzy matching scores
-- Downloaded videos tracking
-- Playlist index preservation
+- EF Core with multi-provider support (SQLite, PostgreSQL, SQL Server, MariaDB)
+- Repository pattern: `IFeedRepository`, `IEpisodeRepository`, `IDownloadRepository`, `IActivityRepository`
+- Automatic migrations via `Database.MigrateAsync()`
+- Central database for all feeds
 
 ### Python Script
 
@@ -150,21 +150,22 @@ Both Python and C# implement the same fuzzy matching logic:
 
 ### Database Operations
 
-**Migration Pattern:**
+**EF Core Pattern:**
 ```csharp
-// Always check for column existence before altering
-var checkCommand = connection.CreateCommand();
-checkCommand.CommandText =
-    "SELECT COUNT(*) FROM pragma_table_info('episodes') WHERE name='column_name'";
-var hasColumn = Convert.ToInt32(await checkCommand.ExecuteScalarAsync()) > 0;
+// Use repositories for data access
+var episodes = await _episodeRepository.GetByFeedIdAsync(feedId);
+var feed = await _feedRepository.GetByNameAsync(feedName);
 
-if (!hasColumn)
-{
-    var alterCommand = connection.CreateCommand();
-    alterCommand.CommandText = "ALTER TABLE episodes ADD COLUMN column_name TEXT";
-    await alterCommand.ExecuteNonQueryAsync();
-    _logger.LogInformation("Migrated database: added column_name column");
-}
+// Use PodcastDataService for business logic
+await _dataService.SyncDirectoryAsync(feedId, directory, extensions);
+await _dataService.SyncPlaylistInfoAsync(feedId, videos, directory);
+```
+
+**Migration Pattern (when adding new columns):**
+```bash
+# Create a new EF Core migration
+cd Castr
+dotnet ef migrations add AddNewColumn --output-dir Data/Migrations
 ```
 
 ### YouTube Integration
@@ -225,11 +226,11 @@ When generating code, ensure:
 
 ### Adding a New Database Column
 
-1. Add migration check in `InitializeDatabaseAsync()`
-2. Add property to `EpisodeRecord` model
-3. Update INSERT/UPDATE queries with new column
-4. Use `COALESCE` if preserving existing data
-5. Test with both new and existing databases
+1. Add property to the EF Core entity in `Data/Entities/`
+2. Update Fluent API configuration in `Data/Configurations/` if needed
+3. Create a new migration: `dotnet ef migrations add <MigrationName> --output-dir Data/Migrations`
+4. Update repository methods if needed
+5. Test with migration tests
 
 ### Adding a New API Endpoint
 
@@ -279,17 +280,21 @@ public async Task GetMedia_WithPathTraversal_ReturnsBadRequest()
 - `.github/copilot-instructions.md` - This file
 
 **Documentation:**
-- `CODE_REVIEW.md` - Comprehensive code review findings
-- `RECOMMENDATIONS.md` - Prioritized improvement suggestions
-- `REVIEW_SUMMARY.md` - Executive summary
 - `Castr/BUILD.md` - Build and deployment guide
 - `Castr/TRAEFIK.md` - Reverse proxy configuration
+- `Castr/CONFIGURATION.md` - Environment variable configuration
 
 **Core Services:**
 - `Castr/Services/PodcastFeedService.cs` - RSS generation
-- `Castr/Services/PodcastDatabaseService.cs` - Database operations
+- `Castr/Services/PodcastDataService.cs` - High-level data service facade
 - `Castr/Services/YouTubeDownloadService.cs` - YouTube integration
 - `Castr/Services/PlaylistWatcherService.cs` - Background polling
+
+**Data Layer:**
+- `Castr/Data/CastrDbContext.cs` - EF Core database context
+- `Castr/Data/Entities/` - Entity models
+- `Castr/Data/Repositories/` - Repository pattern for data access
+- `Castr/Data/Configurations/` - Fluent API configurations
 
 **Models:**
 - `Castr/Models/PodcastFeedConfig.cs` - Configuration models
@@ -304,10 +309,7 @@ public async Task GetMedia_WithPathTraversal_ReturnsBadRequest()
 
 ## Known Issues & Improvements
 
-Reference the GitHub issues for current work items:
-- See `CODE_REVIEW.md` for detailed findings
-- See `RECOMMENDATIONS.md` for implementation guides
-- Check GitHub issues for prioritized tasks
+Reference the GitHub issues for current work items.
 
 **High Priority:**
 - Input validation at API boundaries (#4)
@@ -344,24 +346,10 @@ python3 match_episodes.py rename --dry-run
 ## Important Notes
 
 1. **Naming:** Project was renamed from "PodcastFeedApi" to "Castr" (commit 8c21780)
-2. **Database:** SQLite files stored per feed in feed directory
+2. **Database:** EF Core with multi-provider support (default: SQLite at `/data/castr.db`)
 3. **Fuzzy Matching:** Threshold is 0.80, uses LCS algorithm
 4. **Docker Registry:** `reg.ht2.io/castr:latest`
 5. **Traefik:** Configured with forwarded headers support
-
----
-
-## Code Review References
-
-When suggesting improvements, consider:
-- No critical security vulnerabilities found (SQL injection protected, path traversal protected)
-- Add input validation to all public endpoints
-- Add timeouts to long-running operations (downloads, database locks)
-- Implement IDisposable where SemaphoreSlim is used
-- Replace while loops with regex for string operations
-- Add comprehensive logging at appropriate levels
-
-For detailed review findings, see `CODE_REVIEW.md`.
 
 ---
 

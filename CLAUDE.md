@@ -39,7 +39,7 @@ python3 match_episodes.py dedup /folder/A /folder/B --threshold 0.90
 - `script` - Generates `rename_episodes.sh` for review before execution
 - `dedup` - Matches files from folder A (reference) to folder B (target) using fuzzy matching and deletes matched duplicates in folder B. Default 80% similarity threshold, configurable with `--threshold`. Supports dry-run mode for safety.
 
-**Key data files:**
+**Input/output files (user-provided, not in repo):**
 - `files1.txt` - `ls -l` output of MP3 files (paths with escaped spaces)
 - `playlist-bulletized1.txt` - YouTube playlist titles in JSON array format
 - `matched_episodes.json` - Output mapping with order, names, scores, indices

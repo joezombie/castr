@@ -175,8 +175,7 @@ Comprehensive documentation is available:
 - **[CLAUDE.md](CLAUDE.md)** - AI assistant guidance and project architecture overview
 - **[Castr/BUILD.md](Castr/BUILD.md)** - Build, deployment, and CI/CD instructions
 - **[Castr/TRAEFIK.md](Castr/TRAEFIK.md)** - Reverse proxy setup with Traefik
-- **[CODE_REVIEW.md](CODE_REVIEW.md)** - Comprehensive code review and security analysis
-- **[RECOMMENDATIONS.md](RECOMMENDATIONS.md)** - Implementation recommendations and improvement roadmap
+- **[Castr/CONFIGURATION.md](Castr/CONFIGURATION.md)** - Environment variable configuration guide
 
 ## Architecture
 
@@ -239,16 +238,13 @@ The codebase implements several security best practices:
 - ✅ **No Secrets in Code** - Configuration-based sensitive data management
 - ✅ **Forward Header Security** - Properly configured for reverse proxy deployment
 
-See [CODE_REVIEW.md](CODE_REVIEW.md) for complete security analysis.
-
 ## Contributing
 
 When contributing to this project:
 
 1. Follow the existing code style and conventions
 2. Update documentation for any changed functionality
-3. Review [RECOMMENDATIONS.md](RECOMMENDATIONS.md) for improvement opportunities
-4. Ensure changes pass existing builds and tests
+3. Ensure changes pass existing builds and tests
 
 ## License
 
@@ -259,8 +255,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 For questions, issues, or feature requests:
 
 1. Check the documentation files listed above
-2. Review [CODE_REVIEW.md](CODE_REVIEW.md) for detailed technical explanations
-3. Open an issue on the GitHub repository
+2. Open an issue on the GitHub repository
 
 ## Acknowledgments
 
@@ -270,4 +265,4 @@ For questions, issues, or feature requests:
 
 ---
 
-**Project Status**: ✅ Production-ready with recommended improvements available in [RECOMMENDATIONS.md](RECOMMENDATIONS.md)
+**Project Status**: ✅ Production-ready

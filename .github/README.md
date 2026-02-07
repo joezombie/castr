@@ -139,8 +139,6 @@ When updating these files:
 **Context Sources:**
 - `.github/copilot-instructions.md` (always included)
 - `CLAUDE.md` (project overview)
-- `CODE_REVIEW.md` (review findings)
-- `RECOMMENDATIONS.md` (improvement suggestions)
 
 ## Maintenance
 
@@ -164,8 +162,6 @@ Test Copilot configuration by:
 - [GitHub Copilot Documentation](https://docs.github.com/en/copilot)
 - [Copilot Chat Documentation](https://docs.github.com/en/copilot/using-github-copilot/asking-github-copilot-questions-in-your-ide)
 - Project Documentation: `../CLAUDE.md`
-- Code Review: `../CODE_REVIEW.md`
-- Recommendations: `../RECOMMENDATIONS.md`
 
 ---
 

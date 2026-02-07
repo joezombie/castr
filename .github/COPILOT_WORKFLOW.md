@@ -269,7 +269,6 @@ cat > task.md << 'EOF'
 - Follow existing patterns in FeedController.cs
 
 ## References
-- See CODE_REVIEW.md section #10
 - Similar implementation in line 123
 EOF
 
@@ -387,7 +386,6 @@ Add validation:
 - Castr/Controllers/FeedController.cs (line 73)
 
 ## References
-- CODE_REVIEW.md: Issue #10
 ```
 
 **Bad:**
@@ -513,8 +511,6 @@ mutation {
 
 - `.github/copilot-instructions.md` - Copilot configuration
 - `.github/COPILOT_AGENTS.md` - Agent definitions
-- `CODE_REVIEW.md` - Review findings
-- `RECOMMENDATIONS.md` - Implementation guides
 
 ### Support
 

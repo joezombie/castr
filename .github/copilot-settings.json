@@ -3,9 +3,7 @@
   "instructions_file": ".github/copilot-instructions.md",
   "context": {
     "always_include": [
-      "CLAUDE.md",
-      "CODE_REVIEW.md",
-      "RECOMMENDATIONS.md"
+      "CLAUDE.md"
     ],
     "exclude": [
       "*.db",

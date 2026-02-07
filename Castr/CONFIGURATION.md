@@ -15,7 +15,7 @@ ASP.NET Core uses a hierarchical configuration system with double underscores (`
 
 ```
 JSON:                    appsettings.json path
-PodcastFeeds.Feeds.mypodcast   →  PodcastFeeds__Feeds__btb
+PodcastFeeds.Feeds.mypodcast   →  PodcastFeeds__Feeds__mypodcast
 ```
 
 ## Environment Variable Examples
@@ -78,14 +78,17 @@ export Dashboard__Password=your-secure-password
 > **Security Note**: Credentials are NOT set by default.
 > **You MUST configure these via environment variables** for the dashboard to function.
 
-### Central Database Configuration
+### Database Configuration
 
 ```bash
-# Set central database path (optional, default: /data/castr.db)
-export PodcastFeeds__CentralDatabasePath=/custom/path/castr.db
+# Set database provider (default: SQLite)
+export Database__Provider=SQLite
+
+# Set database connection string (default: Data Source=/data/castr.db)
+export Database__ConnectionString="Data Source=/custom/path/castr.db"
 ```
 
-The central database stores all feed configurations, episodes, activity logs, and download queue. On first startup, feeds are automatically migrated from `appsettings.json` to the central database.
+The central database stores all feed configurations, episodes, activity logs, and download queue. Supports SQLite, PostgreSQL, SQL Server, and MariaDB.
 
 ### Multiple Feeds
 
@@ -266,8 +269,6 @@ See `appsettings.json` for the complete configuration schema with all available 
 
 - [BUILD.md](BUILD.md) - Building and deploying with Docker
 - [TRAEFIK.md](TRAEFIK.md) - Reverse proxy configuration
-- [CODE_REVIEW.md](../CODE_REVIEW.md) - Configuration recommendations
-- [RECOMMENDATIONS.md](../RECOMMENDATIONS.md) - Additional implementation recommendations
 
 ### Configuration Model Structure
 
@@ -290,7 +291,6 @@ PodcastFeeds
        │    ├─ Language
        │    ├─ Category
        │    ├─ FileExtensions
-       │    ├─ DatabasePath
        │    └─ YouTube
        │         ├─ PlaylistUrl
        │         ├─ PollIntervalMinutes
@@ -328,6 +328,5 @@ PodcastFeeds
 ## Support
 
 For issues or questions:
-1. Review the [CODE_REVIEW.md](../CODE_REVIEW.md) for configuration best practices
-2. Check container logs: `docker logs castr`
+1. Check container logs: `docker logs castr`
 3. Verify your environment variables: `docker exec castr env`

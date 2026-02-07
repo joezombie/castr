@@ -240,8 +240,6 @@ if echo "$ISSUE_LABELS" | grep -q "enhancement\|bug"; then
     TASK_DESCRIPTION="${TASK_DESCRIPTION}
 
 ## References
-- See CODE_REVIEW.md for detailed context
-- See RECOMMENDATIONS.md for implementation patterns
 - Follow security checklist in .github/copilot-instructions.md"
 fi
 
