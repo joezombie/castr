@@ -1,7 +1,7 @@
 services:
   castr:
     # Use pre-built image from registry (recommended for production)
-    image: reg.ht2.io/castr:latest
+    image: ghcr.io/joezombie/castr:latest
     # Or build locally (for development):
     # build:
     #   context: .
