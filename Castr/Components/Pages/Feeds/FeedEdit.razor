@@ -57,8 +57,11 @@ else
                     <MudTextField @bind-Value="_feed.Category" Label="Category" Class="mt-3"
                         HelperText="iTunes category (e.g., 'Society & Culture')" />
 
-                    <MudTextField @bind-Value="_feed.FileExtensions" Label="File Extensions" Class="mt-3"
+                    <MudTextField @bind-Value="_fileExtensionsText" Label="File Extensions" Class="mt-3"
                         HelperText="Comma-separated (e.g., '.mp3,.m4a')" />
+
+                    <MudNumericField @bind-Value="_feed.CacheDurationMinutes" Label="RSS Cache Duration (minutes)"
+                        Class="mt-3" Min="1" Max="1440" />
 
                     <MudSwitch @bind-Value="_feed.IsActive" Label="Active" Color="Color.Primary" Class="mt-3" />
                 </MudPaper>
@@ -115,13 +118,21 @@ else
         Description = "",
         Directory = "",
         Language = "en-us",
-        FileExtensions = ".mp3",
+        FileExtensions = [".mp3"],
+        CacheDurationMinutes = 5,
         IsActive = true,
         YouTubeEnabled = false,
         YouTubePollIntervalMinutes = 60,
         YouTubeMaxConcurrentDownloads = 1,
         YouTubeAudioQuality = "highest"
     };
+
+    private string _fileExtensionsText
+    {
+        get => string.Join(",", _feed.FileExtensions);
+        set => _feed.FileExtensions = value.Split(',', StringSplitOptions.RemoveEmptyEntries)
+            .Select(e => e.Trim()).ToArray();
+    }
 
     private MudForm? _form;
     private bool _formValid;

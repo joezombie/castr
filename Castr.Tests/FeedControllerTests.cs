@@ -4,10 +4,8 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Options;
 using Castr.Controllers;
 using Castr.Services;
-using Castr.Models;
 using Castr.Data.Entities;
 
 namespace Castr.Tests;
@@ -27,30 +25,32 @@ public class FeedControllerTests : IDisposable
         _testDirectory = Path.Combine(Path.GetTempPath(), "castr_controller_test_" + Guid.NewGuid());
         Directory.CreateDirectory(_testDirectory);
 
-        var config = new PodcastFeedsConfig
+        var testFeed = new Feed
         {
-            Feeds = new Dictionary<string, PodcastFeedConfig>
-            {
-                ["mypodcast"] = new PodcastFeedConfig
-                {
-                    Title = "My Podcast",
-                    Description = "Test Feed",
-                    Directory = _testDirectory
-                }
-            }
+            Id = 1,
+            Name = "mypodcast",
+            Title = "My Podcast",
+            Description = "Test Feed",
+            Directory = _testDirectory,
+            FileExtensions = [".mp3"],
+            CacheDurationMinutes = 5
         };
 
         _mockDataService = new Mock<IPodcastDataService>();
-        // Return null for feed lookup to simulate feed not in database (falls back to alphabetical order)
-        _mockDataService.Setup(x => x.GetFeedByNameAsync(It.IsAny<string>()))
+        _mockDataService.Setup(x => x.GetAllFeedsAsync())
+            .ReturnsAsync(new List<Feed> { testFeed });
+        _mockDataService.Setup(x => x.GetFeedByNameAsync("mypodcast"))
+            .ReturnsAsync(testFeed);
+        _mockDataService.Setup(x => x.GetFeedByNameAsync(It.IsNotIn("mypodcast")))
             .ReturnsAsync((Feed?)null);
+        _mockDataService.Setup(x => x.GetEpisodesAsync(It.IsAny<int>()))
+            .ReturnsAsync(new List<Episode>());
+
         _mockFeedServiceLogger = new Mock<ILogger<PodcastFeedService>>();
         _mockLogger = new Mock<ILogger<FeedController>>();
         _cache = new MemoryCache(new MemoryCacheOptions());
 
-        // Create real PodcastFeedService with mocked dependencies
         _feedService = new PodcastFeedService(
-            Options.Create(config),
             _mockDataService.Object,
             _cache,
             _mockFeedServiceLogger.Object
@@ -86,10 +86,10 @@ public class FeedControllerTests : IDisposable
     #region GetFeeds Tests
 
     [Fact]
-    public void GetFeeds_ReturnsOkWithFeedList()
+    public async Task GetFeeds_ReturnsOkWithFeedList()
     {
         // Act
-        var result = _controller.GetFeeds();
+        var result = await _controller.GetFeeds();
 
         // Assert
         var okResult = Assert.IsType<OkObjectResult>(result);
@@ -97,20 +97,28 @@ public class FeedControllerTests : IDisposable
     }
 
     [Fact]
-    public void GetFeeds_ReturnsEmptyList_WhenNoFeeds()
+    public async Task GetFeeds_ReturnsEmptyList_WhenNoFeeds()
     {
-        // Arrange - create controller with empty config
-        var emptyConfig = new PodcastFeedsConfig { Feeds = new Dictionary<string, PodcastFeedConfig>() };
+        // Arrange - create controller with empty data service
+        var emptyDataService = new Mock<IPodcastDataService>();
+        emptyDataService.Setup(x => x.GetAllFeedsAsync()).ReturnsAsync(new List<Feed>());
+        emptyDataService.Setup(x => x.GetFeedByNameAsync(It.IsAny<string>())).ReturnsAsync((Feed?)null);
+
         var emptyFeedService = new PodcastFeedService(
-            Options.Create(emptyConfig),
-            _mockDataService.Object,
+            emptyDataService.Object,
             _cache,
             _mockFeedServiceLogger.Object
         );
         var emptyController = new FeedController(emptyFeedService, _mockLogger.Object);
+        emptyController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext()
+        };
+        emptyController.HttpContext.Request.Scheme = "http";
+        emptyController.HttpContext.Request.Host = new HostString("localhost:5000");
 
         // Act
-        var result = emptyController.GetFeeds();
+        var result = await emptyController.GetFeeds();
 
         // Assert
         var okResult = Assert.IsType<OkObjectResult>(result);
@@ -186,18 +194,18 @@ public class FeedControllerTests : IDisposable
     #region GetMedia Tests
 
     [Fact]
-    public void GetMedia_WithValidFile_ReturnsPhysicalFile()
+    public async Task GetMedia_WithValidFile_ReturnsPhysicalFile()
     {
         // Arrange
         var feedName = "mypodcast";
         var fileName = "episode001.mp3";
-        
+
         // Create a temporary file for testing
         var testFile = Path.Combine(_testDirectory, fileName);
         File.WriteAllText(testFile, "test content");
 
         // Act
-        var result = _controller.GetMedia(feedName, fileName);
+        var result = await _controller.GetMedia(feedName, fileName);
 
         // Assert
         var fileResult = Assert.IsType<PhysicalFileResult>(result);
@@ -206,14 +214,14 @@ public class FeedControllerTests : IDisposable
     }
 
     [Fact]
-    public void GetMedia_WithPathTraversal_ReturnsBadRequest()
+    public async Task GetMedia_WithPathTraversal_ReturnsBadRequest()
     {
         // Arrange
         var feedName = "mypodcast";
         var fileName = "../../../etc/passwd";
 
         // Act
-        var result = _controller.GetMedia(feedName, fileName);
+        var result = await _controller.GetMedia(feedName, fileName);
 
         // Assert
         var badRequestResult = Assert.IsType<BadRequestObjectResult>(result);
@@ -221,79 +229,79 @@ public class FeedControllerTests : IDisposable
     }
 
     [Fact]
-    public void GetMedia_WithBackslashPathTraversal_ReturnsBadRequest()
+    public async Task GetMedia_WithBackslashPathTraversal_ReturnsBadRequest()
     {
         // Arrange
         var feedName = "mypodcast";
         var fileName = "..\\..\\..\\Windows\\System32\\config\\SAM";
 
         // Act
-        var result = _controller.GetMedia(feedName, fileName);
+        var result = await _controller.GetMedia(feedName, fileName);
 
         // Assert
         Assert.IsType<BadRequestObjectResult>(result);
     }
 
     [Fact]
-    public void GetMedia_WithForwardSlash_ReturnsBadRequest()
+    public async Task GetMedia_WithForwardSlash_ReturnsBadRequest()
     {
         // Arrange
         var feedName = "mypodcast";
         var fileName = "subdir/episode.mp3";
 
         // Act
-        var result = _controller.GetMedia(feedName, fileName);
+        var result = await _controller.GetMedia(feedName, fileName);
 
         // Assert
         Assert.IsType<BadRequestObjectResult>(result);
     }
 
     [Fact]
-    public void GetMedia_WithEmptyFileName_ReturnsBadRequest()
+    public async Task GetMedia_WithEmptyFileName_ReturnsBadRequest()
     {
         // Arrange
         var feedName = "mypodcast";
 
         // Act
-        var result = _controller.GetMedia(feedName, "");
+        var result = await _controller.GetMedia(feedName, "");
 
         // Assert
         Assert.IsType<BadRequestObjectResult>(result);
     }
 
     [Fact]
-    public void GetMedia_WithTooLongFileName_ReturnsBadRequest()
+    public async Task GetMedia_WithTooLongFileName_ReturnsBadRequest()
     {
         // Arrange
         var feedName = "mypodcast";
         var fileName = new string('a', 256); // 256 characters
 
         // Act
-        var result = _controller.GetMedia(feedName, fileName);
+        var result = await _controller.GetMedia(feedName, fileName);
 
         // Assert
         Assert.IsType<BadRequestObjectResult>(result);
     }
 
     [Fact]
-    public void GetMedia_WithEmptyFeedName_ReturnsBadRequest()
+    public async Task GetMedia_WithEmptyFeedName_ReturnsBadRequest()
     {
         // Act
-        var result = _controller.GetMedia("", "episode.mp3");
+        var result = await _controller.GetMedia("", "episode.mp3");
 
         // Assert
         Assert.IsType<BadRequestObjectResult>(result);
     }
 
     [Fact]
-    public void GetMedia_WhenFileNotFound_ReturnsNotFound()
+    public async Task GetMedia_WhenFileNotFound_ReturnsNotFound()
     {
         // Arrange
         var feedName = "mypodcast";
         var fileName = "nonexistent.mp3";
 
         // Act
-        var result = _controller.GetMedia(feedName, fileName);
+        var result = await _controller.GetMedia(feedName, fileName);
 
         // Assert
         Assert.IsType<NotFoundObjectResult>(result);
@@ -307,7 +315,7 @@ public class FeedControllerTests : IDisposable
     [InlineData("test.wav", "audio/wav")]
     [InlineData("test.flac", "audio/flac")]
     [InlineData("test.unknown", "application/octet-stream")]
-    public void GetMedia_ReturnCorrectMimeType(string fileName, string expectedMimeType)
+    public async Task GetMedia_ReturnCorrectMimeType(string fileName, string expectedMimeType)
     {
         // Arrange
         var feedName = "mypodcast";
@@ -315,7 +323,7 @@ public class FeedControllerTests : IDisposable
         File.WriteAllText(testFile, "test content");
 
         // Act
-        var result = _controller.GetMedia(feedName, fileName);
+        var result = await _controller.GetMedia(feedName, fileName);
 
         // Assert
         var fileResult = Assert.IsType<PhysicalFileResult>(result);

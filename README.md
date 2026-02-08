@@ -43,33 +43,9 @@ The dashboard is at `http://localhost:5000` and feeds are at `http://localhost:5
 
 ## Configuration
 
-Feeds are configured in `appsettings.json` or via environment variables. A minimal feed:
+Feeds are managed entirely through the web dashboard. No `appsettings.json` feed configuration is needed.
 
-```json
-{
-  "PodcastFeeds": {
-    "Feeds": {
-      "mypodcast": {
-        "Title": "My Podcast",
-        "Description": "My podcast episodes",
-        "Directory": "/Podcasts/My Podcast"
-      }
-    }
-  }
-}
-```
-
-To enable YouTube playlist monitoring, add a `YouTube` block:
-
-```json
-{
-  "YouTube": {
-    "PlaylistUrl": "https://www.youtube.com/playlist?list=...",
-    "PollIntervalMinutes": 60,
-    "Enabled": true
-  }
-}
-```
+The dashboard lets you create, edit, and delete feeds with all settings including YouTube playlist monitoring.
 
 ## API
 

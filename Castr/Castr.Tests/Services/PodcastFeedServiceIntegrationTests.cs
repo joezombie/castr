@@ -9,42 +9,41 @@ namespace Castr.Tests.Services;
 public class PodcastFeedServiceIntegrationTests : IDisposable
 {
     private readonly string _testDirectory;
-    private readonly Mock<IOptions<PodcastFeedsConfig>> _mockConfig;
     private readonly Mock<IPodcastDataService> _mockDataService;
     private readonly IMemoryCache _cache;
     private readonly Mock<ILogger<PodcastFeedService>> _mockLogger;
-    private readonly PodcastFeedsConfig _config;
+    private Feed _testFeed;
 
     public PodcastFeedServiceIntegrationTests()
     {
         _testDirectory = TestDatabaseHelper.CreateTempDirectory();
 
-        _config = new PodcastFeedsConfig
+        _testFeed = new Feed
         {
-            Feeds = new Dictionary<string, PodcastFeedConfig>
-            {
-                ["testfeed"] = new PodcastFeedConfig
-                {
-                    Title = "Test Podcast",
-                    Description = "A test podcast for integration testing",
-                    Directory = _testDirectory,
-                    Author = "Test Author",
-                    ImageUrl = "https://example.com/image.png",
-                    Link = "https://example.com",
-                    Language = "en-us",
-                    Category = "Technology"
-                }
-            },
+            Id = 1,
+            Name = "testfeed",
+            Title = "Test Podcast",
+            Description = "A test podcast for integration testing",
+            Directory = _testDirectory,
+            Author = "Test Author",
+            ImageUrl = "https://example.com/image.png",
+            Link = "https://example.com",
+            Language = "en-us",
+            Category = "Technology",
+            FileExtensions = [".mp3"],
             CacheDurationMinutes = 5
         };
 
-        _mockConfig = new Mock<IOptions<PodcastFeedsConfig>>();
-        _mockConfig.Setup(x => x.Value).Returns(_config);
-
         _mockDataService = new Mock<IPodcastDataService>();
-        // Return null for feed lookup by default to simulate feed not in database (falls back to alphabetical order)
-        _mockDataService.Setup(x => x.GetFeedByNameAsync(It.IsAny<string>()))
+        _mockDataService.Setup(x => x.GetAllFeedsAsync())
+            .ReturnsAsync(new List<Feed> { _testFeed });
+        _mockDataService.Setup(x => x.GetFeedByNameAsync("testfeed"))
+            .ReturnsAsync(() => _testFeed);
+        _mockDataService.Setup(x => x.GetFeedByNameAsync(It.IsNotIn("testfeed")))
             .ReturnsAsync((Feed?)null);
+        // Return null for feed lookup by default to simulate feed not in database (falls back to alphabetical order)
+        _mockDataService.Setup(x => x.GetEpisodesAsync(It.IsAny<int>()))
+            .ReturnsAsync(new List<Episode>());
 
         _cache = new MemoryCache(new MemoryCacheOptions());
         _mockLogger = new Mock<ILogger<PodcastFeedService>>();
@@ -59,7 +58,6 @@ public class PodcastFeedServiceIntegrationTests : IDisposable
     private PodcastFeedService CreateService()
     {
         return new PodcastFeedService(
-            _mockConfig.Object,
             _mockDataService.Object,
             _cache,
             _mockLogger.Object);
@@ -150,7 +148,6 @@ public class PodcastFeedServiceIntegrationTests : IDisposable
     public async Task GenerateFeedAsync_AppliesEpisodeMetadataFromDatabase()
     {
         // Arrange
-        var testFeed = new Feed { Id = 1, Name = "testfeed", Title = "Test Feed" };
         var dbEpisodes = new List<Episode>
         {
             new Episode
@@ -167,8 +164,6 @@ public class PodcastFeedServiceIntegrationTests : IDisposable
             }
         };
 
-        _mockDataService.Setup(x => x.GetFeedByNameAsync("testfeed"))
-            .ReturnsAsync(testFeed);
         _mockDataService.Setup(x => x.GetEpisodesAsync(1))
             .ReturnsAsync(dbEpisodes);
 
@@ -224,7 +219,7 @@ public class PodcastFeedServiceIntegrationTests : IDisposable
     }
 
     [Fact]
-    public void GetMediaFilePath_ReturnsFullPath()
+    public async Task GetMediaFilePathAsync_ReturnsFullPath()
     {
         // Arrange
         var testFile = "test-episode.mp3";
@@ -233,7 +228,7 @@ public class PodcastFeedServiceIntegrationTests : IDisposable
         var service = CreateService();
 
         // Act
-        var result = service.GetMediaFilePath("testfeed", testFile);
+        var result = await service.GetMediaFilePathAsync("testfeed", testFile);
 
         // Assert
         Assert.NotNull(result);
@@ -242,7 +237,7 @@ public class PodcastFeedServiceIntegrationTests : IDisposable
     }
 
     [Fact]
-    public void GetMediaFilePath_BlocksPathTraversalAttempts()
+    public async Task GetMediaFilePathAsync_BlocksPathTraversalAttempts()
     {
         // Arrange
         var service = CreateService();
@@ -255,7 +250,7 @@ public class PodcastFeedServiceIntegrationTests : IDisposable
         try
         {
             // Act
-            var result = service.GetMediaFilePath("testfeed", "../outside.mp3");
+            var result = await service.GetMediaFilePathAsync("testfeed", "../outside.mp3");
 
             // Assert
             Assert.Null(result); // Should reject path traversal
@@ -281,8 +276,22 @@ public class PodcastFeedServiceIntegrationTests : IDisposable
         var fileName = $"test{extension}";
         File.WriteAllBytes(Path.Combine(_testDirectory, fileName), new byte[] { 0x00, 0x00 });
 
-        // Update config to accept this extension
-        _config.Feeds["testfeed"].FileExtensions = new[] { extension };
+        // Update feed to accept this extension
+        _testFeed = new Feed
+        {
+            Id = 1,
+            Name = "testfeed",
+            Title = "Test Podcast",
+            Description = "A test podcast for integration testing",
+            Directory = _testDirectory,
+            Author = "Test Author",
+            ImageUrl = "https://example.com/image.png",
+            Link = "https://example.com",
+            Language = "en-us",
+            Category = "Technology",
+            FileExtensions = [extension],
+            CacheDurationMinutes = 5
+        };
 
         var service = CreateService();
 
@@ -301,7 +310,6 @@ public class PodcastFeedServiceIntegrationTests : IDisposable
     public async Task GenerateFeedAsync_SortsEpisodesByDatabaseOrder()
     {
         // Arrange
-        var testFeed = new Feed { Id = 1, Name = "testfeed", Title = "Test Feed" };
         var dbEpisodes = new List<Episode>
         {
             new Episode { Id = 1, FeedId = 1, Filename = "episode3.mp3", DisplayOrder = 3 },
@@ -309,8 +317,6 @@ public class PodcastFeedServiceIntegrationTests : IDisposable
             new Episode { Id = 3, FeedId = 1, Filename = "episode2.mp3", DisplayOrder = 2 }
         };
 
-        _mockDataService.Setup(x => x.GetFeedByNameAsync("testfeed"))
-            .ReturnsAsync(testFeed);
         _mockDataService.Setup(x => x.GetEpisodesAsync(1))
             .ReturnsAsync(dbEpisodes);
 

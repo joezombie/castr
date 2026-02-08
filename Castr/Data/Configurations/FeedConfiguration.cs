@@ -1,6 +1,7 @@
 using Castr.Data.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace Castr.Data.Configurations;
 
@@ -22,7 +23,18 @@ public class FeedConfiguration : IEntityTypeConfiguration<Feed>
         builder.Property(f => f.Link).HasColumnName("link");
         builder.Property(f => f.Language).HasColumnName("language").HasDefaultValue("en-us");
         builder.Property(f => f.Category).HasColumnName("category");
-        builder.Property(f => f.FileExtensions).HasColumnName("file_extensions").HasDefaultValue(".mp3");
+
+        var fileExtensionsConverter = new ValueConverter<string[], string>(
+            v => string.Join(",", v),
+            v => v.Split(",", StringSplitOptions.RemoveEmptyEntries));
+        builder.Property(f => f.FileExtensions)
+            .HasColumnName("file_extensions")
+            .HasDefaultValueSql("'.mp3'")
+            .HasConversion(fileExtensionsConverter);
+
+        builder.Property(f => f.CacheDurationMinutes)
+            .HasColumnName("cache_duration_minutes")
+            .HasDefaultValue(5);
 
         builder.Property(f => f.YouTubePlaylistUrl).HasColumnName("youtube_playlist_url");
         builder.Property(f => f.YouTubePollIntervalMinutes).HasColumnName("youtube_poll_interval_minutes").HasDefaultValue(60);

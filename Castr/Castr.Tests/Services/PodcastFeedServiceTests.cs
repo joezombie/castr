@@ -6,43 +6,46 @@ namespace Castr.Tests.Services;
 public class PodcastFeedServiceTests : IDisposable
 {
     private readonly string _testDirectory;
-    private readonly Mock<IOptions<PodcastFeedsConfig>> _mockConfig;
     private readonly Mock<IPodcastDataService> _mockDataService;
     private readonly IMemoryCache _cache;
     private readonly Mock<ILogger<PodcastFeedService>> _mockLogger;
-    private readonly PodcastFeedsConfig _config;
 
     public PodcastFeedServiceTests()
     {
         _testDirectory = TestDatabaseHelper.CreateTempDirectory();
 
-        _config = new PodcastFeedsConfig
+        var feed1 = new Feed
         {
-            Feeds = new Dictionary<string, PodcastFeedConfig>
-            {
-                ["feed1"] = new PodcastFeedConfig
-                {
-                    Title = "Feed 1",
-                    Description = "Description 1",
-                    Directory = _testDirectory
-                },
-                ["feed2"] = new PodcastFeedConfig
-                {
-                    Title = "Feed 2",
-                    Description = "Description 2",
-                    Directory = _testDirectory
-                }
-            },
+            Id = 1,
+            Name = "feed1",
+            Title = "Feed 1",
+            Description = "Description 1",
+            Directory = _testDirectory,
+            FileExtensions = [".mp3"],
+            CacheDurationMinutes = 5
+        };
+        var feed2 = new Feed
+        {
+            Id = 2,
+            Name = "feed2",
+            Title = "Feed 2",
+            Description = "Description 2",
+            Directory = _testDirectory,
+            FileExtensions = [".mp3"],
             CacheDurationMinutes = 5
         };
 
-        _mockConfig = new Mock<IOptions<PodcastFeedsConfig>>();
-        _mockConfig.Setup(x => x.Value).Returns(_config);
-
         _mockDataService = new Mock<IPodcastDataService>();
-        // Return null for feed lookup to simulate feed not in database (falls back to alphabetical order)
-        _mockDataService.Setup(x => x.GetFeedByNameAsync(It.IsAny<string>()))
+        _mockDataService.Setup(x => x.GetAllFeedsAsync())
+            .ReturnsAsync(new List<Feed> { feed1, feed2 });
+        _mockDataService.Setup(x => x.GetFeedByNameAsync("feed1"))
+            .ReturnsAsync(feed1);
+        _mockDataService.Setup(x => x.GetFeedByNameAsync("feed2"))
+            .ReturnsAsync(feed2);
+        _mockDataService.Setup(x => x.GetFeedByNameAsync(It.IsNotIn("feed1", "feed2")))
             .ReturnsAsync((Feed?)null);
+        _mockDataService.Setup(x => x.GetEpisodesAsync(It.IsAny<int>()))
+            .ReturnsAsync(new List<Episode>());
 
         _cache = new MemoryCache(new MemoryCacheOptions());
         _mockLogger = new Mock<ILogger<PodcastFeedService>>();
@@ -57,20 +60,19 @@ public class PodcastFeedServiceTests : IDisposable
     private PodcastFeedService CreateService()
     {
         return new PodcastFeedService(
-            _mockConfig.Object,
             _mockDataService.Object,
             _cache,
             _mockLogger.Object);
     }
 
     [Fact]
-    public void GetFeedNames_ReturnsAllConfiguredFeeds()
+    public async Task GetFeedNamesAsync_ReturnsAllConfiguredFeeds()
     {
         // Arrange
         var service = CreateService();
 
         // Act
-        var names = service.GetFeedNames().ToList();
+        var names = (await service.GetFeedNamesAsync()).ToList();
 
         // Assert
         Assert.Equal(2, names.Count);
@@ -79,82 +81,72 @@ public class PodcastFeedServiceTests : IDisposable
     }
 
     [Fact]
-    public void FeedExists_WithValidFeed_ReturnsTrue()
+    public async Task FeedExistsAsync_WithValidFeed_ReturnsTrue()
     {
         // Arrange
         var service = CreateService();
 
         // Act
-        var exists = service.FeedExists("feed1");
+        var exists = await service.FeedExistsAsync("feed1");
 
         // Assert
         Assert.True(exists);
     }
 
     [Fact]
-    public void FeedExists_WithInvalidFeed_ReturnsFalse()
+    public async Task FeedExistsAsync_WithInvalidFeed_ReturnsFalse()
     {
         // Arrange
         var service = CreateService();
 
         // Act
-        var exists = service.FeedExists("nonexistent");
+        var exists = await service.FeedExistsAsync("nonexistent");
 
         // Assert
         Assert.False(exists);
     }
 
     [Fact]
-    public void FeedExists_WithNullFeed_ThrowsArgumentNullException()
-    {
-        // Arrange
-        var service = CreateService();
-
-        // Act & Assert
-        Assert.Throws<ArgumentNullException>(() => service.FeedExists(null!));
-    }
-
-    [Fact]
-    public void GetMediaFilePath_WithPathTraversal_ReturnsNull()
+    public async Task GetMediaFilePathAsync_WithPathTraversal_ReturnsNull()
     {
         // Arrange
         var service = CreateService();
 
         // Act
-        var result = service.GetMediaFilePath("feed1", "../../../etc/passwd");
+        var result = await service.GetMediaFilePathAsync("feed1", "../../../etc/passwd");
 
         // Assert
         Assert.Null(result);
     }
 
     [Fact]
-    public void GetMediaFilePath_WithNonExistentFeed_ReturnsNull()
+    public async Task GetMediaFilePathAsync_WithNonExistentFeed_ReturnsNull()
     {
         // Arrange
         var service = CreateService();
 
         // Act
-        var result = service.GetMediaFilePath("nonexistent", "file.mp3");
+        var result = await service.GetMediaFilePathAsync("nonexistent", "file.mp3");
 
         // Assert
         Assert.Null(result);
     }
 
     [Fact]
-    public void GetMediaFilePath_WithNonExistentFile_ReturnsNull()
+    public async Task GetMediaFilePathAsync_WithNonExistentFile_ReturnsNull()
     {
         // Arrange
         var service = CreateService();
 
         // Act
-        var result = service.GetMediaFilePath("feed1", "nonexistent.mp3");
+        var result = await service.GetMediaFilePathAsync("feed1", "nonexistent.mp3");
 
         // Assert
         Assert.Null(result);
     }
 
     [Fact]
-    public void GetMediaFilePath_WithValidFile_ReturnsPath()
+    public async Task GetMediaFilePathAsync_WithValidFile_ReturnsPath()
     {
         // Arrange
         var service = CreateService();
@@ -162,7 +154,7 @@ public class PodcastFeedServiceTests : IDisposable
         File.WriteAllBytes(Path.Combine(_testDirectory, testFile), new byte[] { 0xFF, 0xFB, 0x90 });
 
         // Act
-        var result = service.GetMediaFilePath("feed1", testFile);
+        var result = await service.GetMediaFilePathAsync("feed1", testFile);
 
         // Assert
         Assert.NotNull(result);

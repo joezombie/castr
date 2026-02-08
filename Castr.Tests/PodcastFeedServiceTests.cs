@@ -1,10 +1,8 @@
 using Xunit;
 using Moq;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Caching.Memory;
 using Castr.Services;
-using Castr.Models;
 using Castr.Data.Entities;
 
 namespace Castr.Tests;
@@ -26,39 +24,50 @@ public class PodcastFeedServiceTests : IDisposable
         _testDirectory = Path.Combine(Path.GetTempPath(), "castr_feed_test_" + Guid.NewGuid());
         Directory.CreateDirectory(_testDirectory);
 
-        var config = new PodcastFeedsConfig
+        _mockDataService = new Mock<IPodcastDataService>();
+
+        // Setup feeds in mock data service
+        var testFeed = new Feed
         {
-            Feeds = new Dictionary<string, PodcastFeedConfig>
-            {
-                ["testfeed"] = new PodcastFeedConfig
-                {
-                    Title = "Test Podcast",
-                    Description = "Test Description",
-                    Directory = _testDirectory,
-                    Author = "Test Author",
-                    Language = "en-us",
-                    Category = "Technology",
-                    ImageUrl = "http://example.com/image.jpg",
-                    Link = "http://example.com"
-                },
-                ["emptyfeed"] = new PodcastFeedConfig
-                {
-                    Title = "Empty Feed",
-                    Description = "Empty",
-                    Directory = Path.Combine(_testDirectory, "empty")
-                }
-            }
+            Id = 1,
+            Name = "testfeed",
+            Title = "Test Podcast",
+            Description = "Test Description",
+            Directory = _testDirectory,
+            Author = "Test Author",
+            Language = "en-us",
+            Category = "Technology",
+            ImageUrl = "http://example.com/image.jpg",
+            Link = "http://example.com",
+            FileExtensions = [".mp3"],
+            CacheDurationMinutes = 5
+        };
+        var emptyFeed = new Feed
+        {
+            Id = 2,
+            Name = "emptyfeed",
+            Title = "Empty Feed",
+            Description = "Empty",
+            Directory = Path.Combine(_testDirectory, "empty"),
+            FileExtensions = [".mp3"],
+            CacheDurationMinutes = 5
         };
 
-        _mockDataService = new Mock<IPodcastDataService>();
-        // Return null for feed lookup to simulate feed not in database (falls back to alphabetical order)
-        _mockDataService.Setup(x => x.GetFeedByNameAsync(It.IsAny<string>()))
+        _mockDataService.Setup(x => x.GetAllFeedsAsync())
+            .ReturnsAsync(new List<Feed> { testFeed, emptyFeed });
+        _mockDataService.Setup(x => x.GetFeedByNameAsync("testfeed"))
+            .ReturnsAsync(testFeed);
+        _mockDataService.Setup(x => x.GetFeedByNameAsync("emptyfeed"))
+            .ReturnsAsync(emptyFeed);
+        _mockDataService.Setup(x => x.GetFeedByNameAsync(It.IsNotIn("testfeed", "emptyfeed")))
             .ReturnsAsync((Feed?)null);
+        _mockDataService.Setup(x => x.GetEpisodesAsync(It.IsAny<int>()))
+            .ReturnsAsync(new List<Episode>());
+
         _mockLogger = new Mock<ILogger<PodcastFeedService>>();
         _cache = new MemoryCache(new MemoryCacheOptions());
 
-        var options = Options.Create(config);
-        _service = new PodcastFeedService(options, _mockDataService.Object, _cache, _mockLogger.Object);
+        _service = new PodcastFeedService(_mockDataService.Object, _cache, _mockLogger.Object);
     }
 
     public void Dispose()
@@ -80,10 +89,10 @@ public class PodcastFeedServiceTests : IDisposable
     #region Feed Management Tests
 
     [Fact]
-    public void GetFeedNames_ReturnsConfiguredFeeds()
+    public async Task GetFeedNamesAsync_ReturnsConfiguredFeeds()
     {
         // Act
-        var feedNames = _service.GetFeedNames().ToList();
+        var feedNames = (await _service.GetFeedNamesAsync()).ToList();
 
         // Assert
         Assert.Equal(2, feedNames.Count);
@@ -92,30 +101,30 @@ public class PodcastFeedServiceTests : IDisposable
     }
 
     [Fact]
-    public void FeedExists_WithValidFeed_ReturnsTrue()
+    public async Task FeedExistsAsync_WithValidFeed_ReturnsTrue()
     {
         // Act
-        var exists = _service.FeedExists("testfeed");
+        var exists = await _service.FeedExistsAsync("testfeed");
 
         // Assert
         Assert.True(exists);
     }
 
     [Fact]
-    public void FeedExists_WithInvalidFeed_ReturnsFalse()
+    public async Task FeedExistsAsync_WithInvalidFeed_ReturnsFalse()
     {
         // Act
-        var exists = _service.FeedExists("nonexistent");
+        var exists = await _service.FeedExistsAsync("nonexistent");
 
         // Assert
         Assert.False(exists);
     }
 
     [Fact]
-    public void FeedExists_CaseSensitive()
+    public async Task FeedExistsAsync_CaseSensitive()
     {
         // Act
-        var exists = _service.FeedExists("TESTFEED");
+        var exists = await _service.FeedExistsAsync("TESTFEED");
 
         // Assert
         Assert.False(exists); // Should be case-sensitive
@@ -143,7 +152,6 @@ public class PodcastFeedServiceTests : IDisposable
 
         // Assert
         Assert.NotNull(result);
-        // Note: XDocument.ToString() doesn't include XML declaration
         Assert.Contains("<rss", result);
         Assert.Contains("<channel>", result);
         Assert.Contains("Test Podcast", result);
@@ -176,8 +184,6 @@ public class PodcastFeedServiceTests : IDisposable
 
         // Assert
         Assert.NotNull(result);
-        // Base URL is used in the <link> element and would be in enclosure URLs if there were episodes
-        // Since we have no episodes, just verify it doesn't cause errors
         Assert.Contains("<channel>", result);
     }
 
@@ -221,10 +227,10 @@ public class PodcastFeedServiceTests : IDisposable
 
     #endregion
 
-    #region GetMediaFilePath Tests
+    #region GetMediaFilePathAsync Tests
 
     [Fact]
-    public void GetMediaFilePath_WithValidFile_ReturnsPath()
+    public async Task GetMediaFilePathAsync_WithValidFile_ReturnsPath()
     {
         // Arrange
         var fileName = "episode001.mp3";
@@ -232,7 +238,7 @@ public class PodcastFeedServiceTests : IDisposable
         File.WriteAllText(filePath, "test");
 
         // Act
-        var result = _service.GetMediaFilePath("testfeed", fileName);
+        var result = await _service.GetMediaFilePathAsync("testfeed", fileName);
 
         // Assert
         Assert.NotNull(result);
@@ -240,20 +246,20 @@ public class PodcastFeedServiceTests : IDisposable
     }
 
     [Fact]
-    public void GetMediaFilePath_WithNonExistentFile_ReturnsNull()
+    public async Task GetMediaFilePathAsync_WithNonExistentFile_ReturnsNull()
     {
         // Act
-        var result = _service.GetMediaFilePath("testfeed", "nonexistent.mp3");
+        var result = await _service.GetMediaFilePathAsync("testfeed", "nonexistent.mp3");
 
         // Assert
         Assert.Null(result);
     }
 
     [Fact]
-    public void GetMediaFilePath_WithInvalidFeed_ReturnsNull()
+    public async Task GetMediaFilePathAsync_WithInvalidFeed_ReturnsNull()
     {
         // Act
-        var result = _service.GetMediaFilePath("nonexistent", "episode.mp3");
+        var result = await _service.GetMediaFilePathAsync("nonexistent", "episode.mp3");
 
         // Assert
         Assert.Null(result);
@@ -263,17 +269,17 @@ public class PodcastFeedServiceTests : IDisposable
     [InlineData("../../../etc/passwd")]
     [InlineData("..\\..\\..\\Windows\\System32\\config\\SAM")]
     [InlineData("subdir/../../../etc/passwd")]
-    public void GetMediaFilePath_WithPathTraversal_ReturnsNull(string maliciousFileName)
+    public async Task GetMediaFilePathAsync_WithPathTraversal_ReturnsNull(string maliciousFileName)
     {
         // Act
-        var result = _service.GetMediaFilePath("testfeed", maliciousFileName);
+        var result = await _service.GetMediaFilePathAsync("testfeed", maliciousFileName);
 
         // Assert
         Assert.Null(result);
     }
 
     [Fact]
-    public void GetMediaFilePath_SecurityCheck_PreventsDirectoryTraversal()
+    public async Task GetMediaFilePathAsync_SecurityCheck_PreventsDirectoryTraversal()
     {
         // Arrange - create a file outside the feed directory
         var outsideDir = Path.Combine(Path.GetTempPath(), "outside_" + Guid.NewGuid());
@@ -284,11 +290,10 @@ public class PodcastFeedServiceTests : IDisposable
         try
         {
             // Calculate relative path from test directory to outside file
-            // This simulates an attempt to use path traversal
             var relativePath = Path.GetRelativePath(_testDirectory, outsideFile);
 
             // Act
-            var result = _service.GetMediaFilePath("testfeed", relativePath);
+            var result = await _service.GetMediaFilePathAsync("testfeed", relativePath);
 
             // Assert
             Assert.Null(result); // Should return null due to security check
@@ -301,17 +306,14 @@ public class PodcastFeedServiceTests : IDisposable
     }
 
     [Fact]
-    public void GetMediaFilePath_WithSymlink_RespectsSecurityCheck()
+    public async Task GetMediaFilePathAsync_WithSymlink_RespectsSecurityCheck()
     {
-        // This test verifies that even with symlinks, the security check works
-        // Note: Symlink creation may require elevated permissions on Windows
-        
         // Arrange
         var targetFile = Path.Combine(_testDirectory, "legitimate.mp3");
         File.WriteAllText(targetFile, "test");
 
         // Act
-        var result = _service.GetMediaFilePath("testfeed", "legitimate.mp3");
+        var result = await _service.GetMediaFilePathAsync("testfeed", "legitimate.mp3");
 
         // Assert
         Assert.NotNull(result);
@@ -319,7 +321,7 @@ public class PodcastFeedServiceTests : IDisposable
     }
 
     [Fact]
-    public void GetMediaFilePath_CaseInsensitiveOnWindows()
+    public async Task GetMediaFilePathAsync_CaseInsensitiveOnWindows()
     {
         // Arrange
         var fileName = "Episode001.mp3";
@@ -327,7 +329,7 @@ public class PodcastFeedServiceTests : IDisposable
         File.WriteAllText(filePath, "test");
 
         // Act - try with different case
-        var result = _service.GetMediaFilePath("testfeed", 
+        var result = await _service.GetMediaFilePathAsync("testfeed",
             OperatingSystem.IsWindows() ? "EPISODE001.MP3" : fileName);
 
         // Assert
@@ -339,7 +341,7 @@ public class PodcastFeedServiceTests : IDisposable
         {
             // On Linux/Mac, case matters, so this might fail
             // Just verify the original case works
-            result = _service.GetMediaFilePath("testfeed", fileName);
+            result = await _service.GetMediaFilePathAsync("testfeed", fileName);
             Assert.NotNull(result);
         }
     }
@@ -349,18 +351,17 @@ public class PodcastFeedServiceTests : IDisposable
     #region Configuration Validation Tests
 
     [Fact]
-    public void PodcastFeedService_WithEmptyConfig_HandlesGracefully()
+    public async Task PodcastFeedService_WithNoFeeds_HandlesGracefully()
     {
         // Arrange
-        var emptyConfig = new PodcastFeedsConfig
-        {
-            Feeds = new Dictionary<string, PodcastFeedConfig>()
-        };
-        var options = Options.Create(emptyConfig);
+        var emptyDataService = new Mock<IPodcastDataService>();
+        emptyDataService.Setup(x => x.GetAllFeedsAsync()).ReturnsAsync(new List<Feed>());
+        emptyDataService.Setup(x => x.GetFeedByNameAsync(It.IsAny<string>())).ReturnsAsync((Feed?)null);
+
+        var service = new PodcastFeedService(emptyDataService.Object, _cache, _mockLogger.Object);
 
         // Act
-        var service = new PodcastFeedService(options, _mockDataService.Object, _cache, _mockLogger.Object);
-        var feedNames = service.GetFeedNames().ToList();
+        var feedNames = (await service.GetFeedNamesAsync()).ToList();
 
         // Assert
         Assert.Empty(feedNames);

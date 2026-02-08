@@ -1,10 +1,8 @@
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 using Castr.Data;
 using Castr.Data.Repositories;
-using Castr.Models;
 using Castr.Services;
 using Castr.Components;
 using Castr.Hubs;
@@ -23,10 +21,6 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
     options.KnownIPNetworks.Clear();
     options.KnownProxies.Clear();
 });
-
-// Add services to the container.
-builder.Services.Configure<PodcastFeedsConfig>(
-    builder.Configuration.GetSection("PodcastFeeds"));
 
 // Add memory cache for RSS feed caching
 builder.Services.AddMemoryCache();
@@ -109,8 +103,7 @@ using (var scope = app.Services.CreateScope())
 
 // Log startup information
 var logger = app.Services.GetRequiredService<ILogger<Program>>();
-var config = app.Services.GetRequiredService<IOptions<PodcastFeedsConfig>>();
-logger.LogInformation("Castr started with {Count} configured feed(s)", config.Value.Feeds.Count);
+logger.LogInformation("Castr started");
 
 // Configure forwarded headers (MUST be before other middleware)
 app.UseForwardedHeaders();

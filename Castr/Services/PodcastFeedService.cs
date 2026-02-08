@@ -1,9 +1,7 @@
 using System.Xml.Linq;
 using System.Security.Cryptography;
 using System.Text;
-using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Caching.Memory;
-using Castr.Models;
 using Castr.Data.Entities;
 using TagLib;
 
@@ -11,7 +9,6 @@ namespace Castr.Services;
 
 public class PodcastFeedService
 {
-    private readonly PodcastFeedsConfig _config;
     private readonly IPodcastDataService _dataService;
     private readonly IMemoryCache _cache;
     private readonly ILogger<PodcastFeedService> _logger;
@@ -19,24 +16,31 @@ public class PodcastFeedService
     private static readonly XNamespace Itunes = "http://www.itunes.com/dtds/podcast-1.0.dtd";
 
     public PodcastFeedService(
-        IOptions<PodcastFeedsConfig> config,
         IPodcastDataService dataService,
         IMemoryCache cache,
         ILogger<PodcastFeedService> logger)
     {
-        _config = config.Value;
         _dataService = dataService;
         _cache = cache;
         _logger = logger;
     }
 
-    public IEnumerable<string> GetFeedNames() => _config.Feeds.Keys;
+    public async Task<IEnumerable<string>> GetFeedNamesAsync()
+    {
+        var feeds = await _dataService.GetAllFeedsAsync();
+        return feeds.Select(f => f.Name);
+    }
 
-    public bool FeedExists(string feedName) => _config.Feeds.ContainsKey(feedName);
+    public async Task<bool> FeedExistsAsync(string feedName)
+    {
+        var feed = await _dataService.GetFeedByNameAsync(feedName);
+        return feed != null;
+    }
 
     public async Task<string?> GenerateFeedAsync(string feedName, string baseUrl)
     {
-        if (!_config.Feeds.TryGetValue(feedName, out var feedConfig))
+        var feed = await _dataService.GetFeedByNameAsync(feedName);
+        if (feed == null)
         {
             return null;
         }
@@ -54,26 +58,25 @@ public class PodcastFeedService
         _logger.LogDebug("Cache miss for feed {FeedName}, generating new feed", feedName);
 
         // Generate new feed XML
-        var feed = await GenerateFeedXmlAsync(feedName, feedConfig, baseUrl);
+        var feedXml = await GenerateFeedXmlAsync(feedName, feed, baseUrl);
 
         // Only cache valid, non-empty feeds
-        if (!string.IsNullOrWhiteSpace(feed))
+        if (!string.IsNullOrWhiteSpace(feedXml))
         {
-            // Use configurable cache duration
             var cacheOptions = new MemoryCacheEntryOptions
             {
-                AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(_config.CacheDurationMinutes)
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(feed.CacheDurationMinutes)
             };
 
-            _cache.Set(cacheKey, feed, cacheOptions);
-            _logger.LogDebug("Cached feed {FeedName} for {Minutes} minutes", feedName, _config.CacheDurationMinutes);
+            _cache.Set(cacheKey, feedXml, cacheOptions);
+            _logger.LogDebug("Cached feed {FeedName} for {Minutes} minutes", feedName, feed.CacheDurationMinutes);
         }
         else
         {
             _logger.LogWarning("Feed {FeedName} generated empty or null content, not caching", feedName);
         }
 
-        return feed;
+        return feedXml;
     }
 
     private static string GenerateCacheKey(string feedName, string baseUrl)
@@ -84,37 +87,37 @@ public class PodcastFeedService
         return $"feed_{Convert.ToHexString(hashBytes)}";
     }
 
-    private async Task<string> GenerateFeedXmlAsync(string feedName, PodcastFeedConfig config, string baseUrl)
+    private async Task<string> GenerateFeedXmlAsync(string feedName, Feed feed, string baseUrl)
     {
         _logger.LogDebug("Generating RSS XML for feed {FeedName} with base URL {BaseUrl}", feedName, baseUrl);
-        var episodes = await GetEpisodesAsync(feedName, config);
+        var episodes = await GetEpisodesAsync(feedName, feed);
         _logger.LogDebug("Found {Count} episodes for feed {FeedName}", episodes.Count, feedName);
 
         var channel = new XElement("channel",
-            new XElement("title", config.Title),
-            new XElement("description", config.Description),
-            new XElement("link", config.Link ?? baseUrl),
-            new XElement("language", config.Language),
+            new XElement("title", feed.Title),
+            new XElement("description", feed.Description),
+            new XElement("link", feed.Link ?? baseUrl),
+            new XElement("language", feed.Language),
             new XElement("generator", "PodcastFeedApi"),
             new XElement("lastBuildDate", DateTime.UtcNow.ToString("R")),
-            new XElement(Itunes + "author", config.Author ?? config.Title),
-            new XElement(Itunes + "summary", config.Description),
+            new XElement(Itunes + "author", feed.Author ?? feed.Title),
+            new XElement(Itunes + "summary", feed.Description),
             new XElement(Itunes + "explicit", "no")
         );
 
-        if (!string.IsNullOrEmpty(config.ImageUrl))
+        if (!string.IsNullOrEmpty(feed.ImageUrl))
         {
             channel.Add(new XElement("image",
-                new XElement("url", config.ImageUrl),
-                new XElement("title", config.Title),
-                new XElement("link", config.Link ?? baseUrl)
+                new XElement("url", feed.ImageUrl),
+                new XElement("title", feed.Title),
+                new XElement("link", feed.Link ?? baseUrl)
             ));
-            channel.Add(new XElement(Itunes + "image", new XAttribute("href", config.ImageUrl)));
+            channel.Add(new XElement(Itunes + "image", new XAttribute("href", feed.ImageUrl)));
         }
 
-        if (!string.IsNullOrEmpty(config.Category))
+        if (!string.IsNullOrEmpty(feed.Category))
         {
-            channel.Add(new XElement(Itunes + "category", new XAttribute("text", config.Category)));
+            channel.Add(new XElement(Itunes + "category", new XAttribute("text", feed.Category)));
         }
 
         foreach (var episode in episodes)
@@ -162,20 +165,20 @@ public class PodcastFeedService
         return doc.ToString();
     }
 
-    private async Task<List<EpisodeInfo>> GetEpisodesAsync(string feedName, PodcastFeedConfig config)
+    private async Task<List<EpisodeInfo>> GetEpisodesAsync(string feedName, Feed feed)
     {
-        _logger.LogDebug("Scanning directory for episodes: {Directory}", config.Directory);
+        _logger.LogDebug("Scanning directory for episodes: {Directory}", feed.Directory);
         var episodes = new List<EpisodeInfo>();
-        var extensions = config.FileExtensions ?? [".mp3"];
+        var extensions = feed.FileExtensions;
         _logger.LogDebug("Looking for file extensions: {Extensions}", string.Join(", ", extensions));
 
-        if (!System.IO.Directory.Exists(config.Directory))
+        if (!System.IO.Directory.Exists(feed.Directory))
         {
-            _logger.LogWarning("Directory not found: {Directory}", config.Directory);
+            _logger.LogWarning("Directory not found: {Directory}", feed.Directory);
             return episodes;
         }
 
-        var files = System.IO.Directory.GetFiles(config.Directory)
+        var files = System.IO.Directory.GetFiles(feed.Directory)
             .Where(f => extensions.Any(ext => f.EndsWith(ext, StringComparison.OrdinalIgnoreCase)))
             .ToList();
 
@@ -222,20 +225,11 @@ public class PodcastFeedService
             }
         }
 
-        return await SortEpisodesAsync(feedName, episodes);
+        return await SortEpisodesAsync(feed, episodes);
     }
 
-    private async Task<List<EpisodeInfo>> SortEpisodesAsync(string feedName, List<EpisodeInfo> episodes)
+    private async Task<List<EpisodeInfo>> SortEpisodesAsync(Feed feed, List<EpisodeInfo> episodes)
     {
-        // Look up feed by name to get feedId
-        var feed = await _dataService.GetFeedByNameAsync(feedName);
-        if (feed == null)
-        {
-            // No feed in database - sort by filename (alphabetical)
-            _logger.LogDebug("Feed '{FeedName}' not found in database, using alphabetical order", feedName);
-            return episodes.OrderBy(e => e.FileName).ToList();
-        }
-
         // Get episode order from database
         var dbEpisodes = await _dataService.GetEpisodesAsync(feed.Id);
         var episodeMap = dbEpisodes
@@ -307,14 +301,15 @@ public class PodcastFeedService
         return sortedUnmapped;
     }
 
-    public string? GetMediaFilePath(string feedName, string fileName)
+    public async Task<string?> GetMediaFilePathAsync(string feedName, string fileName)
     {
-        if (!_config.Feeds.TryGetValue(feedName, out var feedConfig))
+        var feed = await _dataService.GetFeedByNameAsync(feedName);
+        if (feed == null)
         {
             return null;
         }
 
-        var filePath = Path.Combine(feedConfig.Directory, fileName);
+        var filePath = Path.Combine(feed.Directory, fileName);
 
         if (!System.IO.File.Exists(filePath))
         {
@@ -323,10 +318,11 @@ public class PodcastFeedService
 
         // Security check: ensure the resolved path is within the configured directory
         var fullPath = Path.GetFullPath(filePath);
-        var directoryPath = Path.GetFullPath(feedConfig.Directory);
+        var directoryPath = Path.GetFullPath(feed.Directory);
 
         if (!fullPath.StartsWith(directoryPath, StringComparison.OrdinalIgnoreCase))
         {
+            _logger.LogWarning("Path traversal attempt detected for feed {FeedName}: {FileName}", feedName, fileName);
             return null;
         }
 

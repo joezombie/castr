@@ -78,19 +78,13 @@ cd Castr
 }
 ```
 
-Feeds configured in `appsettings.json` under `PodcastFeeds.Feeds`. Each feed has:
+Feeds are managed via the web dashboard (database-only, no `appsettings.json` config). Each feed has:
 - `Title`, `Description`, `Directory` (required)
-- `Author`, `ImageUrl`, `Link`, `Language`, `Category`, `FileExtensions` (optional)
-- `YouTube` - YouTube playlist monitoring configuration (optional):
-  - `PlaylistUrl` - YouTube playlist URL or ID
-  - `PollIntervalMinutes` - How often to check for new videos (default: 60)
-  - `Enabled` - Enable/disable playlist monitoring (default: true)
-  - `MaxConcurrentDownloads` - Parallel download limit (default: 1)
-  - `AudioQuality` - "highest", "lowest", or bitrate value (default: "highest")
+- `Author`, `ImageUrl`, `Link`, `Language`, `Category`, `FileExtensions`, `CacheDurationMinutes` (optional)
+- YouTube playlist monitoring fields: `YouTubePlaylistUrl`, `YouTubePollIntervalMinutes`, `YouTubeEnabled`, `YouTubeMaxConcurrentDownloads`, `YouTubeAudioQuality`
 
 ### Architecture
 
-- `Models/PodcastFeedConfig.cs` - Configuration models including YouTubePlaylistConfig
 - `Data/CastrDbContext.cs` - EF Core database context
 - `Data/Entities/` - Entity models (Feed, Episode, DownloadedVideo, DownloadQueueItem, ActivityLog)
 - `Data/Repositories/` - Repository pattern for data access

@@ -1,24 +1,20 @@
 using System.Collections.Concurrent;
-using Microsoft.Extensions.Options;
-using Castr.Models;
 using Castr.Data.Entities;
+using Castr.Models;
 
 namespace Castr.Services;
 
 public class PlaylistWatcherService : BackgroundService
 {
     private readonly IServiceProvider _serviceProvider;
-    private readonly IOptions<PodcastFeedsConfig> _config;
     private readonly ILogger<PlaylistWatcherService> _logger;
     private readonly ConcurrentDictionary<string, DateTime> _lastPollTimes = new();
 
     public PlaylistWatcherService(
         IServiceProvider serviceProvider,
-        IOptions<PodcastFeedsConfig> config,
         ILogger<PlaylistWatcherService> logger)
     {
         _serviceProvider = serviceProvider;
-        _config = config;
         _logger = logger;
     }
 
@@ -52,7 +48,7 @@ public class PlaylistWatcherService : BackgroundService
 
     private async Task PollAllFeedsAsync(CancellationToken stoppingToken)
     {
-        var feedsToProcess = GetFeedsDueForPolling().ToList();
+        var feedsToProcess = await GetFeedsDueForPollingAsync();
 
         if (feedsToProcess.Count == 0)
         {
@@ -64,7 +60,7 @@ public class PlaylistWatcherService : BackgroundService
             feedsToProcess.Count,
             string.Join(", ", feedsToProcess.Select(f => f.Name)));
 
-        foreach (var (feedName, feedConfig) in feedsToProcess)
+        foreach (var feed in feedsToProcess)
         {
             if (stoppingToken.IsCancellationRequested)
             {
@@ -74,45 +70,56 @@ public class PlaylistWatcherService : BackgroundService
 
             try
             {
-                _logger.LogInformation("Processing feed: {FeedName}", feedName);
+                _logger.LogInformation("Processing feed: {FeedName}", feed.Name);
                 var processingStart = DateTime.UtcNow;
 
-                await ProcessFeedAsync(feedName, feedConfig, stoppingToken);
+                await ProcessFeedAsync(feed, stoppingToken);
 
                 var elapsed = DateTime.UtcNow - processingStart;
-                _lastPollTimes[feedName] = DateTime.UtcNow;
+                _lastPollTimes[feed.Name] = DateTime.UtcNow;
 
                 _logger.LogInformation("Completed processing feed {FeedName} in {ElapsedSec:N1}s",
-                    feedName, elapsed.TotalSeconds);
+                    feed.Name, elapsed.TotalSeconds);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex,
                     "Error processing feed {FeedName}, will retry next interval",
-                    feedName);
+                    feed.Name);
             }
         }
     }
 
-    private IEnumerable<(string Name, PodcastFeedConfig Config)> GetFeedsDueForPolling()
+    private async Task<List<Feed>> GetFeedsDueForPollingAsync()
     {
         var now = DateTime.UtcNow;
         _logger.LogTrace("Checking which feeds are due for polling at {Time}", now);
 
-        foreach (var (feedName, feedConfig) in _config.Value.Feeds)
+        using var scope = _serviceProvider.CreateScope();
+        var dataService = scope.ServiceProvider.GetRequiredService<IPodcastDataService>();
+        var allFeeds = await dataService.GetAllFeedsAsync();
+
+        var dueFeeds = new List<Feed>();
+        foreach (var feed in allFeeds)
         {
-            if (feedConfig.YouTube == null || !feedConfig.YouTube.Enabled)
+            if (!feed.YouTubeEnabled)
             {
-                _logger.LogTrace("Skipping feed {FeedName}: YouTube config not enabled", feedName);
+                _logger.LogTrace("Skipping feed {FeedName}: YouTube config not enabled", feed.Name);
                 continue;
             }
 
-            var interval = TimeSpan.FromMinutes(feedConfig.YouTube.PollIntervalMinutes);
-
-            if (!_lastPollTimes.TryGetValue(feedName, out var lastPoll))
+            if (string.IsNullOrWhiteSpace(feed.YouTubePlaylistUrl))
             {
-                _logger.LogDebug("Feed {FeedName} has never been polled, adding to queue", feedName);
-                yield return (feedName, feedConfig);
+                _logger.LogWarning("Feed {FeedName} has YouTube enabled but no playlist URL configured, skipping", feed.Name);
+                continue;
+            }
+
+            var interval = TimeSpan.FromMinutes(feed.YouTubePollIntervalMinutes);
+
+            if (!_lastPollTimes.TryGetValue(feed.Name, out var lastPoll))
+            {
+                _logger.LogDebug("Feed {FeedName} has never been polled, adding to queue", feed.Name);
+                dueFeeds.Add(feed);
             }
             else
             {
@@ -120,52 +127,45 @@ public class PlaylistWatcherService : BackgroundService
                 if (timeSinceLastPoll >= interval)
                 {
                     _logger.LogDebug("Feed {FeedName} due for polling (last poll: {LastPoll}, interval: {Interval}min)",
-                        feedName, lastPoll, feedConfig.YouTube.PollIntervalMinutes);
-                    yield return (feedName, feedConfig);
+                        feed.Name, lastPoll, feed.YouTubePollIntervalMinutes);
+                    dueFeeds.Add(feed);
                 }
                 else
                 {
                     var timeUntilNext = interval - timeSinceLastPoll;
                     _logger.LogTrace("Feed {FeedName} not due yet (next poll in {NextPoll}min)",
-                        feedName, timeUntilNext.TotalMinutes);
+                        feed.Name, timeUntilNext.TotalMinutes);
                 }
             }
         }
+
+        return dueFeeds;
     }
 
     private async Task ProcessFeedAsync(
-        string feedName,
-        PodcastFeedConfig feedConfig,
+        Feed feed,
         CancellationToken stoppingToken)
     {
-        _logger.LogInformation("Checking playlist for feed: {FeedName}", feedName);
-        _logger.LogDebug("Playlist URL: {PlaylistUrl}", feedConfig.YouTube!.PlaylistUrl);
+        _logger.LogInformation("Checking playlist for feed: {FeedName}", feed.Name);
+        _logger.LogDebug("Playlist URL: {PlaylistUrl}", feed.YouTubePlaylistUrl);
 
         using var scope = _serviceProvider.CreateScope();
         var youtubeService = scope.ServiceProvider.GetRequiredService<IYouTubeDownloadService>();
         var dataService = scope.ServiceProvider.GetRequiredService<IPodcastDataService>();
 
-        // Look up feed by name to get feedId
-        var feed = await dataService.GetFeedByNameAsync(feedName);
-        if (feed == null)
-        {
-            _logger.LogWarning("Feed {FeedName} not found in database, skipping", feedName);
-            return;
-        }
         var feedId = feed.Id;
 
-        var youtubeConfig = feedConfig.YouTube!;
-
         // Step 1: Fetch playlist videos
-        _logger.LogDebug("Fetching playlist videos for {FeedName}", feedName);
+        _logger.LogDebug("Fetching playlist videos for {FeedName}", feed.Name);
+        // YouTubePlaylistUrl is guaranteed non-null here — filtered in GetFeedsDueForPollingAsync
         var videos = await youtubeService.GetPlaylistVideosAsync(
-            youtubeConfig.PlaylistUrl,
+            feed.YouTubePlaylistUrl!,
             stoppingToken);
 
         _logger.LogInformation(
             "Found {Count} videos in playlist for {FeedName}",
             videos.Count,
-            feedName);
+            feed.Name);
 
         // Step 2: Check which videos already have files and fetch details only for new ones
         _logger.LogDebug("Checking which videos already have files on disk to optimize metadata fetch");
@@ -188,7 +188,7 @@ public class PlaylistWatcherService : BackgroundService
             }
 
             // Check if file exists on disk before fetching detailed metadata
-            var existingPath = youtubeService.GetExistingFilePath(v.Title, feedConfig.Directory);
+            var existingPath = youtubeService.GetExistingFilePath(v.Title, feed.Directory);
             var isDownloaded = downloadedIds.Contains(v.Id.Value) || existingPath != null;
 
             if (isDownloaded)
@@ -234,7 +234,7 @@ public class PlaylistWatcherService : BackgroundService
 
         // Step 3: Sync playlist info with database using fuzzy matching
         _logger.LogInformation("Syncing {Count} playlist videos to database with fuzzy matching", playlistInfos.Count);
-        await dataService.SyncPlaylistInfoAsync(feedId, playlistInfos, feedConfig.Directory);
+        await dataService.SyncPlaylistInfoAsync(feedId, playlistInfos, feed.Directory);
 
         // Step 4: Check for new videos to download
         _logger.LogDebug("Re-checking downloaded video list after sync");
@@ -248,26 +248,25 @@ public class PlaylistWatcherService : BackgroundService
 
         if (newVideos.Count == 0)
         {
-            _logger.LogInformation("No new videos to download for feed {FeedName}", feedName);
+            _logger.LogInformation("No new videos to download for feed {FeedName}", feed.Name);
             _logger.LogDebug("Syncing directory to catch any manually added files");
-            await dataService.SyncDirectoryAsync(feedId, feedConfig.Directory,
-                feedConfig.FileExtensions ?? [".mp3"]);
+            await dataService.SyncDirectoryAsync(feedId, feed.Directory, feed.FileExtensions);
             return;
         }
 
         _logger.LogInformation(
             "Found {Count} new videos to download for {FeedName} (downloading oldest first)",
             newVideos.Count,
-            feedName);
+            feed.Name);
 
         _logger.LogDebug("New videos: {VideoIds}",
             string.Join(", ", newVideos.Select(v => $"{v.Id.Value} ({v.Title})")));
 
-        var semaphore = new SemaphoreSlim(youtubeConfig.MaxConcurrentDownloads);
+        using var semaphore = new SemaphoreSlim(feed.YouTubeMaxConcurrentDownloads);
         var newEpisodes = new ConcurrentBag<Episode>();
 
         _logger.LogDebug("Starting downloads with max concurrency: {MaxConcurrent}",
-            youtubeConfig.MaxConcurrentDownloads);
+            feed.YouTubeMaxConcurrentDownloads);
 
         var processedCount = 0;
         foreach (var video in newVideos)
@@ -284,7 +283,7 @@ public class PlaylistWatcherService : BackgroundService
                 processedCount, newVideos.Count, video.Title, video.Id.Value);
 
             // Check if file already exists on disk before downloading
-            var existingPath = youtubeService.GetExistingFilePath(video.Title, feedConfig.Directory);
+            var existingPath = youtubeService.GetExistingFilePath(video.Title, feed.Directory);
             if (existingPath != null)
             {
                 _logger.LogInformation(
@@ -313,7 +312,7 @@ public class PlaylistWatcherService : BackgroundService
                 continue;
             }
 
-            _logger.LogDebug("Waiting for download slot (max concurrent: {Max})", youtubeConfig.MaxConcurrentDownloads);
+            _logger.LogDebug("Waiting for download slot (max concurrent: {Max})", feed.YouTubeMaxConcurrentDownloads);
             await semaphore.WaitAsync(stoppingToken);
             try
             {
@@ -326,8 +325,8 @@ public class PlaylistWatcherService : BackgroundService
 
                 var outputPath = await youtubeService.DownloadAudioAsync(
                     video.Id.Value,
-                    feedConfig.Directory,
-                    youtubeConfig.AudioQuality,
+                    feed.Directory,
+                    feed.YouTubeAudioQuality,
                     stoppingToken);
 
                 if (outputPath != null)
@@ -381,12 +380,11 @@ public class PlaylistWatcherService : BackgroundService
 
         // Step 6: Sync any files in directory that aren't in the database
         _logger.LogDebug("Performing final directory sync to catch any manually added files");
-        await dataService.SyncDirectoryAsync(feedId, feedConfig.Directory,
-            feedConfig.FileExtensions ?? [".mp3"]);
+        await dataService.SyncDirectoryAsync(feedId, feed.Directory, feed.FileExtensions);
 
         _logger.LogInformation(
             "Completed processing {FeedName}: {ProcessedCount} videos processed, {NewCount} new episodes added",
-            feedName,
+            feed.Name,
             processedCount,
             newEpisodes.Count);
     }

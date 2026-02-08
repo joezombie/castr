@@ -33,8 +33,9 @@ public class Feed
     [MaxLength(100)]
     public string? Category { get; set; }
 
-    [MaxLength(100)]
-    public string FileExtensions { get; set; } = ".mp3";
+    public string[] FileExtensions { get; set; } = [".mp3"];
+
+    public int CacheDurationMinutes { get; set; } = 5;
 
     [MaxLength(500)]
     public string? YouTubePlaylistUrl { get; set; }

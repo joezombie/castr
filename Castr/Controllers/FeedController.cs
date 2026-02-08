@@ -20,10 +20,11 @@ public class FeedController : ControllerBase
     /// List all available podcast feeds
     /// </summary>
     [HttpGet]
-    public IActionResult GetFeeds()
+    public async Task<IActionResult> GetFeeds()
     {
         _logger.LogDebug("Listing all available feeds");
-        var feeds = _feedService.GetFeedNames()
+        var feedNames = await _feedService.GetFeedNamesAsync();
+        var feeds = feedNames
             .Select(name => new
             {
                 Name = name,
@@ -45,14 +46,8 @@ public class FeedController : ControllerBase
         // Input validation
         if (string.IsNullOrWhiteSpace(feedName) || feedName.Length > 100)
             return BadRequest("Feed name cannot be empty or exceed 100 characters");
-        
-        _logger.LogDebug("Generating RSS feed for {FeedName}", feedName);
 
-        if (!_feedService.FeedExists(feedName))
-        {
-            _logger.LogWarning("Feed {FeedName} not found", feedName);
-            return NotFound(new { error = $"Feed '{feedName}' not found" });
-        }
+        _logger.LogDebug("Generating RSS feed for {FeedName}", feedName);
 
         var baseUrl = GetBaseUrl();
         _logger.LogDebug("Using base URL: {BaseUrl}", baseUrl);
@@ -61,7 +56,7 @@ public class FeedController : ControllerBase
 
         if (feedXml == null)
         {
-            _logger.LogWarning("Failed to generate feed for {FeedName}", feedName);
+            _logger.LogWarning("Feed {FeedName} not found", feedName);
             return NotFound(new { error = $"Feed '{feedName}' not found" });
         }
 
@@ -74,21 +69,21 @@ public class FeedController : ControllerBase
     /// Serve media files for a podcast episode
     /// </summary>
     [HttpGet("{feedName}/media/{fileName}")]
-    public IActionResult GetMedia(string feedName, string fileName)
+    public async Task<IActionResult> GetMedia(string feedName, string fileName)
     {
         // Input validation
         if (string.IsNullOrWhiteSpace(feedName) || feedName.Length > 100)
             return BadRequest("Feed name cannot be empty or exceed 100 characters");
-        
+
         if (string.IsNullOrWhiteSpace(fileName) || fileName.Length > 255)
             return BadRequest("File name cannot be empty or exceed 255 characters");
-        
+
         if (fileName.Contains("..") || fileName.Contains("/") || fileName.Contains("\\"))
             return BadRequest("File name contains invalid characters or path traversal patterns");
-        
+
         _logger.LogDebug("Serving media file {FileName} for feed {FeedName}", fileName, feedName);
 
-        var filePath = _feedService.GetMediaFilePath(feedName, fileName);
+        var filePath = await _feedService.GetMediaFilePathAsync(feedName, fileName);
 
         if (filePath == null)
         {

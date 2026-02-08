@@ -216,7 +216,7 @@ else
             _defaultCategory = await SettingsService.GetDefaultCategoryAsync();
 
             // Load system info
-            _databasePath = Configuration["PodcastFeeds:CentralDatabasePath"] ?? "/data/podcast_central.db";
+            _databasePath = Configuration["Database:ConnectionString"] ?? "Data Source=/data/castr.db";
             _appVersion = typeof(Settings).Assembly.GetName().Version?.ToString() ?? "1.0.0";
             _dotnetVersion = Environment.Version.ToString();
 

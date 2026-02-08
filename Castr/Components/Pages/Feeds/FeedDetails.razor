@@ -58,7 +58,7 @@ else
                     </MudStack>
                     <MudStack Row="true">
                         <MudText Typo="Typo.body2" Color="Color.Default" Style="width: 120px;">Extensions:</MudText>
-                        <MudText Typo="Typo.body1">@(_feed.FileExtensions ?? ".mp3")</MudText>
+                        <MudText Typo="Typo.body1">@(string.Join(", ", _feed.FileExtensions))</MudText>
                     </MudStack>
                     <MudStack Row="true">
                         <MudText Typo="Typo.body2" Color="Color.Default" Style="width: 120px;">Status:</MudText>

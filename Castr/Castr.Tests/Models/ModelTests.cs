@@ -181,105 +181,58 @@ public class ModelTests
 
     #endregion
 
-    #region PodcastFeedConfig Tests
+    #region Feed Entity Tests
 
     [Fact]
-    public void PodcastFeedConfig_DefaultFileExtensions()
+    public void Feed_DefaultFileExtensions()
     {
         // Act
-        var config = new PodcastFeedConfig
+        var feed = new Castr.Data.Entities.Feed
         {
+            Name = "test",
             Title = "Test",
             Description = "Desc",
             Directory = "/path"
         };
 
         // Assert - FileExtensions has default value
-        Assert.NotNull(config.FileExtensions);
-        Assert.Contains(".mp3", config.FileExtensions);
+        Assert.NotNull(feed.FileExtensions);
+        Assert.Contains(".mp3", feed.FileExtensions);
     }
 
     [Fact]
-    public void PodcastFeedConfig_DefaultLanguage()
+    public void Feed_DefaultCacheDurationMinutes()
     {
         // Act
-        var config = new PodcastFeedConfig
+        var feed = new Castr.Data.Entities.Feed
         {
+            Name = "test",
             Title = "Test",
             Description = "Desc",
             Directory = "/path"
         };
 
         // Assert
-        Assert.Equal("en-us", config.Language);
+        Assert.Equal(5, feed.CacheDurationMinutes);
     }
 
     [Fact]
-    public void PodcastFeedConfig_CanSetAllProperties()
+    public void Feed_CanSetFileExtensionsArray()
     {
         // Arrange & Act
-        var config = new PodcastFeedConfig
+        var feed = new Castr.Data.Entities.Feed
         {
-            Title = "My Podcast",
-            Description = "Description",
-            Directory = "/podcasts/my-podcast",
-            Author = "John Doe",
-            ImageUrl = "https://example.com/image.png",
-            Link = "https://example.com",
-            Language = "en-us",
-            Category = "Technology",
-            FileExtensions = new[] { ".mp3", ".m4a" },
-            YouTube = new YouTubePlaylistConfig
-            {
-                PlaylistUrl = "https://youtube.com/playlist",
-                Enabled = true
-            }
+            Name = "test",
+            Title = "Test",
+            Description = "Desc",
+            Directory = "/path",
+            FileExtensions = [".mp3", ".m4a"]
         };
 
         // Assert
-        Assert.Equal("My Podcast", config.Title);
-        Assert.Equal(2, config.FileExtensions?.Length);
-        Assert.NotNull(config.YouTube);
-    }
-
-    #endregion
-
-    #region YouTubePlaylistConfig Tests
-
-    [Fact]
-    public void YouTubePlaylistConfig_DefaultValues()
-    {
-        // Act
-        var config = new YouTubePlaylistConfig
-        {
-            PlaylistUrl = "https://youtube.com/playlist"
-        };
-
-        // Assert
-        Assert.Equal(60, config.PollIntervalMinutes);
-        Assert.True(config.Enabled);
-        Assert.Equal(1, config.MaxConcurrentDownloads);
-        Assert.Equal("highest", config.AudioQuality);
-    }
-
-    [Fact]
-    public void YouTubePlaylistConfig_CanOverrideDefaults()
-    {
-        // Arrange & Act
-        var config = new YouTubePlaylistConfig
-        {
-            PlaylistUrl = "https://youtube.com/playlist",
-            PollIntervalMinutes = 30,
-            Enabled = false,
-            MaxConcurrentDownloads = 3,
-            AudioQuality = "lowest"
-        };
-
-        // Assert
-        Assert.Equal(30, config.PollIntervalMinutes);
-        Assert.False(config.Enabled);
-        Assert.Equal(3, config.MaxConcurrentDownloads);
-        Assert.Equal("lowest", config.AudioQuality);
+        Assert.Equal(2, feed.FileExtensions.Length);
+        Assert.Contains(".mp3", feed.FileExtensions);
+        Assert.Contains(".m4a", feed.FileExtensions);
     }
 
     #endregion
@@ -364,47 +317,4 @@ public class ModelTests
 
     #endregion
 
-    #region PodcastFeedsConfig Tests
-
-    [Fact]
-    public void PodcastFeedsConfig_DefaultCacheDuration()
-    {
-        // Act
-        var config = new PodcastFeedsConfig();
-
-        // Assert
-        Assert.Equal(5, config.CacheDurationMinutes);
-    }
-
-    [Fact]
-    public void PodcastFeedsConfig_CanAddFeeds()
-    {
-        // Arrange & Act
-        var config = new PodcastFeedsConfig
-        {
-            CacheDurationMinutes = 10,
-            Feeds = new Dictionary<string, PodcastFeedConfig>
-            {
-                ["feed1"] = new PodcastFeedConfig { Title = "F1", Description = "D1", Directory = "/p1" },
-                ["feed2"] = new PodcastFeedConfig { Title = "F2", Description = "D2", Directory = "/p2" }
-            }
-        };
-
-        // Assert
-        Assert.Equal(10, config.CacheDurationMinutes);
-        Assert.Equal(2, config.Feeds.Count);
-    }
-
-    [Fact]
-    public void PodcastFeedsConfig_DefaultFeedsIsEmpty()
-    {
-        // Act
-        var config = new PodcastFeedsConfig();
-
-        // Assert
-        Assert.NotNull(config.Feeds);
-        Assert.Empty(config.Feeds);
-    }
-
-    #endregion
 }
