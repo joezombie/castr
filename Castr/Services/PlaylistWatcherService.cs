@@ -84,11 +84,14 @@ public class PlaylistWatcherService : BackgroundService
 
     private async Task PollAllFeedsAsync(CancellationToken stoppingToken)
     {
+        // Sync directories for all active feeds to discover new files
+        await SyncAllFeedDirectoriesAsync();
+
         var feedsToProcess = await GetFeedsDueForPollingAsync();
 
         if (feedsToProcess.Count == 0)
         {
-            _logger.LogDebug("No feeds due for polling this cycle");
+            _logger.LogDebug("No YouTube feeds due for polling this cycle");
             return;
         }
 
@@ -122,6 +125,25 @@ public class PlaylistWatcherService : BackgroundService
                 _logger.LogError(ex,
                     "Error processing feed {FeedName}, will retry next interval",
                     feed.Name);
+            }
+        }
+    }
+
+    private async Task SyncAllFeedDirectoriesAsync()
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var dataService = scope.ServiceProvider.GetRequiredService<IPodcastDataService>();
+        var allFeeds = await dataService.GetAllFeedsAsync();
+
+        foreach (var feed in allFeeds.Where(f => f.IsActive))
+        {
+            try
+            {
+                await dataService.SyncDirectoryAsync(feed.Id, feed.Directory, feed.FileExtensions);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error syncing directory for feed {FeedName}", feed.Name);
             }
         }
     }
