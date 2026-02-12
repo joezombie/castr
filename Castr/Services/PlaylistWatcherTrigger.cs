@@ -17,6 +17,7 @@ public class PlaylistWatcherTrigger : IPlaylistWatcherTrigger
 
     public void TriggerFeedProcessing(string feedName)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(feedName);
         _channel.Writer.TryWrite(feedName);
     }
 

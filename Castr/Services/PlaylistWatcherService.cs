@@ -54,9 +54,12 @@ public class PlaylistWatcherService : BackgroundService
             {
                 _logger.LogDebug("Poll cycle interrupted by trigger");
             }
-            // Cancel to clean up WaitForTriggerAsync if delay completed normally
-            await delayCts.CancelAsync();
-            await waitTask;
+            finally
+            {
+                // Always clean up WaitForTriggerAsync before delayCts is disposed
+                await delayCts.CancelAsync();
+                await waitTask;
+            }
         }
 
         _logger.LogInformation("Playlist Watcher Service stopping");
@@ -85,7 +88,14 @@ public class PlaylistWatcherService : BackgroundService
     private async Task PollAllFeedsAsync(CancellationToken stoppingToken)
     {
         // Sync directories for all active feeds to discover new files
-        await SyncAllFeedDirectoriesAsync();
+        try
+        {
+            await SyncAllFeedDirectoriesAsync();
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError(ex, "Failed to sync feed directories. Continuing with feed polling.");
+        }
 
         var feedsToProcess = await GetFeedsDueForPollingAsync();
 
@@ -120,7 +130,7 @@ public class PlaylistWatcherService : BackgroundService
                 _logger.LogInformation("Completed processing feed {FeedName} in {ElapsedSec:N1}s",
                     feed.Name, elapsed.TotalSeconds);
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 _logger.LogError(ex,
                     "Error processing feed {FeedName}, will retry next interval",

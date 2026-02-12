@@ -204,7 +204,15 @@ else
                 var feedId = await DataService.AddFeedAsync(_feed);
 
                 // Sync existing files in directory to database
-                await DataService.SyncDirectoryAsync(feedId, _feed.Directory, _feed.FileExtensions);
+                try
+                {
+                    await DataService.SyncDirectoryAsync(feedId, _feed.Directory, _feed.FileExtensions);
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogError(ex, "Failed to sync directory for new feed {FeedName}", _feed.Name);
+                    Snackbar.Add("Feed created, but directory sync failed. Files will sync on next poll cycle.", Severity.Warning);
+                }
 
                 // Trigger immediate YouTube playlist processing if enabled
                 if (_feed.YouTubeEnabled && !string.IsNullOrWhiteSpace(_feed.YouTubePlaylistUrl))
