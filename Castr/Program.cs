@@ -30,6 +30,7 @@ builder.Services.AddScoped<PodcastFeedService>();
 
 // YouTube download services
 builder.Services.AddSingleton<IYouTubeDownloadService, YouTubeDownloadService>();
+builder.Services.AddSingleton<IPlaylistWatcherTrigger, PlaylistWatcherTrigger>();
 builder.Services.AddHostedService<PlaylistWatcherService>();
 
 // Settings service for localStorage persistence (scoped for Blazor)

@@ -28,8 +28,10 @@ services:
       - Dashboard__Username=admin
       - Dashboard__Password=CHANGE_ME_TO_SECURE_PASSWORD
 
-      # Central database path (optional, default: /data/castr.db)
-      - PodcastFeeds__CentralDatabasePath=/data/castr.db
+      # Database configuration (optional, defaults shown)
+      # Supported providers: SQLite, PostgreSQL, SQLServer, MySQL
+      - Database__Provider=SQLite
+      - Database__ConnectionString=Data Source=/data/castr.db
     networks:
       - traefik
     labels:

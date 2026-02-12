@@ -8,14 +8,17 @@ public class PlaylistWatcherService : BackgroundService
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<PlaylistWatcherService> _logger;
+    private readonly IPlaylistWatcherTrigger _trigger;
     private readonly ConcurrentDictionary<string, DateTime> _lastPollTimes = new();
 
     public PlaylistWatcherService(
         IServiceProvider serviceProvider,
-        ILogger<PlaylistWatcherService> logger)
+        ILogger<PlaylistWatcherService> logger,
+        IPlaylistWatcherTrigger trigger)
     {
         _serviceProvider = serviceProvider;
         _logger = logger;
+        _trigger = trigger;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -39,20 +42,66 @@ public class PlaylistWatcherService : BackgroundService
                 _logger.LogError(ex, "Error in playlist watcher main loop");
             }
 
-            _logger.LogDebug("Waiting 1 minute before next poll cycle");
-            await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken);
+            // Wait up to 1 minute, but wake up early if a feed is triggered
+            _logger.LogDebug("Waiting 1 minute before next poll cycle (or until triggered)");
+            using var delayCts = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+            var waitTask = WaitForTriggerAsync(delayCts);
+            try
+            {
+                await Task.Delay(TimeSpan.FromMinutes(1), delayCts.Token);
+            }
+            catch (OperationCanceledException) when (!stoppingToken.IsCancellationRequested)
+            {
+                _logger.LogDebug("Poll cycle interrupted by trigger");
+            }
+            finally
+            {
+                // Always clean up WaitForTriggerAsync before delayCts is disposed
+                await delayCts.CancelAsync();
+                await waitTask;
+            }
         }
 
         _logger.LogInformation("Playlist Watcher Service stopping");
     }
 
+    private async Task WaitForTriggerAsync(CancellationTokenSource delayCts)
+    {
+        try
+        {
+            await foreach (var feedName in _trigger.ReadTriggersAsync(delayCts.Token))
+            {
+                _logger.LogInformation("Received immediate processing trigger for feed: {FeedName}", feedName);
+                // Clear last poll time so the feed is picked up in the next cycle
+                _lastPollTimes.TryRemove(feedName, out _);
+                // Cancel the delay to process immediately
+                await delayCts.CancelAsync();
+                return;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected when delay completes normally or app shuts down
+        }
+    }
+
     private async Task PollAllFeedsAsync(CancellationToken stoppingToken)
     {
+        // Sync directories for all active feeds to discover new files
+        try
+        {
+            await SyncAllFeedDirectoriesAsync();
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError(ex, "Failed to sync feed directories. Continuing with feed polling.");
+        }
+
         var feedsToProcess = await GetFeedsDueForPollingAsync();
 
         if (feedsToProcess.Count == 0)
         {
-            _logger.LogDebug("No feeds due for polling this cycle");
+            _logger.LogDebug("No YouTube feeds due for polling this cycle");
             return;
         }
 
@@ -81,11 +130,30 @@ public class PlaylistWatcherService : BackgroundService
                 _logger.LogInformation("Completed processing feed {FeedName} in {ElapsedSec:N1}s",
                     feed.Name, elapsed.TotalSeconds);
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 _logger.LogError(ex,
                     "Error processing feed {FeedName}, will retry next interval",
                     feed.Name);
+            }
+        }
+    }
+
+    private async Task SyncAllFeedDirectoriesAsync()
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var dataService = scope.ServiceProvider.GetRequiredService<IPodcastDataService>();
+        var allFeeds = await dataService.GetAllFeedsAsync();
+
+        foreach (var feed in allFeeds.Where(f => f.IsActive))
+        {
+            try
+            {
+                await dataService.SyncDirectoryAsync(feed.Id, feed.Directory, feed.FileExtensions);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error syncing directory for feed {FeedName}", feed.Name);
             }
         }
     }
