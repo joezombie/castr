@@ -45,7 +45,7 @@ public class PlaylistWatcherService : BackgroundService
             // Wait up to 1 minute, but wake up early if a feed is triggered
             _logger.LogDebug("Waiting 1 minute before next poll cycle (or until triggered)");
             using var delayCts = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
-            _ = WaitForTriggerAsync(delayCts);
+            var waitTask = WaitForTriggerAsync(delayCts);
             try
             {
                 await Task.Delay(TimeSpan.FromMinutes(1), delayCts.Token);
@@ -54,6 +54,9 @@ public class PlaylistWatcherService : BackgroundService
             {
                 _logger.LogDebug("Poll cycle interrupted by trigger");
             }
+            // Cancel to clean up WaitForTriggerAsync if delay completed normally
+            await delayCts.CancelAsync();
+            await waitTask;
         }
 
         _logger.LogInformation("Playlist Watcher Service stopping");
