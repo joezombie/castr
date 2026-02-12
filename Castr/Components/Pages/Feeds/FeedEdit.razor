@@ -5,7 +5,9 @@
 @inject ILogger<FeedEdit> Logger
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
+@inject IPlaylistWatcherTrigger PlaylistWatcherTrigger
 @using Castr.Data.Entities
+@using Castr.Services
 
 <PageTitle>@(_isNew ? "New Feed" : "Edit Feed") - Castr</PageTitle>
 
@@ -199,7 +201,17 @@ else
             {
                 _feed.CreatedAt = DateTime.UtcNow;
                 _feed.UpdatedAt = DateTime.UtcNow;
-                await DataService.AddFeedAsync(_feed);
+                var feedId = await DataService.AddFeedAsync(_feed);
+
+                // Sync existing files in directory to database
+                await DataService.SyncDirectoryAsync(feedId, _feed.Directory, _feed.FileExtensions);
+
+                // Trigger immediate YouTube playlist processing if enabled
+                if (_feed.YouTubeEnabled && !string.IsNullOrWhiteSpace(_feed.YouTubePlaylistUrl))
+                {
+                    PlaylistWatcherTrigger.TriggerFeedProcessing(_feed.Name);
+                }
+
                 Snackbar.Add("Feed created successfully", Severity.Success);
             }
             else

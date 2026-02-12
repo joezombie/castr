@@ -8,14 +8,17 @@ public class PlaylistWatcherService : BackgroundService
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<PlaylistWatcherService> _logger;
+    private readonly IPlaylistWatcherTrigger _trigger;
     private readonly ConcurrentDictionary<string, DateTime> _lastPollTimes = new();
 
     public PlaylistWatcherService(
         IServiceProvider serviceProvider,
-        ILogger<PlaylistWatcherService> logger)
+        ILogger<PlaylistWatcherService> logger,
+        IPlaylistWatcherTrigger trigger)
     {
         _serviceProvider = serviceProvider;
         _logger = logger;
+        _trigger = trigger;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -39,11 +42,41 @@ public class PlaylistWatcherService : BackgroundService
                 _logger.LogError(ex, "Error in playlist watcher main loop");
             }
 
-            _logger.LogDebug("Waiting 1 minute before next poll cycle");
-            await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken);
+            // Wait up to 1 minute, but wake up early if a feed is triggered
+            _logger.LogDebug("Waiting 1 minute before next poll cycle (or until triggered)");
+            using var delayCts = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+            _ = WaitForTriggerAsync(delayCts);
+            try
+            {
+                await Task.Delay(TimeSpan.FromMinutes(1), delayCts.Token);
+            }
+            catch (OperationCanceledException) when (!stoppingToken.IsCancellationRequested)
+            {
+                _logger.LogDebug("Poll cycle interrupted by trigger");
+            }
         }
 
         _logger.LogInformation("Playlist Watcher Service stopping");
+    }
+
+    private async Task WaitForTriggerAsync(CancellationTokenSource delayCts)
+    {
+        try
+        {
+            await foreach (var feedName in _trigger.ReadTriggersAsync(delayCts.Token))
+            {
+                _logger.LogInformation("Received immediate processing trigger for feed: {FeedName}", feedName);
+                // Clear last poll time so the feed is picked up in the next cycle
+                _lastPollTimes.TryRemove(feedName, out _);
+                // Cancel the delay to process immediately
+                await delayCts.CancelAsync();
+                return;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected when delay completes normally or app shuts down
+        }
     }
 
     private async Task PollAllFeedsAsync(CancellationToken stoppingToken)
