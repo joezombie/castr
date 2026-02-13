@@ -85,7 +85,7 @@ public partial class PodcastDataService : IPodcastDataService
 
     /// <summary>
     /// Scans a directory for files with matching extensions and adds any new files to the database.
-    /// New files are added with DisplayOrder = max + 1 (prepended to existing order).
+    /// New files are added with DisplayOrder values below the current minimum (prepended to existing order).
     /// </summary>
     public async Task SyncDirectoryAsync(int feedId, string directory, string[] extensions)
     {
@@ -148,6 +148,7 @@ public partial class PodcastDataService : IPodcastDataService
     /// <summary>
     /// Syncs YouTube playlist information to local episodes using fuzzy matching.
     /// Updates episodes with VideoId, YoutubeTitle, Description, ThumbnailUrl, and PublishDate.
+    /// Also marks matched videos as downloaded in the DownloadedVideo table to prevent re-downloading.
     /// </summary>
     public async Task SyncPlaylistInfoAsync(int feedId, IEnumerable<PlaylistVideoInfo> videos, string directory)
     {
@@ -162,6 +163,7 @@ public partial class PodcastDataService : IPodcastDataService
             videoList.Count, directory);
 
         // Get all MP3 files in directory for fuzzy matching
+        // Note: only matches .mp3 files; other extensions configured on the feed are not considered here
         var filesInDirectory = Directory.Exists(directory)
             ? Directory.GetFiles(directory, "*.mp3")
                 .Select(Path.GetFileName)
@@ -190,80 +192,109 @@ public partial class PodcastDataService : IPodcastDataService
         var updatedCount = 0;
         var addedCount = 0;
         var skippedCount = 0;
+        var failedCount = 0;
 
         foreach (var video in videoList)
         {
-            _logger.LogDebug("Matching video: '{Title}' (ID: {VideoId}, PlaylistIndex: {PlaylistIndex})",
-                video.Title, video.VideoId, video.PlaylistIndex);
-
-            // Find best matching file using fuzzy matching
-            var (bestMatch, bestScore) = FindBestMatch(video.Title, filesInDirectory, matchedFiles);
-
-            if (bestMatch == null || bestScore < 0.6)
+            try
             {
-                _logger.LogWarning("No fuzzy match found for video '{Title}' (best score: {Score:P1}, threshold: 60%)",
-                    video.Title, bestScore);
-                skippedCount++;
-                continue;
-            }
+                _logger.LogDebug("Matching video: '{Title}' (ID: {VideoId}, PlaylistIndex: {PlaylistIndex})",
+                    video.Title, video.VideoId, video.PlaylistIndex);
 
-            _logger.LogInformation("Fuzzy matched '{VideoTitle}' -> '{Filename}' (score: {Score:P1})",
-                video.Title, bestMatch, bestScore);
+                // Find best matching file using fuzzy matching
+                var (bestMatch, bestScore) = FindBestMatch(video.Title, filesInDirectory, matchedFiles);
 
-            matchedFiles.Add(bestMatch);
-
-            if (episodesByFilename.TryGetValue(bestMatch, out var existingEpisode))
-            {
-                // Update existing episode with YouTube info
-                var hasNewMetadata = video.Description != null || video.ThumbnailUrl != null || video.UploadDate.HasValue;
-
-                if (existingEpisode.VideoId != video.VideoId || hasNewMetadata)
+                if (bestMatch == null || bestScore < 0.6)
                 {
-                    existingEpisode.VideoId = video.VideoId;
-                    existingEpisode.YoutubeTitle = video.Title;
-                    existingEpisode.DisplayOrder = video.PlaylistIndex;
-                    existingEpisode.MatchScore = bestScore;
+                    _logger.LogWarning("No fuzzy match found for video '{Title}' (best score: {Score:P1}, threshold: 60%)",
+                        video.Title, bestScore);
+                    skippedCount++;
+                    continue;
+                }
 
-                    // Only update metadata fields if we have new data (preserve existing if new is null)
-                    if (video.Description != null)
-                        existingEpisode.Description = video.Description;
-                    if (video.ThumbnailUrl != null)
-                        existingEpisode.ThumbnailUrl = video.ThumbnailUrl;
-                    if (video.UploadDate.HasValue)
-                        existingEpisode.PublishDate = video.UploadDate;
+                _logger.LogInformation("Fuzzy matched '{VideoTitle}' -> '{Filename}' (score: {Score:P1})",
+                    video.Title, bestMatch, bestScore);
 
-                    await _episodeRepository.UpdateAsync(existingEpisode);
-                    updatedCount++;
-                    _logger.LogDebug("Updated episode {Filename} with video {VideoId}", bestMatch, video.VideoId);
+                matchedFiles.Add(bestMatch);
+
+                if (episodesByFilename.TryGetValue(bestMatch, out var existingEpisode))
+                {
+                    // Update existing episode with YouTube info
+                    var hasNewMetadata = video.Description != null || video.ThumbnailUrl != null || video.UploadDate.HasValue;
+
+                    if (existingEpisode.VideoId != video.VideoId || hasNewMetadata)
+                    {
+                        existingEpisode.VideoId = video.VideoId;
+                        existingEpisode.YoutubeTitle = video.Title;
+                        existingEpisode.DisplayOrder = video.PlaylistIndex;
+                        existingEpisode.MatchScore = bestScore;
+
+                        // Only update metadata fields if we have new data (preserve existing if new is null)
+                        if (video.Description != null)
+                            existingEpisode.Description = video.Description;
+                        if (video.ThumbnailUrl != null)
+                            existingEpisode.ThumbnailUrl = video.ThumbnailUrl;
+                        if (video.UploadDate.HasValue)
+                            existingEpisode.PublishDate = video.UploadDate;
+
+                        await _episodeRepository.UpdateAsync(existingEpisode);
+                        updatedCount++;
+                        _logger.LogDebug("Updated episode {Filename} with video {VideoId}", bestMatch, video.VideoId);
+                    }
+
+                    // Always ensure matched videos are tracked as downloaded (idempotent upsert)
+                    await _downloadRepository.MarkVideoDownloadedAsync(feedId, video.VideoId, bestMatch);
+                }
+                else
+                {
+                    // Add new episode
+                    var newEpisode = new Episode
+                    {
+                        FeedId = feedId,
+                        Filename = bestMatch,
+                        VideoId = video.VideoId,
+                        YoutubeTitle = video.Title,
+                        Description = video.Description,
+                        ThumbnailUrl = video.ThumbnailUrl,
+                        DisplayOrder = video.PlaylistIndex,
+                        AddedAt = DateTime.UtcNow,
+                        PublishDate = video.UploadDate,
+                        MatchScore = bestScore
+                    };
+
+                    await _episodeRepository.AddAsync(newEpisode);
+                    await _downloadRepository.MarkVideoDownloadedAsync(feedId, video.VideoId, bestMatch);
+                    episodesByFilename[bestMatch] = newEpisode;
+                    addedCount++;
+                    _logger.LogDebug("Added new episode {Filename}", bestMatch);
                 }
             }
-            else
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                // Add new episode
-                var newEpisode = new Episode
-                {
-                    FeedId = feedId,
-                    Filename = bestMatch,
-                    VideoId = video.VideoId,
-                    YoutubeTitle = video.Title,
-                    Description = video.Description,
-                    ThumbnailUrl = video.ThumbnailUrl,
-                    DisplayOrder = video.PlaylistIndex,
-                    AddedAt = DateTime.UtcNow,
-                    PublishDate = video.UploadDate,
-                    MatchScore = bestScore
-                };
-
-                await _episodeRepository.AddAsync(newEpisode);
-                episodesByFilename[bestMatch] = newEpisode;
-                addedCount++;
-                _logger.LogDebug("Added new episode {Filename}", bestMatch);
+                _logger.LogError(ex,
+                    "Failed to sync video '{VideoId}' ('{Title}') for feed {FeedId}. Continuing with remaining videos.",
+                    video.VideoId, video.Title, feedId);
+                failedCount++;
             }
         }
 
         _logger.LogInformation(
-            "Playlist sync completed for feed {FeedId}: {Updated} updated, {Added} added, {Skipped} skipped, {Matched}/{Total} matched successfully",
-            feedId, updatedCount, addedCount, skippedCount, matchedFiles.Count, videoList.Count);
+            "Playlist sync completed for feed {FeedId}: {Updated} updated, {Added} added, {Skipped} skipped, {Failed} failed, {Matched}/{Total} matched and marked as downloaded",
+            feedId, updatedCount, addedCount, skippedCount, failedCount, matchedFiles.Count, videoList.Count);
+
+        if (failedCount > 0)
+        {
+            try
+            {
+                await _activityRepository.LogAsync(feedId, "sync_warning",
+                    $"Playlist sync completed with {failedCount} failed video(s)",
+                    $"Updated: {updatedCount}, Added: {addedCount}, Skipped: {skippedCount}, Failed: {failedCount}, Matched: {matchedFiles.Count}/{videoList.Count}");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to write activity log for sync warning (feed {FeedId})", feedId);
+            }
+        }
     }
 
     #endregion

@@ -2,6 +2,7 @@ using Castr.Data;
 using Castr.Data.Entities;
 using Castr.Data.Repositories;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Castr.Tests.Data;
 
@@ -21,7 +22,7 @@ public class RepositoryTests : IDisposable
         _context = new CastrDbContext(options);
         _feedRepo = new FeedRepository(_context);
         _episodeRepo = new EpisodeRepository(_context);
-        _downloadRepo = new DownloadRepository(_context);
+        _downloadRepo = new DownloadRepository(_context, new NullLogger<DownloadRepository>());
         _activityRepo = new ActivityRepository(_context);
     }
 

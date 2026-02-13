@@ -1,15 +1,18 @@
 using Castr.Data.Entities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace Castr.Data.Repositories;
 
 public class DownloadRepository : IDownloadRepository
 {
     private readonly CastrDbContext _context;
+    private readonly ILogger<DownloadRepository> _logger;
 
-    public DownloadRepository(CastrDbContext context)
+    public DownloadRepository(CastrDbContext context, ILogger<DownloadRepository> logger)
     {
         _context = context;
+        _logger = logger;
     }
 
     public async Task<bool> IsVideoDownloadedAsync(int feedId, string videoId)
@@ -35,7 +38,38 @@ public class DownloadRepository : IDownloadRepository
         {
             _context.DownloadedVideos.Add(new DownloadedVideo { FeedId = feedId, VideoId = videoId, Filename = filename, DownloadedAt = DateTime.UtcNow });
         }
-        await _context.SaveChangesAsync();
+
+        try
+        {
+            await _context.SaveChangesAsync();
+        }
+        catch (DbUpdateException ex)
+        {
+            _logger.LogWarning(ex,
+                "DbUpdateException for FeedId={FeedId}, VideoId={VideoId}; attempting upsert fallback",
+                feedId, videoId);
+
+            // Detach only the failed Added entity to avoid corrupting other tracked entities
+            var failedEntry = _context.ChangeTracker.Entries<DownloadedVideo>()
+                .FirstOrDefault(e => e.State == EntityState.Added
+                    && e.Entity.FeedId == feedId && e.Entity.VideoId == videoId);
+            if (failedEntry != null)
+                failedEntry.State = EntityState.Detached;
+
+            var conflict = await _context.DownloadedVideos
+                .FirstOrDefaultAsync(d => d.FeedId == feedId && d.VideoId == videoId);
+            if (conflict != null)
+            {
+                conflict.Filename = filename;
+                conflict.DownloadedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+            }
+            else
+            {
+                // Not a unique constraint race — rethrow the original error
+                throw;
+            }
+        }
     }
 
     public async Task RemoveDownloadedVideoAsync(int feedId, string videoId)

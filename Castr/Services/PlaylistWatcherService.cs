@@ -235,8 +235,8 @@ public class PlaylistWatcherService : BackgroundService
             videos.Count,
             feed.Name);
 
-        // Step 2: Check which videos already have files and fetch details only for new ones
-        _logger.LogDebug("Checking which videos already have files on disk to optimize metadata fetch");
+        // Step 2: Check which videos are already tracked and fetch details only for new ones
+        _logger.LogDebug("Checking which videos are already tracked in database to optimize metadata fetch");
         var downloadedIds = await dataService.GetDownloadedVideoIdsAsync(feedId);
         _logger.LogDebug("Found {Count} already downloaded videos in database", downloadedIds.Count);
 
@@ -255,14 +255,14 @@ public class PlaylistWatcherService : BackgroundService
                 break;
             }
 
-            // Check if file exists on disk before fetching detailed metadata
-            var existingPath = youtubeService.GetExistingFilePath(v.Title, feed.Directory);
-            var isDownloaded = downloadedIds.Contains(v.Id.Value) || existingPath != null;
+            // On the first poll after deployment, pre-existing files won't have DownloadedVideo rows yet
+            // (SyncPlaylistInfoAsync populates them in Step 3), so metadata will be fetched for all videos once.
+            var isDownloaded = downloadedIds.Contains(v.Id.Value);
 
             if (isDownloaded)
             {
-                // Skip fetching details for videos that are already downloaded with existing files
-                _logger.LogTrace("Skipping metadata fetch for video {Index}/{Total}: '{Title}' (file exists)",
+                // Skip fetching details for videos already tracked in DownloadedVideo table
+                _logger.LogTrace("Skipping metadata fetch for video {Index}/{Total}: '{Title}' (already tracked)",
                     index + 1, videos.Count, v.Title);
 
                 playlistInfos.Add(new PlaylistVideoInfo
