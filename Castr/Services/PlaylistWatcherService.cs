@@ -235,8 +235,8 @@ public class PlaylistWatcherService : BackgroundService
             videos.Count,
             feed.Name);
 
-        // Step 2: Check which videos already have files and fetch details only for new ones
-        _logger.LogDebug("Checking which videos already have files on disk to optimize metadata fetch");
+        // Step 2: Check which videos are already tracked and fetch details only for new ones
+        _logger.LogDebug("Checking which videos are already tracked in database to optimize metadata fetch");
         var downloadedIds = await dataService.GetDownloadedVideoIdsAsync(feedId);
         _logger.LogDebug("Found {Count} already downloaded videos in database", downloadedIds.Count);
 

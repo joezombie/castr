@@ -35,7 +35,24 @@ public class DownloadRepository : IDownloadRepository
         {
             _context.DownloadedVideos.Add(new DownloadedVideo { FeedId = feedId, VideoId = videoId, Filename = filename, DownloadedAt = DateTime.UtcNow });
         }
-        await _context.SaveChangesAsync();
+
+        try
+        {
+            await _context.SaveChangesAsync();
+        }
+        catch (DbUpdateException)
+        {
+            // Unique constraint race: another call inserted the same (FeedId, VideoId) concurrently.
+            // Clear the failed state and fall back to an update.
+            _context.ChangeTracker.Clear();
+            var conflict = await _context.DownloadedVideos.FirstOrDefaultAsync(d => d.FeedId == feedId && d.VideoId == videoId);
+            if (conflict != null)
+            {
+                conflict.Filename = filename;
+                conflict.DownloadedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+            }
+        }
     }
 
     public async Task RemoveDownloadedVideoAsync(int feedId, string videoId)
