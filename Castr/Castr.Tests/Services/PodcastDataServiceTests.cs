@@ -4,6 +4,7 @@ using Castr.Data.Repositories;
 using Castr.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 
 namespace Castr.Tests.Services;
@@ -28,7 +29,7 @@ public class PodcastDataServiceTests : IDisposable
 
         _feedRepo = new FeedRepository(_context);
         _episodeRepo = new EpisodeRepository(_context);
-        _downloadRepo = new DownloadRepository(_context);
+        _downloadRepo = new DownloadRepository(_context, new NullLogger<DownloadRepository>());
         _activityRepo = new ActivityRepository(_context);
         _loggerMock = new Mock<ILogger<PodcastDataService>>();
 

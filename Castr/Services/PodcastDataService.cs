@@ -85,7 +85,7 @@ public partial class PodcastDataService : IPodcastDataService
 
     /// <summary>
     /// Scans a directory for files with matching extensions and adds any new files to the database.
-    /// New files are added with DisplayOrder = max + 1 (prepended to existing order).
+    /// New files are added with DisplayOrder values below the current minimum (prepended to existing order).
     /// </summary>
     public async Task SyncDirectoryAsync(int feedId, string directory, string[] extensions)
     {
@@ -284,9 +284,16 @@ public partial class PodcastDataService : IPodcastDataService
 
         if (failedCount > 0)
         {
-            await _activityRepository.LogAsync(feedId, "sync_warning",
-                $"Playlist sync completed with {failedCount} failed video(s)",
-                $"Updated: {updatedCount}, Added: {addedCount}, Skipped: {skippedCount}, Failed: {failedCount}, Matched: {matchedFiles.Count}/{videoList.Count}");
+            try
+            {
+                await _activityRepository.LogAsync(feedId, "sync_warning",
+                    $"Playlist sync completed with {failedCount} failed video(s)",
+                    $"Updated: {updatedCount}, Added: {addedCount}, Skipped: {skippedCount}, Failed: {failedCount}, Matched: {matchedFiles.Count}/{videoList.Count}");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to write activity log for sync warning (feed {FeedId})", feedId);
+            }
         }
     }
 
