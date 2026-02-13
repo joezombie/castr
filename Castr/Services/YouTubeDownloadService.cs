@@ -36,11 +36,11 @@ public interface IYouTubeDownloadService
 
 public class PlaylistMetadata
 {
-    public required string Title { get; set; }
-    public string? Author { get; set; }
-    public string? ThumbnailUrl { get; set; }
-    public string? Description { get; set; }
-    public string? Url { get; set; }
+    public required string Title { get; init; }
+    public string? Author { get; init; }
+    public string? ThumbnailUrl { get; init; }
+    public string? Description { get; init; }
+    public string? PlaylistUrl { get; init; }
 }
 
 public class VideoDetails
@@ -202,16 +202,24 @@ public partial class YouTubeDownloadService : IYouTubeDownloadService
                 .OrderByDescending(t => t.Resolution.Width)
                 .FirstOrDefault()?.Url;
 
-            // Fetch first video's description as a fallback for playlist description
+            // YouTube playlists don't expose descriptions via YoutubeExplode,
+            // so we use the first video's description as a best-effort approximation
             string? description = null;
-            var videos = await _youtube.Playlists
-                .GetVideosAsync(playlistUrl, cancellationToken)
-                .FirstOrDefaultAsync(cancellationToken);
-
-            if (videos != null)
+            try
             {
-                var videoDetails = await _youtube.Videos.GetAsync(videos.Id, cancellationToken);
-                description = videoDetails.Description;
+                var firstVideo = await _youtube.Playlists
+                    .GetVideosAsync(playlistUrl, cancellationToken)
+                    .FirstOrDefaultAsync(cancellationToken);
+
+                if (firstVideo != null)
+                {
+                    var videoDetails = await _youtube.Videos.GetAsync(firstVideo.Id, cancellationToken);
+                    description = videoDetails.Description;
+                }
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogWarning(ex, "Failed to fetch video description for playlist metadata: {PlaylistUrl}", playlistUrl);
             }
 
             return new PlaylistMetadata
@@ -220,10 +228,10 @@ public partial class YouTubeDownloadService : IYouTubeDownloadService
                 Author = playlist.Author?.ChannelTitle,
                 ThumbnailUrl = thumbnailUrl,
                 Description = description,
-                Url = playlist.Url
+                PlaylistUrl = playlist.Url
             };
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             _logger.LogError(ex, "Failed to fetch playlist metadata: {PlaylistUrl}", playlistUrl);
             return null;

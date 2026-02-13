@@ -265,6 +265,7 @@ else
         if (string.IsNullOrWhiteSpace(_feed.YouTubePlaylistUrl)) return;
 
         _fetchingMetadata = true;
+        StateHasChanged();
         try
         {
             var metadata = await YouTubeService.GetPlaylistMetadataAsync(_feed.YouTubePlaylistUrl);
@@ -294,11 +295,11 @@ else
             if (!string.IsNullOrWhiteSpace(metadata.Description) && string.IsNullOrWhiteSpace(_feed.Description))
             {
                 _feed.Description = metadata.Description;
-                populated.Add("Description");
+                populated.Add("Description (from first video - review recommended)");
             }
-            if (!string.IsNullOrWhiteSpace(metadata.Url) && string.IsNullOrWhiteSpace(_feed.Link))
+            if (!string.IsNullOrWhiteSpace(metadata.PlaylistUrl) && string.IsNullOrWhiteSpace(_feed.Link))
             {
-                _feed.Link = metadata.Url;
+                _feed.Link = metadata.PlaylistUrl;
                 populated.Add("Link");
             }
 
@@ -309,8 +310,8 @@ else
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Failed to fetch YouTube metadata");
-            Snackbar.Add("Failed to fetch playlist metadata", Severity.Error);
+            Logger.LogError(ex, "Failed to fetch YouTube metadata for playlist: {PlaylistUrl}", _feed.YouTubePlaylistUrl);
+            Snackbar.Add("Failed to fetch playlist metadata. Check the URL and try again.", Severity.Error);
         }
         finally
         {
