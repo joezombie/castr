@@ -6,6 +6,7 @@
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
 @inject IPlaylistWatcherTrigger PlaylistWatcherTrigger
+@inject IYouTubeDownloadService YouTubeService
 @using Castr.Data.Entities
 @using Castr.Services
 
@@ -80,6 +81,23 @@ else
                         <MudTextField @bind-Value="_feed.YouTubePlaylistUrl" Label="Playlist URL" Class="mt-3"
                             HelperText="YouTube playlist URL or ID" />
 
+                        @if (!string.IsNullOrWhiteSpace(_feed.YouTubePlaylistUrl))
+                        {
+                            <MudButton Variant="Variant.Outlined" Size="Size.Small" Class="mt-2"
+                                OnClick="FetchYouTubeMetadata" Disabled="_fetchingMetadata"
+                                StartIcon="@Icons.Material.Filled.Download">
+                                @if (_fetchingMetadata)
+                                {
+                                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                                    <span>Fetching...</span>
+                                }
+                                else
+                                {
+                                    <span>Fetch Metadata</span>
+                                }
+                            </MudButton>
+                        }
+
                         <MudNumericField @bind-Value="_feed.YouTubePollIntervalMinutes" Label="Poll Interval (minutes)"
                             Class="mt-3" Min="5" Max="1440" />
 
@@ -140,6 +158,7 @@ else
     private bool _formValid;
     private bool _loading = true;
     private bool _saving;
+    private bool _fetchingMetadata;
     private bool _isNew => string.IsNullOrEmpty(Name);
 
     protected override async Task OnInitializedAsync()
@@ -238,6 +257,64 @@ else
         finally
         {
             _saving = false;
+        }
+    }
+
+    private async Task FetchYouTubeMetadata()
+    {
+        if (string.IsNullOrWhiteSpace(_feed.YouTubePlaylistUrl)) return;
+
+        _fetchingMetadata = true;
+        try
+        {
+            var metadata = await YouTubeService.GetPlaylistMetadataAsync(_feed.YouTubePlaylistUrl);
+            if (metadata == null)
+            {
+                Snackbar.Add("Failed to fetch playlist metadata. Check the URL and try again.", Severity.Error);
+                return;
+            }
+
+            var populated = new List<string>();
+
+            if (!string.IsNullOrWhiteSpace(metadata.Title) && string.IsNullOrWhiteSpace(_feed.Title))
+            {
+                _feed.Title = metadata.Title;
+                populated.Add("Title");
+            }
+            if (!string.IsNullOrWhiteSpace(metadata.Author) && string.IsNullOrWhiteSpace(_feed.Author))
+            {
+                _feed.Author = metadata.Author;
+                populated.Add("Author");
+            }
+            if (!string.IsNullOrWhiteSpace(metadata.ThumbnailUrl) && string.IsNullOrWhiteSpace(_feed.ImageUrl))
+            {
+                _feed.ImageUrl = metadata.ThumbnailUrl;
+                populated.Add("Image URL");
+            }
+            if (!string.IsNullOrWhiteSpace(metadata.Description) && string.IsNullOrWhiteSpace(_feed.Description))
+            {
+                _feed.Description = metadata.Description;
+                populated.Add("Description");
+            }
+            if (!string.IsNullOrWhiteSpace(metadata.Url) && string.IsNullOrWhiteSpace(_feed.Link))
+            {
+                _feed.Link = metadata.Url;
+                populated.Add("Link");
+            }
+
+            if (populated.Count > 0)
+                Snackbar.Add($"Populated: {string.Join(", ", populated)}", Severity.Success);
+            else
+                Snackbar.Add("All fields already have values. Clear fields you want to overwrite.", Severity.Info);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to fetch YouTube metadata");
+            Snackbar.Add("Failed to fetch playlist metadata", Severity.Error);
+        }
+        finally
+        {
+            _fetchingMetadata = false;
         }
     }
 

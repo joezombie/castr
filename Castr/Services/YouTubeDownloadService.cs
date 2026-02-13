@@ -27,7 +27,20 @@ public interface IYouTubeDownloadService
         string videoId,
         CancellationToken cancellationToken = default);
 
+    Task<PlaylistMetadata?> GetPlaylistMetadataAsync(
+        string playlistUrl,
+        CancellationToken cancellationToken = default);
+
     string? GetExistingFilePath(string videoTitle, string outputDirectory);
+}
+
+public class PlaylistMetadata
+{
+    public required string Title { get; set; }
+    public string? Author { get; set; }
+    public string? ThumbnailUrl { get; set; }
+    public string? Description { get; set; }
+    public string? Url { get; set; }
 }
 
 public class VideoDetails
@@ -173,6 +186,46 @@ public partial class YouTubeDownloadService : IYouTubeDownloadService
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to get details for video: {VideoId}", videoId);
+            return null;
+        }
+    }
+
+    public async Task<PlaylistMetadata?> GetPlaylistMetadataAsync(
+        string playlistUrl,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Fetching playlist metadata from: {PlaylistUrl}", playlistUrl);
+        try
+        {
+            var playlist = await _youtube.Playlists.GetAsync(playlistUrl, cancellationToken);
+            var thumbnailUrl = playlist.Thumbnails
+                .OrderByDescending(t => t.Resolution.Width)
+                .FirstOrDefault()?.Url;
+
+            // Fetch first video's description as a fallback for playlist description
+            string? description = null;
+            var videos = await _youtube.Playlists
+                .GetVideosAsync(playlistUrl, cancellationToken)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (videos != null)
+            {
+                var videoDetails = await _youtube.Videos.GetAsync(videos.Id, cancellationToken);
+                description = videoDetails.Description;
+            }
+
+            return new PlaylistMetadata
+            {
+                Title = playlist.Title,
+                Author = playlist.Author?.ChannelTitle,
+                ThumbnailUrl = thumbnailUrl,
+                Description = description,
+                Url = playlist.Url
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to fetch playlist metadata: {PlaylistUrl}", playlistUrl);
             return null;
         }
     }
