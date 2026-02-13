@@ -255,6 +255,8 @@ public class PlaylistWatcherService : BackgroundService
                 break;
             }
 
+            // On the first poll after deployment, pre-existing files won't have DownloadedVideo rows yet
+            // (SyncPlaylistInfoAsync populates them in Step 3), so metadata will be fetched for all videos once.
             var isDownloaded = downloadedIds.Contains(v.Id.Value);
 
             if (isDownloaded)

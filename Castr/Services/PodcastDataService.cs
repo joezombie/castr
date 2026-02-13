@@ -269,7 +269,7 @@ public partial class PodcastDataService : IPodcastDataService
                     _logger.LogDebug("Added new episode {Filename}", bestMatch);
                 }
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 _logger.LogError(ex,
                     "Failed to sync video '{VideoId}' ('{Title}') for feed {FeedId}. Continuing with remaining videos.",
@@ -281,6 +281,13 @@ public partial class PodcastDataService : IPodcastDataService
         _logger.LogInformation(
             "Playlist sync completed for feed {FeedId}: {Updated} updated, {Added} added, {Skipped} skipped, {Failed} failed, {Matched}/{Total} matched and marked as downloaded",
             feedId, updatedCount, addedCount, skippedCount, failedCount, matchedFiles.Count, videoList.Count);
+
+        if (failedCount > 0)
+        {
+            await _activityRepository.LogAsync(feedId, "sync_warning",
+                $"Playlist sync completed with {failedCount} failed video(s)",
+                $"Updated: {updatedCount}, Added: {addedCount}, Skipped: {skippedCount}, Failed: {failedCount}, Matched: {matchedFiles.Count}/{videoList.Count}");
+        }
     }
 
     #endregion
