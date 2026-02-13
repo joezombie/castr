@@ -255,14 +255,12 @@ public class PlaylistWatcherService : BackgroundService
                 break;
             }
 
-            // Check if file exists on disk before fetching detailed metadata
-            var existingPath = youtubeService.GetExistingFilePath(v.Title, feed.Directory);
-            var isDownloaded = downloadedIds.Contains(v.Id.Value) || existingPath != null;
+            var isDownloaded = downloadedIds.Contains(v.Id.Value);
 
             if (isDownloaded)
             {
-                // Skip fetching details for videos that are already downloaded with existing files
-                _logger.LogTrace("Skipping metadata fetch for video {Index}/{Total}: '{Title}' (file exists)",
+                // Skip fetching details for videos already tracked in DownloadedVideo table
+                _logger.LogTrace("Skipping metadata fetch for video {Index}/{Total}: '{Title}' (already tracked)",
                     index + 1, videos.Count, v.Title);
 
                 playlistInfos.Add(new PlaylistVideoInfo

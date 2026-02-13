@@ -233,6 +233,7 @@ public partial class PodcastDataService : IPodcastDataService
                         existingEpisode.PublishDate = video.UploadDate;
 
                     await _episodeRepository.UpdateAsync(existingEpisode);
+                    await _downloadRepository.MarkVideoDownloadedAsync(feedId, video.VideoId, bestMatch);
                     updatedCount++;
                     _logger.LogDebug("Updated episode {Filename} with video {VideoId}", bestMatch, video.VideoId);
                 }
@@ -255,6 +256,7 @@ public partial class PodcastDataService : IPodcastDataService
                 };
 
                 await _episodeRepository.AddAsync(newEpisode);
+                await _downloadRepository.MarkVideoDownloadedAsync(feedId, video.VideoId, bestMatch);
                 episodesByFilename[bestMatch] = newEpisode;
                 addedCount++;
                 _logger.LogDebug("Added new episode {Filename}", bestMatch);
@@ -262,7 +264,7 @@ public partial class PodcastDataService : IPodcastDataService
         }
 
         _logger.LogInformation(
-            "Playlist sync completed for feed {FeedId}: {Updated} updated, {Added} added, {Skipped} skipped, {Matched}/{Total} matched successfully",
+            "Playlist sync completed for feed {FeedId}: {Updated} updated, {Added} added, {Skipped} skipped, {Matched}/{Total} matched and marked as downloaded",
             feedId, updatedCount, addedCount, skippedCount, matchedFiles.Count, videoList.Count);
     }
 
