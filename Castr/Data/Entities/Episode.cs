@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Castr.Data.Entities;
 
@@ -17,6 +18,9 @@ public class Episode
     [MaxLength(500)]
     public string? YoutubeTitle { get; set; }
 
+    [MaxLength(500)]
+    public string? Title { get; set; }
+
     public string? Description { get; set; }
 
     [MaxLength(1000)]
@@ -29,6 +33,13 @@ public class Episode
     public DateTime? PublishDate { get; set; }
 
     public double? MatchScore { get; set; }
+
+    public double? DurationSeconds { get; set; }
+
+    public long? FileSize { get; set; }
+
+    [NotMapped]
+    public TimeSpan Duration => TimeSpan.FromSeconds(DurationSeconds ?? 0);
 
     public Feed Feed { get; set; } = null!;
 }

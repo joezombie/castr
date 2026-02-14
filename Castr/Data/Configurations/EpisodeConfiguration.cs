@@ -17,12 +17,16 @@ public class EpisodeConfiguration : IEntityTypeConfiguration<Episode>
         builder.Property(e => e.Filename).HasColumnName("filename").IsRequired();
         builder.Property(e => e.VideoId).HasColumnName("video_id");
         builder.Property(e => e.YoutubeTitle).HasColumnName("youtube_title");
+        builder.Property(e => e.Title).HasColumnName("title");
         builder.Property(e => e.Description).HasColumnName("description");
         builder.Property(e => e.ThumbnailUrl).HasColumnName("thumbnail_url");
         builder.Property(e => e.DisplayOrder).HasColumnName("display_order").IsRequired();
         builder.Property(e => e.AddedAt).HasColumnName("added_at").IsRequired();
         builder.Property(e => e.PublishDate).HasColumnName("publish_date");
         builder.Property(e => e.MatchScore).HasColumnName("match_score");
+        builder.Property(e => e.DurationSeconds).HasColumnName("duration_seconds");
+        builder.Property(e => e.FileSize).HasColumnName("file_size");
+        builder.Ignore(e => e.Duration);
 
         builder.HasOne(e => e.Feed)
             .WithMany(f => f.Episodes)

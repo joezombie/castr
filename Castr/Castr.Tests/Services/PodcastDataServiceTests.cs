@@ -385,6 +385,73 @@ public class PodcastDataServiceTests : IDisposable
         Assert.DoesNotContain(episodes, e => e.Filename == "audio.wav");
     }
 
+    [Fact]
+    public async Task SyncDirectoryAsync_PopulatesFileMetadataForNewFiles()
+    {
+        // Arrange
+        var feedId = await _feedRepo.AddAsync(new Feed { Name = "syncmeta", Title = "T", Description = "D", Directory = _testDirectory });
+
+        // Create test file (non-MP3 content, so TagLib will fail gracefully and fall back to filename)
+        File.WriteAllText(Path.Combine(_testDirectory, "my episode.mp3"), "test content");
+
+        // Act
+        await _service.SyncDirectoryAsync(feedId, _testDirectory, new[] { ".mp3" });
+
+        // Assert
+        var episodes = await _episodeRepo.GetByFeedIdAsync(feedId);
+        Assert.Single(episodes);
+        var ep = episodes[0];
+        Assert.Equal("my episode", ep.Title); // Falls back to filename without extension
+        Assert.NotNull(ep.FileSize);
+        Assert.True(ep.FileSize > 0);
+    }
+
+    [Fact]
+    public async Task SyncDirectoryAsync_BackfillsMetadataForExistingEpisodes()
+    {
+        // Arrange
+        var feedId = await _feedRepo.AddAsync(new Feed { Name = "syncback", Title = "T", Description = "D", Directory = _testDirectory });
+
+        // Create file and add episode without metadata
+        File.WriteAllText(Path.Combine(_testDirectory, "backfill.mp3"), "test content");
+        await _episodeRepo.AddAsync(new Episode { FeedId = feedId, Filename = "backfill.mp3", DisplayOrder = 1 });
+
+        // Act
+        await _service.SyncDirectoryAsync(feedId, _testDirectory, new[] { ".mp3" });
+
+        // Assert - should have backfilled metadata
+        var episode = await _episodeRepo.GetByFilenameAsync(feedId, "backfill.mp3");
+        Assert.NotNull(episode);
+        Assert.NotNull(episode.Title);
+        Assert.NotNull(episode.FileSize);
+    }
+
+    [Fact]
+    public async Task SyncDirectoryAsync_DoesNotOverwriteExistingTitle()
+    {
+        // Arrange
+        var feedId = await _feedRepo.AddAsync(new Feed { Name = "synckeep", Title = "T", Description = "D", Directory = _testDirectory });
+
+        // Create file and add episode with YouTube title already set
+        File.WriteAllText(Path.Combine(_testDirectory, "keep.mp3"), "test content");
+        await _episodeRepo.AddAsync(new Episode
+        {
+            FeedId = feedId,
+            Filename = "keep.mp3",
+            DisplayOrder = 1,
+            Title = "YouTube Title",
+            FileSize = 100
+        });
+
+        // Act
+        await _service.SyncDirectoryAsync(feedId, _testDirectory, new[] { ".mp3" });
+
+        // Assert - Title should NOT be overwritten
+        var episode = await _episodeRepo.GetByFilenameAsync(feedId, "keep.mp3");
+        Assert.NotNull(episode);
+        Assert.Equal("YouTube Title", episode.Title);
+    }
+
     #endregion
 
     #region SyncPlaylistInfoAsync
@@ -495,6 +562,41 @@ public class PodcastDataServiceTests : IDisposable
         // Assert
         var episodes = await _episodeRepo.GetByFeedIdAsync(feedId);
         Assert.Empty(episodes);
+    }
+
+    [Fact]
+    public async Task SyncPlaylistInfoAsync_SetsTitleFromYouTube()
+    {
+        // Arrange
+        var feedId = await _feedRepo.AddAsync(new Feed { Name = "syncyttitle", Title = "T", Description = "D", Directory = _testDirectory });
+
+        // Create MP3 file and episode with ID3-sourced title
+        File.WriteAllText(Path.Combine(_testDirectory, "My Episode.mp3"), "test");
+        await _episodeRepo.AddAsync(new Episode
+        {
+            FeedId = feedId,
+            Filename = "My Episode.mp3",
+            DisplayOrder = 1,
+            Title = "ID3 Title"
+        });
+
+        var videos = new List<PlaylistVideoInfo>
+        {
+            new PlaylistVideoInfo
+            {
+                VideoId = "yt123",
+                Title = "My Episode",
+                PlaylistIndex = 5
+            }
+        };
+
+        // Act
+        await _service.SyncPlaylistInfoAsync(feedId, videos, _testDirectory);
+
+        // Assert - YouTube title should overwrite ID3 title
+        var episode = await _episodeRepo.GetByFilenameAsync(feedId, "My Episode.mp3");
+        Assert.NotNull(episode);
+        Assert.Equal("My Episode", episode.Title);
     }
 
     [Fact]
