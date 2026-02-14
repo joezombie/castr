@@ -46,6 +46,23 @@ else
                         Class="mt-3" Min="0" Max="4"
                         HelperText="0 = root only, 1-4 = levels of subfolders to scan" />
 
+                    @if (!_isNew)
+                    {
+                        <MudButton Variant="Variant.Outlined" Size="Size.Small" Class="mt-3"
+                            OnClick="ForceResync" Disabled="_syncing"
+                            StartIcon="@Icons.Material.Filled.Sync">
+                            @if (_syncing)
+                            {
+                                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                                <span>Syncing...</span>
+                            }
+                            else
+                            {
+                                <span>Force Resync</span>
+                            }
+                        </MudButton>
+                    }
+
                     <MudTextField @bind-Value="_feed.Author" Label="Author" Class="mt-3" />
 
                     <MudTextField @bind-Value="_feed.ImageUrl" Label="Image URL" Class="mt-3"
@@ -162,6 +179,7 @@ else
     private bool _formValid;
     private bool _loading = true;
     private bool _saving;
+    private bool _syncing;
     private bool _fetchingMetadata;
     private bool _isNew => string.IsNullOrEmpty(Name);
 
@@ -320,6 +338,26 @@ else
         finally
         {
             _fetchingMetadata = false;
+        }
+    }
+
+    private async Task ForceResync()
+    {
+        _syncing = true;
+        StateHasChanged();
+        try
+        {
+            await DataService.SyncDirectoryAsync(_feed.Id, _feed.Directory, _feed.FileExtensions, _feed.DirectorySearchDepth);
+            Snackbar.Add("Directory resync completed", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to resync directory for feed {FeedName}", _feed.Name);
+            Snackbar.Add("Directory resync failed", Severity.Error);
+        }
+        finally
+        {
+            _syncing = false;
         }
     }
 
