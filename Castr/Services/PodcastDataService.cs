@@ -153,20 +153,37 @@ public partial class PodcastDataService : IPodcastDataService
             .Where(e => e.Title == null || e.DurationSeconds == null || e.FileSize == null)
             .ToList();
 
+        var backfilledCount = 0;
         foreach (var episode in episodesToBackfill)
         {
             var filePath = Path.Combine(directory, episode.Filename);
             if (!System.IO.File.Exists(filePath))
+            {
+                _logger.LogWarning("Cannot backfill metadata for episode {Filename} in feed {FeedId}: file not found on disk",
+                    episode.Filename, feedId);
                 continue;
+            }
+
+            var prevTitle = episode.Title;
+            var prevDuration = episode.DurationSeconds;
+            var prevSize = episode.FileSize;
 
             ReadFileMetadata(filePath, episode);
-            await _episodeRepository.UpdateAsync(episode);
+
+            // Default DurationSeconds to 0 if TagLib couldn't extract it, so we don't retry every cycle
+            episode.DurationSeconds ??= 0;
+
+            if (episode.Title != prevTitle || episode.DurationSeconds != prevDuration || episode.FileSize != prevSize)
+            {
+                await _episodeRepository.UpdateAsync(episode);
+                backfilledCount++;
+            }
         }
 
-        if (episodesToBackfill.Count > 0)
+        if (backfilledCount > 0)
         {
             _logger.LogInformation("Backfilled metadata for {Count} existing episodes for feed {FeedId}",
-                episodesToBackfill.Count, feedId);
+                backfilledCount, feedId);
         }
     }
 
@@ -394,17 +411,26 @@ public partial class PodcastDataService : IPodcastDataService
                 if (tagFile.Properties.Duration.TotalSeconds > 0)
                     episode.DurationSeconds ??= tagFile.Properties.Duration.TotalSeconds;
             }
-            catch (Exception tagEx)
+            catch (TagLib.CorruptFileException tagEx)
             {
-                _logger.LogDebug(tagEx, "Could not read ID3 tags from {Filename}, using file info only", episode.Filename);
+                _logger.LogWarning(tagEx, "Corrupt or unreadable audio file {Filename}, using file info only", episode.Filename);
+            }
+            catch (TagLib.UnsupportedFormatException tagEx)
+            {
+                _logger.LogWarning(tagEx, "Unsupported audio format for {Filename}, using file info only", episode.Filename);
             }
 
             // Fallback title to filename without extension
             episode.Title ??= Path.GetFileNameWithoutExtension(episode.Filename);
         }
-        catch (Exception ex)
+        catch (IOException ex)
         {
-            _logger.LogWarning(ex, "Could not read file metadata for {Filename}", episode.Filename);
+            _logger.LogWarning(ex, "I/O error reading file metadata for {Filename}", episode.Filename);
+            episode.Title ??= Path.GetFileNameWithoutExtension(episode.Filename);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogWarning(ex, "Permission denied reading file metadata for {Filename}", episode.Filename);
             episode.Title ??= Path.GetFileNameWithoutExtension(episode.Filename);
         }
     }

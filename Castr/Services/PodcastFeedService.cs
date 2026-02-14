@@ -171,26 +171,36 @@ public class PodcastFeedService
         var episodes = new List<EpisodeInfo>();
         foreach (var ep in dbEpisodes)
         {
-            var filePath = Path.Combine(feed.Directory, ep.Filename);
-            if (!System.IO.File.Exists(filePath))
+            try
             {
-                _logger.LogDebug("Skipping episode {Filename}: file not found on disk", ep.Filename);
-                continue;
-            }
+                var filePath = Path.Combine(feed.Directory, ep.Filename);
+                if (!System.IO.File.Exists(filePath))
+                {
+                    _logger.LogWarning("Skipping episode {Filename} for feed {FeedId}: file not found on disk",
+                        ep.Filename, feed.Id);
+                    continue;
+                }
 
-            var fileInfo = new FileInfo(filePath);
-            episodes.Add(new EpisodeInfo
+                var needsFallback = ep.FileSize == null || ep.PublishDate == null;
+                var fileInfo = needsFallback ? new FileInfo(filePath) : null;
+
+                episodes.Add(new EpisodeInfo
+                {
+                    FileName = ep.Filename,
+                    Title = ep.Title ?? Path.GetFileNameWithoutExtension(ep.Filename),
+                    Description = ep.Description,
+                    VideoId = ep.VideoId,
+                    ThumbnailUrl = ep.ThumbnailUrl,
+                    FileSize = ep.FileSize ?? fileInfo!.Length,
+                    PublishDate = ep.PublishDate ?? fileInfo!.LastWriteTimeUtc,
+                    Duration = ep.Duration,
+                    DisplayOrder = ep.DisplayOrder
+                });
+            }
+            catch (Exception ex)
             {
-                FileName = ep.Filename,
-                Title = ep.Title ?? Path.GetFileNameWithoutExtension(ep.Filename),
-                Description = ep.Description,
-                VideoId = ep.VideoId,
-                ThumbnailUrl = ep.ThumbnailUrl,
-                FileSize = ep.FileSize ?? fileInfo.Length,
-                PublishDate = ep.PublishDate ?? fileInfo.LastWriteTimeUtc,
-                Duration = ep.Duration,
-                DisplayOrder = ep.DisplayOrder
-            });
+                _logger.LogError(ex, "Error processing episode {Filename} for feed generation, skipping", ep.Filename);
+            }
         }
 
         return episodes.OrderBy(e => e.DisplayOrder).ToList();
