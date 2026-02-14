@@ -343,17 +343,34 @@ else
 
     private async Task ForceResync()
     {
+        if (_syncing) return;
+
+        if (string.IsNullOrWhiteSpace(_feed.Directory))
+        {
+            Snackbar.Add("Cannot resync: no directory configured", Severity.Warning);
+            return;
+        }
+
         _syncing = true;
         StateHasChanged();
         try
         {
-            await DataService.SyncDirectoryAsync(_feed.Id, _feed.Directory, _feed.FileExtensions, _feed.DirectorySearchDepth);
-            Snackbar.Add("Directory resync completed", Severity.Success);
+            if (!System.IO.Directory.Exists(_feed.Directory))
+            {
+                Snackbar.Add($"Directory not found: {_feed.Directory}", Severity.Error);
+                return;
+            }
+
+            var newCount = await DataService.SyncDirectoryAsync(_feed.Id, _feed.Directory, _feed.FileExtensions, _feed.DirectorySearchDepth);
+            if (newCount > 0)
+                Snackbar.Add($"Directory resync completed: {newCount} new file(s) found", Severity.Success);
+            else
+                Snackbar.Add("Directory resync completed: no new files found", Severity.Info);
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to resync directory for feed {FeedName}", _feed.Name);
-            Snackbar.Add("Directory resync failed", Severity.Error);
+            Snackbar.Add($"Directory resync failed: {ex.Message}", Severity.Error);
         }
         finally
         {

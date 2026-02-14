@@ -329,10 +329,11 @@ public class PodcastDataServiceTests : IDisposable
         // Arrange
         var feedId = await _feedRepo.AddAsync(new Feed { Name = "syncne", Title = "T", Description = "D", Directory = "/nonexistent" });
 
-        // Act - should not throw
-        await _service.SyncDirectoryAsync(feedId, "/nonexistent", new[] { ".mp3" });
+        // Act - should not throw, should return 0
+        var result = await _service.SyncDirectoryAsync(feedId, "/nonexistent", new[] { ".mp3" });
 
         // Assert
+        Assert.Equal(0, result);
         var episodes = await _episodeRepo.GetByFeedIdAsync(feedId);
         Assert.Empty(episodes);
     }
