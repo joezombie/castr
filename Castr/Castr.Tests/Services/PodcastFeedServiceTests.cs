@@ -204,6 +204,51 @@ public class PodcastFeedServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task GetMediaFilePathAsync_WithRelativePath_ResolvesWithinDirectory()
+    {
+        // Arrange
+        var service = CreateService();
+        var subDir = Path.Combine(_testDirectory, "season1");
+        Directory.CreateDirectory(subDir);
+        var testFile = "episode.mp3";
+        File.WriteAllBytes(Path.Combine(subDir, testFile), new byte[] { 0xFF, 0xFB, 0x90 });
+
+        // Act
+        var result = await service.GetMediaFilePathAsync("feed1", "season1/episode.mp3");
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Contains("season1", result);
+        Assert.Contains("episode.mp3", result);
+    }
+
+    [Fact]
+    public async Task GenerateFeedAsync_WithSubfolderEpisode_EncodesPathSegmentsIndividually()
+    {
+        // Arrange
+        var subDir = Path.Combine(_testDirectory, "season 1");
+        Directory.CreateDirectory(subDir);
+        var testFile = "my episode.mp3";
+        File.WriteAllBytes(Path.Combine(subDir, testFile), new byte[] { 0xFF, 0xFB, 0x90, 0x00 });
+
+        _mockDataService.Setup(x => x.GetEpisodesAsync(1))
+            .ReturnsAsync(new List<Episode>
+            {
+                new Episode { Id = 1, FeedId = 1, Filename = "season 1/my episode.mp3", Title = "My Episode", DisplayOrder = 1, FileSize = 4, DurationSeconds = 60 }
+            });
+
+        var service = CreateService();
+
+        // Act
+        var result = await service.GenerateFeedAsync("feed1", "https://example.com");
+
+        // Assert
+        Assert.NotNull(result);
+        // Each segment should be encoded individually: "season%201/my%20episode.mp3" not "season%201%2Fmy%20episode.mp3"
+        Assert.Contains("season%201/my%20episode.mp3", result);
+    }
+
+    [Fact]
     public async Task GenerateFeedAsync_WithEpisodes_IncludesItems()
     {
         // Arrange

@@ -26,8 +26,8 @@ public interface IPodcastDataService
     Task AddEpisodesAsync(IEnumerable<Episode> episodes);
     Task UpdateEpisodeAsync(Episode episode);
     Task DeleteEpisodeAsync(int id);
-    Task SyncDirectoryAsync(int feedId, string directory, string[] extensions);
-    Task SyncPlaylistInfoAsync(int feedId, IEnumerable<PlaylistVideoInfo> videos, string directory);
+    Task SyncDirectoryAsync(int feedId, string directory, string[] extensions, int searchDepth = 0);
+    Task SyncPlaylistInfoAsync(int feedId, IEnumerable<PlaylistVideoInfo> videos, string directory, int searchDepth = 0);
 
     // Download tracking
     Task<bool> IsVideoDownloadedAsync(int feedId, string videoId);

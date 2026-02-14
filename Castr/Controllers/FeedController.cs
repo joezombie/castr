@@ -68,36 +68,36 @@ public class FeedController : ControllerBase
     /// <summary>
     /// Serve media files for a podcast episode
     /// </summary>
-    [HttpGet("{feedName}/media/{fileName}")]
-    public async Task<IActionResult> GetMedia(string feedName, string fileName)
+    [HttpGet("{feedName}/media/{**filePath}")]
+    public async Task<IActionResult> GetMedia(string feedName, string filePath)
     {
         // Input validation
         if (string.IsNullOrWhiteSpace(feedName) || feedName.Length > 100)
             return BadRequest("Feed name cannot be empty or exceed 100 characters");
 
-        if (string.IsNullOrWhiteSpace(fileName) || fileName.Length > 255)
-            return BadRequest("File name cannot be empty or exceed 255 characters");
+        if (string.IsNullOrWhiteSpace(filePath) || filePath.Length > 500)
+            return BadRequest("File path cannot be empty or exceed 500 characters");
 
-        if (fileName.Contains("..") || fileName.Contains("/") || fileName.Contains("\\"))
-            return BadRequest("File name contains invalid characters or path traversal patterns");
+        if (filePath.Contains("..") || filePath.Contains("\\"))
+            return BadRequest("File path contains invalid characters or path traversal patterns");
 
-        _logger.LogDebug("Serving media file {FileName} for feed {FeedName}", fileName, feedName);
+        _logger.LogDebug("Serving media file {FilePath} for feed {FeedName}", filePath, feedName);
 
-        var filePath = await _feedService.GetMediaFilePathAsync(feedName, fileName);
+        var resolvedPath = await _feedService.GetMediaFilePathAsync(feedName, filePath);
 
-        if (filePath == null)
+        if (resolvedPath == null)
         {
-            _logger.LogWarning("Media file {FileName} not found for feed {FeedName}", fileName, feedName);
+            _logger.LogWarning("Media file {FilePath} not found for feed {FeedName}", filePath, feedName);
             return NotFound(new { error = "Media file not found" });
         }
 
-        var fileInfo = new FileInfo(filePath);
-        var mimeType = GetMimeType(fileName);
+        var fileInfo = new FileInfo(resolvedPath);
+        var mimeType = GetMimeType(filePath);
 
-        _logger.LogInformation("Streaming media file {FileName} ({Size} bytes, {MimeType})",
-            fileName, fileInfo.Length, mimeType);
+        _logger.LogInformation("Streaming media file {FilePath} ({Size} bytes, {MimeType})",
+            filePath, fileInfo.Length, mimeType);
 
-        return PhysicalFile(filePath, mimeType, enableRangeProcessing: true);
+        return PhysicalFile(resolvedPath, mimeType, enableRangeProcessing: true);
     }
 
     private string GetBaseUrl()

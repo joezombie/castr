@@ -149,7 +149,7 @@ public class PlaylistWatcherService : BackgroundService
         {
             try
             {
-                await dataService.SyncDirectoryAsync(feed.Id, feed.Directory, feed.FileExtensions);
+                await dataService.SyncDirectoryAsync(feed.Id, feed.Directory, feed.FileExtensions, feed.DirectorySearchDepth);
             }
             catch (Exception ex)
             {
@@ -302,7 +302,7 @@ public class PlaylistWatcherService : BackgroundService
 
         // Step 3: Sync playlist info with database using fuzzy matching
         _logger.LogInformation("Syncing {Count} playlist videos to database with fuzzy matching", playlistInfos.Count);
-        await dataService.SyncPlaylistInfoAsync(feedId, playlistInfos, feed.Directory);
+        await dataService.SyncPlaylistInfoAsync(feedId, playlistInfos, feed.Directory, feed.DirectorySearchDepth);
 
         // Step 4: Check for new videos to download
         _logger.LogDebug("Re-checking downloaded video list after sync");
@@ -318,7 +318,7 @@ public class PlaylistWatcherService : BackgroundService
         {
             _logger.LogInformation("No new videos to download for feed {FeedName}", feed.Name);
             _logger.LogDebug("Syncing directory to catch any manually added files");
-            await dataService.SyncDirectoryAsync(feedId, feed.Directory, feed.FileExtensions);
+            await dataService.SyncDirectoryAsync(feedId, feed.Directory, feed.FileExtensions, feed.DirectorySearchDepth);
             return;
         }
 
@@ -450,7 +450,7 @@ public class PlaylistWatcherService : BackgroundService
 
         // Step 6: Sync any files in directory that aren't in the database
         _logger.LogDebug("Performing final directory sync to catch any manually added files");
-        await dataService.SyncDirectoryAsync(feedId, feed.Directory, feed.FileExtensions);
+        await dataService.SyncDirectoryAsync(feedId, feed.Directory, feed.FileExtensions, feed.DirectorySearchDepth);
 
         _logger.LogInformation(
             "Completed processing {FeedName}: {ProcessedCount} videos processed, {NewCount} new episodes added",

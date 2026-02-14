@@ -88,7 +88,7 @@ public partial class PodcastDataService : IPodcastDataService
     /// Scans a directory for files with matching extensions and adds any new files to the database.
     /// New files are added with DisplayOrder values below the current minimum (prepended to existing order).
     /// </summary>
-    public async Task SyncDirectoryAsync(int feedId, string directory, string[] extensions)
+    public async Task SyncDirectoryAsync(int feedId, string directory, string[] extensions, int searchDepth = 0)
     {
         if (!Directory.Exists(directory))
         {
@@ -96,12 +96,10 @@ public partial class PodcastDataService : IPodcastDataService
             return;
         }
 
-        // Get all files in directory with matching extensions
+        // Get all files in directory (and subdirectories up to searchDepth) with matching extensions
         var filesInDirectory = extensions
-            .SelectMany(ext => Directory.GetFiles(directory, $"*{ext}"))
-            .Select(Path.GetFileName)
-            .Where(f => f != null)
-            .Cast<string>()
+            .SelectMany(ext => EnumerateFilesWithDepth(directory, $"*{ext}", searchDepth))
+            .Select(fullPath => Path.GetRelativePath(directory, fullPath))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         // Get existing episodes to determine which files are new
@@ -192,7 +190,7 @@ public partial class PodcastDataService : IPodcastDataService
     /// Updates episodes with VideoId, YoutubeTitle, Description, ThumbnailUrl, and PublishDate.
     /// Also marks matched videos as downloaded in the DownloadedVideo table to prevent re-downloading.
     /// </summary>
-    public async Task SyncPlaylistInfoAsync(int feedId, IEnumerable<PlaylistVideoInfo> videos, string directory)
+    public async Task SyncPlaylistInfoAsync(int feedId, IEnumerable<PlaylistVideoInfo> videos, string directory, int searchDepth = 0)
     {
         var videoList = videos.ToList();
         if (videoList.Count == 0)
@@ -204,13 +202,11 @@ public partial class PodcastDataService : IPodcastDataService
         _logger.LogInformation("Syncing {Count} playlist videos to local files in {Directory}",
             videoList.Count, directory);
 
-        // Get all MP3 files in directory for fuzzy matching
+        // Get all MP3 files in directory (and subdirectories up to searchDepth) for fuzzy matching
         // Note: only matches .mp3 files; other extensions configured on the feed are not considered here
         var filesInDirectory = Directory.Exists(directory)
-            ? Directory.GetFiles(directory, "*.mp3")
-                .Select(Path.GetFileName)
-                .Where(f => f != null)
-                .Cast<string>()
+            ? EnumerateFilesWithDepth(directory, "*.mp3", searchDepth)
+                .Select(fullPath => Path.GetRelativePath(directory, fullPath))
                 .ToList()
             : new List<string>();
 
@@ -388,6 +384,42 @@ public partial class PodcastDataService : IPodcastDataService
 
     public Task ClearActivityLogAsync()
         => _activityRepository.ClearAsync();
+
+    #endregion
+
+    #region File Enumeration
+
+    private static IEnumerable<string> EnumerateFilesWithDepth(
+        string directory, string pattern, int maxDepth)
+    {
+        maxDepth = Math.Clamp(maxDepth, 0, 4);
+        var rootPath = Path.GetFullPath(directory);
+        return EnumerateFilesWithDepthInternal(directory, pattern, maxDepth, rootPath);
+    }
+
+    private static IEnumerable<string> EnumerateFilesWithDepthInternal(
+        string directory, string pattern, int maxDepth, string rootPath)
+    {
+        foreach (var file in Directory.EnumerateFiles(directory, pattern))
+        {
+            var resolvedFile = Path.GetFullPath(file);
+            if (resolvedFile.StartsWith(rootPath, StringComparison.OrdinalIgnoreCase))
+                yield return file;
+        }
+
+        if (maxDepth > 0)
+        {
+            foreach (var subDir in Directory.EnumerateDirectories(directory))
+            {
+                var resolvedDir = Path.GetFullPath(subDir);
+                if (!resolvedDir.StartsWith(rootPath, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                foreach (var file in EnumerateFilesWithDepthInternal(subDir, pattern, maxDepth - 1, rootPath))
+                    yield return file;
+            }
+        }
+    }
 
     #endregion
 
