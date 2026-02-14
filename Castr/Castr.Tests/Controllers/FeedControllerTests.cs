@@ -180,13 +180,31 @@ public class FeedControllerTests : IDisposable
     }
 
     [Fact]
-    public async Task GetMedia_WithForwardSlash_ReturnsBadRequest()
+    public async Task GetMedia_WithSubfolderPath_ServesFile()
     {
-        // Arrange
-        var maliciousFileName = "path/to/file.mp3";
+        // Arrange - create a test file in a subdirectory
+        var subDir = Path.Combine(_testDirectory, "season1");
+        Directory.CreateDirectory(subDir);
+        var testFileName = "episode.mp3";
+        File.WriteAllBytes(Path.Combine(subDir, testFileName), new byte[] { 0xFF, 0xFB, 0x90, 0x00 });
 
         // Act
-        var result = await _controller.GetMedia("testfeed", maliciousFileName);
+        var result = await _controller.GetMedia("testfeed", "season1/episode.mp3");
+
+        // Assert
+        var fileResult = Assert.IsType<PhysicalFileResult>(result);
+        Assert.Equal("audio/mpeg", fileResult.ContentType);
+        Assert.True(fileResult.EnableRangeProcessing);
+    }
+
+    [Fact]
+    public async Task GetMedia_WithDoubleDotInSubfolderPath_ReturnsBadRequest()
+    {
+        // Arrange
+        var maliciousPath = "season1/../../../etc/passwd";
+
+        // Act
+        var result = await _controller.GetMedia("testfeed", maliciousPath);
 
         // Assert
         Assert.IsType<BadRequestObjectResult>(result);
@@ -233,10 +251,10 @@ public class FeedControllerTests : IDisposable
     }
 
     [Fact]
-    public async Task GetMedia_WithTooLongFileName_ReturnsBadRequest()
+    public async Task GetMedia_WithTooLongFilePath_ReturnsBadRequest()
     {
         // Arrange
-        var longName = new string('a', 256);
+        var longName = new string('a', 501);
 
         // Act
         var result = await _controller.GetMedia("testfeed", longName);

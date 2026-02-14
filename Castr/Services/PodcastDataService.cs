@@ -88,7 +88,7 @@ public partial class PodcastDataService : IPodcastDataService
     /// Scans a directory for files with matching extensions and adds any new files to the database.
     /// New files are added with DisplayOrder values below the current minimum (prepended to existing order).
     /// </summary>
-    public async Task SyncDirectoryAsync(int feedId, string directory, string[] extensions)
+    public async Task SyncDirectoryAsync(int feedId, string directory, string[] extensions, int searchDepth = 0)
     {
         if (!Directory.Exists(directory))
         {
@@ -96,12 +96,10 @@ public partial class PodcastDataService : IPodcastDataService
             return;
         }
 
-        // Get all files in directory with matching extensions
+        // Get all files in directory (and subdirectories up to searchDepth) with matching extensions
         var filesInDirectory = extensions
-            .SelectMany(ext => Directory.GetFiles(directory, $"*{ext}"))
-            .Select(Path.GetFileName)
-            .Where(f => f != null)
-            .Cast<string>()
+            .SelectMany(ext => EnumerateFilesWithDepth(directory, $"*{ext}", searchDepth))
+            .Select(fullPath => Path.GetRelativePath(directory, fullPath))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         // Get existing episodes to determine which files are new
@@ -192,7 +190,7 @@ public partial class PodcastDataService : IPodcastDataService
     /// Updates episodes with VideoId, YoutubeTitle, Description, ThumbnailUrl, and PublishDate.
     /// Also marks matched videos as downloaded in the DownloadedVideo table to prevent re-downloading.
     /// </summary>
-    public async Task SyncPlaylistInfoAsync(int feedId, IEnumerable<PlaylistVideoInfo> videos, string directory)
+    public async Task SyncPlaylistInfoAsync(int feedId, IEnumerable<PlaylistVideoInfo> videos, string directory, int searchDepth = 0)
     {
         var videoList = videos.ToList();
         if (videoList.Count == 0)
@@ -204,13 +202,11 @@ public partial class PodcastDataService : IPodcastDataService
         _logger.LogInformation("Syncing {Count} playlist videos to local files in {Directory}",
             videoList.Count, directory);
 
-        // Get all MP3 files in directory for fuzzy matching
+        // Get all MP3 files in directory (and subdirectories up to searchDepth) for fuzzy matching
         // Note: only matches .mp3 files; other extensions configured on the feed are not considered here
         var filesInDirectory = Directory.Exists(directory)
-            ? Directory.GetFiles(directory, "*.mp3")
-                .Select(Path.GetFileName)
-                .Where(f => f != null)
-                .Cast<string>()
+            ? EnumerateFilesWithDepth(directory, "*.mp3", searchDepth)
+                .Select(fullPath => Path.GetRelativePath(directory, fullPath))
                 .ToList()
             : new List<string>();
 
@@ -388,6 +384,26 @@ public partial class PodcastDataService : IPodcastDataService
 
     public Task ClearActivityLogAsync()
         => _activityRepository.ClearAsync();
+
+    #endregion
+
+    #region File Enumeration
+
+    private static IEnumerable<string> EnumerateFilesWithDepth(
+        string directory, string pattern, int maxDepth)
+    {
+        foreach (var file in Directory.EnumerateFiles(directory, pattern))
+            yield return file;
+
+        if (maxDepth > 0)
+        {
+            foreach (var subDir in Directory.EnumerateDirectories(directory))
+            {
+                foreach (var file in EnumerateFilesWithDepth(subDir, pattern, maxDepth - 1))
+                    yield return file;
+            }
+        }
+    }
 
     #endregion
 

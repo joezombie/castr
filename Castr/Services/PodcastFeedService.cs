@@ -121,7 +121,8 @@ public class PodcastFeedService
 
         foreach (var episode in episodes)
         {
-            var enclosureUrl = $"{baseUrl.TrimEnd('/')}/feed/{feedName}/media/{Uri.EscapeDataString(episode.FileName)}";
+            var encodedPath = string.Join("/", episode.FileName.Split('/').Select(Uri.EscapeDataString));
+            var enclosureUrl = $"{baseUrl.TrimEnd('/')}/feed/{feedName}/media/{encodedPath}";
 
             // Build description with YouTube link if available
             var description = episode.Description ?? episode.Title;

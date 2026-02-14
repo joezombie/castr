@@ -32,6 +32,10 @@ public class FeedConfiguration : IEntityTypeConfiguration<Feed>
             .HasDefaultValueSql("'.mp3'")
             .HasConversion(fileExtensionsConverter);
 
+        builder.Property(f => f.DirectorySearchDepth)
+            .HasColumnName("directory_search_depth")
+            .HasDefaultValue(0);
+
         builder.Property(f => f.CacheDurationMinutes)
             .HasColumnName("cache_duration_minutes")
             .HasDefaultValue(5);

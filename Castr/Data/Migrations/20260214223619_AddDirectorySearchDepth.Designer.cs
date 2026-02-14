@@ -3,6 +3,7 @@ using System;
 using Castr.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Castr.Data.Migrations
 {
     [DbContext(typeof(CastrDbContext))]
-    partial class CastrDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260214223619_AddDirectorySearchDepth")]
+    partial class AddDirectorySearchDepth
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "9.0.0");

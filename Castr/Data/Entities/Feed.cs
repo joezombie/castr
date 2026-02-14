@@ -35,6 +35,8 @@ public class Feed
 
     public string[] FileExtensions { get; set; } = [".mp3"];
 
+    public int DirectorySearchDepth { get; set; } = 0;
+
     public int CacheDurationMinutes { get; set; } = 5;
 
     [MaxLength(500)]

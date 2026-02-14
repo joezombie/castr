@@ -42,6 +42,10 @@ else
                     <MudTextField @bind-Value="_feed.Directory" Label="Directory" Required="true" Class="mt-3"
                         HelperText="Path to media files (e.g., '/Podcasts/MyPodcast')" />
 
+                    <MudNumericField @bind-Value="_feed.DirectorySearchDepth" Label="Subfolder Search Depth"
+                        Class="mt-3" Min="0" Max="4"
+                        HelperText="0 = root only, 1-4 = levels of subfolders to scan" />
+
                     <MudTextField @bind-Value="_feed.Author" Label="Author" Class="mt-3" />
 
                     <MudTextField @bind-Value="_feed.ImageUrl" Label="Image URL" Class="mt-3"
@@ -225,7 +229,7 @@ else
                 // Sync existing files in directory to database
                 try
                 {
-                    await DataService.SyncDirectoryAsync(feedId, _feed.Directory, _feed.FileExtensions);
+                    await DataService.SyncDirectoryAsync(feedId, _feed.Directory, _feed.FileExtensions, _feed.DirectorySearchDepth);
                 }
                 catch (Exception ex)
                 {

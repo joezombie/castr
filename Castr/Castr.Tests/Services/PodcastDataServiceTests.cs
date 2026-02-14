@@ -452,6 +452,93 @@ public class PodcastDataServiceTests : IDisposable
         Assert.Equal("YouTube Title", episode.Title);
     }
 
+    [Fact]
+    public async Task SyncDirectoryAsync_DiscoverFilesInSubdirectories_WhenDepthGreaterThanZero()
+    {
+        // Arrange
+        var feedId = await _feedRepo.AddAsync(new Feed { Name = "syncsub", Title = "T", Description = "D", Directory = _testDirectory });
+
+        var subDir = Path.Combine(_testDirectory, "season1");
+        Directory.CreateDirectory(subDir);
+        File.WriteAllText(Path.Combine(_testDirectory, "root.mp3"), "test");
+        File.WriteAllText(Path.Combine(subDir, "nested.mp3"), "test");
+
+        // Act
+        await _service.SyncDirectoryAsync(feedId, _testDirectory, new[] { ".mp3" }, searchDepth: 1);
+
+        // Assert
+        var episodes = await _episodeRepo.GetByFeedIdAsync(feedId);
+        Assert.Equal(2, episodes.Count);
+        Assert.Contains(episodes, e => e.Filename == "root.mp3");
+        Assert.Contains(episodes, e => e.Filename == Path.Combine("season1", "nested.mp3"));
+    }
+
+    [Fact]
+    public async Task SyncDirectoryAsync_IgnoresSubdirectories_WhenDepthIsZero()
+    {
+        // Arrange
+        var feedId = await _feedRepo.AddAsync(new Feed { Name = "syncnosub", Title = "T", Description = "D", Directory = _testDirectory });
+
+        var subDir = Path.Combine(_testDirectory, "season1");
+        Directory.CreateDirectory(subDir);
+        File.WriteAllText(Path.Combine(_testDirectory, "root.mp3"), "test");
+        File.WriteAllText(Path.Combine(subDir, "nested.mp3"), "test");
+
+        // Act
+        await _service.SyncDirectoryAsync(feedId, _testDirectory, new[] { ".mp3" }, searchDepth: 0);
+
+        // Assert
+        var episodes = await _episodeRepo.GetByFeedIdAsync(feedId);
+        Assert.Single(episodes);
+        Assert.Equal("root.mp3", episodes[0].Filename);
+    }
+
+    [Fact]
+    public async Task SyncDirectoryAsync_RespectsDepthLimit()
+    {
+        // Arrange
+        var feedId = await _feedRepo.AddAsync(new Feed { Name = "syncdepth", Title = "T", Description = "D", Directory = _testDirectory });
+
+        var level1 = Path.Combine(_testDirectory, "level1");
+        var level2 = Path.Combine(level1, "level2");
+        var level3 = Path.Combine(level2, "level3");
+        Directory.CreateDirectory(level3);
+        File.WriteAllText(Path.Combine(_testDirectory, "root.mp3"), "test");
+        File.WriteAllText(Path.Combine(level1, "l1.mp3"), "test");
+        File.WriteAllText(Path.Combine(level2, "l2.mp3"), "test");
+        File.WriteAllText(Path.Combine(level3, "l3.mp3"), "test");
+
+        // Act - depth 2 should find root, level1, level2 but NOT level3
+        await _service.SyncDirectoryAsync(feedId, _testDirectory, new[] { ".mp3" }, searchDepth: 2);
+
+        // Assert
+        var episodes = await _episodeRepo.GetByFeedIdAsync(feedId);
+        Assert.Equal(3, episodes.Count);
+        Assert.Contains(episodes, e => e.Filename == "root.mp3");
+        Assert.Contains(episodes, e => e.Filename == Path.Combine("level1", "l1.mp3"));
+        Assert.Contains(episodes, e => e.Filename == Path.Combine("level1", "level2", "l2.mp3"));
+        Assert.DoesNotContain(episodes, e => e.Filename.Contains("l3.mp3"));
+    }
+
+    [Fact]
+    public async Task SyncDirectoryAsync_StoresRelativePathsInFilename()
+    {
+        // Arrange
+        var feedId = await _feedRepo.AddAsync(new Feed { Name = "syncrel", Title = "T", Description = "D", Directory = _testDirectory });
+
+        var subDir = Path.Combine(_testDirectory, "subdir");
+        Directory.CreateDirectory(subDir);
+        File.WriteAllText(Path.Combine(subDir, "episode.mp3"), "test");
+
+        // Act
+        await _service.SyncDirectoryAsync(feedId, _testDirectory, new[] { ".mp3" }, searchDepth: 1);
+
+        // Assert
+        var episodes = await _episodeRepo.GetByFeedIdAsync(feedId);
+        Assert.Single(episodes);
+        Assert.Equal(Path.Combine("subdir", "episode.mp3"), episodes[0].Filename);
+    }
+
     #endregion
 
     #region SyncPlaylistInfoAsync
