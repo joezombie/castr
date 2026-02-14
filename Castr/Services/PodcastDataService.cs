@@ -392,14 +392,30 @@ public partial class PodcastDataService : IPodcastDataService
     private static IEnumerable<string> EnumerateFilesWithDepth(
         string directory, string pattern, int maxDepth)
     {
+        maxDepth = Math.Clamp(maxDepth, 0, 4);
+        var rootPath = Path.GetFullPath(directory);
+        return EnumerateFilesWithDepthInternal(directory, pattern, maxDepth, rootPath);
+    }
+
+    private static IEnumerable<string> EnumerateFilesWithDepthInternal(
+        string directory, string pattern, int maxDepth, string rootPath)
+    {
         foreach (var file in Directory.EnumerateFiles(directory, pattern))
-            yield return file;
+        {
+            var resolvedFile = Path.GetFullPath(file);
+            if (resolvedFile.StartsWith(rootPath, StringComparison.OrdinalIgnoreCase))
+                yield return file;
+        }
 
         if (maxDepth > 0)
         {
             foreach (var subDir in Directory.EnumerateDirectories(directory))
             {
-                foreach (var file in EnumerateFilesWithDepth(subDir, pattern, maxDepth - 1))
+                var resolvedDir = Path.GetFullPath(subDir);
+                if (!resolvedDir.StartsWith(rootPath, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                foreach (var file in EnumerateFilesWithDepthInternal(subDir, pattern, maxDepth - 1, rootPath))
                     yield return file;
             }
         }
