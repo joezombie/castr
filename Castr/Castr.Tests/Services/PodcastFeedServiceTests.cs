@@ -210,6 +210,12 @@ public class PodcastFeedServiceTests : IDisposable
         var testFile = "episode1.mp3";
         File.WriteAllBytes(Path.Combine(_testDirectory, testFile), new byte[] { 0xFF, 0xFB, 0x90, 0x00 });
 
+        _mockDataService.Setup(x => x.GetEpisodesAsync(1))
+            .ReturnsAsync(new List<Episode>
+            {
+                new Episode { Id = 1, FeedId = 1, Filename = testFile, Title = "Episode 1", DisplayOrder = 1, FileSize = 4, DurationSeconds = 60 }
+            });
+
         var service = CreateService();
 
         // Act

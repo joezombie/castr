@@ -3,7 +3,6 @@ using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Extensions.Caching.Memory;
 using Castr.Data.Entities;
-using TagLib;
 
 namespace Castr.Services;
 
@@ -90,7 +89,7 @@ public class PodcastFeedService
     private async Task<string> GenerateFeedXmlAsync(string feedName, Feed feed, string baseUrl)
     {
         _logger.LogDebug("Generating RSS XML for feed {FeedName} with base URL {BaseUrl}", feedName, baseUrl);
-        var episodes = await GetEpisodesAsync(feedName, feed);
+        var episodes = await GetEpisodesAsync(feed);
         _logger.LogDebug("Found {Count} episodes for feed {FeedName}", episodes.Count, feedName);
 
         var channel = new XElement("channel",
@@ -165,140 +164,36 @@ public class PodcastFeedService
         return doc.ToString();
     }
 
-    private async Task<List<EpisodeInfo>> GetEpisodesAsync(string feedName, Feed feed)
+    private async Task<List<EpisodeInfo>> GetEpisodesAsync(Feed feed)
     {
-        _logger.LogDebug("Scanning directory for episodes: {Directory}", feed.Directory);
-        var episodes = new List<EpisodeInfo>();
-        var extensions = feed.FileExtensions;
-        _logger.LogDebug("Looking for file extensions: {Extensions}", string.Join(", ", extensions));
-
-        if (!System.IO.Directory.Exists(feed.Directory))
-        {
-            _logger.LogWarning("Directory not found: {Directory}", feed.Directory);
-            return episodes;
-        }
-
-        var files = System.IO.Directory.GetFiles(feed.Directory)
-            .Where(f => extensions.Any(ext => f.EndsWith(ext, StringComparison.OrdinalIgnoreCase)))
-            .ToList();
-
-        _logger.LogDebug("Found {Count} media files in directory", files.Count);
-
-        foreach (var filePath in files)
-        {
-            try
-            {
-                _logger.LogTrace("Processing file: {FilePath}", filePath);
-                var fileInfo = new FileInfo(filePath);
-                var episode = new EpisodeInfo
-                {
-                    FileName = fileInfo.Name,
-                    FilePath = filePath,
-                    FileSize = fileInfo.Length,
-                    PublishDate = fileInfo.LastWriteTimeUtc
-                };
-
-                // Try to read ID3 tags for additional metadata
-                try
-                {
-                    using var tagFile = TagLib.File.Create(filePath);
-                    episode.Title = !string.IsNullOrWhiteSpace(tagFile.Tag.Title)
-                        ? tagFile.Tag.Title
-                        : Path.GetFileNameWithoutExtension(fileInfo.Name);
-                    episode.Description = tagFile.Tag.Comment;
-                    episode.Duration = tagFile.Properties.Duration;
-                    _logger.LogTrace("Read ID3 tags from {FileName}: title='{Title}', duration={Duration}",
-                        fileInfo.Name, episode.Title, episode.Duration);
-                }
-                catch (Exception tagEx)
-                {
-                    _logger.LogDebug(tagEx, "Could not read ID3 tags from {FileName}, using filename", fileInfo.Name);
-                    episode.Title = Path.GetFileNameWithoutExtension(fileInfo.Name);
-                    episode.Duration = TimeSpan.Zero;
-                }
-
-                episodes.Add(episode);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error processing file: {FilePath}", filePath);
-            }
-        }
-
-        return await SortEpisodesAsync(feed, episodes);
-    }
-
-    private async Task<List<EpisodeInfo>> SortEpisodesAsync(Feed feed, List<EpisodeInfo> episodes)
-    {
-        // Get episode order from database
         var dbEpisodes = await _dataService.GetEpisodesAsync(feed.Id);
-        var episodeMap = dbEpisodes
-            .ToDictionary(e => e.Filename, e => e, StringComparer.OrdinalIgnoreCase);
 
-        if (episodeMap.Count == 0)
+        var episodes = new List<EpisodeInfo>();
+        foreach (var ep in dbEpisodes)
         {
-            // No database entries - sort by filename (alphabetical)
-            _logger.LogDebug("No episodes in database, using alphabetical order");
-            return episodes.OrderBy(e => e.FileName).ToList();
-        }
-
-        _logger.LogDebug("Loaded {Count} episodes from database", episodeMap.Count);
-
-        // Apply YouTube metadata from database where available
-        var youtubeMetadataApplied = 0;
-        foreach (var episode in episodes)
-        {
-            if (episodeMap.TryGetValue(episode.FileName, out var dbEpisode))
+            var filePath = Path.Combine(feed.Directory, ep.Filename);
+            if (!System.IO.File.Exists(filePath))
             {
-                var hasMetadata = false;
-                if (dbEpisode.PublishDate.HasValue)
-                {
-                    episode.PublishDate = dbEpisode.PublishDate.Value;
-                    hasMetadata = true;
-                }
-                if (!string.IsNullOrWhiteSpace(dbEpisode.Description))
-                {
-                    episode.Description = dbEpisode.Description;
-                    hasMetadata = true;
-                }
-                if (!string.IsNullOrWhiteSpace(dbEpisode.VideoId))
-                {
-                    episode.VideoId = dbEpisode.VideoId;
-                    hasMetadata = true;
-                }
-                if (!string.IsNullOrWhiteSpace(dbEpisode.ThumbnailUrl))
-                {
-                    episode.ThumbnailUrl = dbEpisode.ThumbnailUrl;
-                    hasMetadata = true;
-                }
-                if (hasMetadata)
-                {
-                    youtubeMetadataApplied++;
-                    _logger.LogTrace("Applied YouTube metadata to {FileName}", episode.FileName);
-                }
+                _logger.LogDebug("Skipping episode {Filename}: file not found on disk", ep.Filename);
+                continue;
             }
+
+            var fileInfo = new FileInfo(filePath);
+            episodes.Add(new EpisodeInfo
+            {
+                FileName = ep.Filename,
+                Title = ep.Title ?? Path.GetFileNameWithoutExtension(ep.Filename),
+                Description = ep.Description,
+                VideoId = ep.VideoId,
+                ThumbnailUrl = ep.ThumbnailUrl,
+                FileSize = ep.FileSize ?? fileInfo.Length,
+                PublishDate = ep.PublishDate ?? fileInfo.LastWriteTimeUtc,
+                Duration = ep.Duration,
+                DisplayOrder = ep.DisplayOrder
+            });
         }
-        if (youtubeMetadataApplied > 0)
-        {
-            _logger.LogDebug("Applied YouTube metadata to {Count} episodes", youtubeMetadataApplied);
-        }
 
-        // Split into mapped and unmapped episodes
-        var mapped = episodes.Where(e => episodeMap.ContainsKey(e.FileName)).ToList();
-        var unmapped = episodes.Where(e => !episodeMap.ContainsKey(e.FileName)).ToList();
-
-        _logger.LogDebug("Sorting episodes: {Mapped} mapped in database, {Unmapped} unmapped",
-            mapped.Count, unmapped.Count);
-
-        // Sort mapped by database order, unmapped by date (newest first)
-        var sortedMapped = mapped.OrderBy(e => episodeMap[e.FileName].DisplayOrder).ToList();
-        var sortedUnmapped = unmapped.OrderByDescending(e => e.PublishDate).ToList();
-
-        // Unmapped (new) files go to the top
-        sortedUnmapped.AddRange(sortedMapped);
-        _logger.LogDebug("Final episode order: {Total} episodes ({Unmapped} new, {Mapped} tracked)",
-            sortedUnmapped.Count, unmapped.Count, mapped.Count);
-        return sortedUnmapped;
+        return episodes.OrderBy(e => e.DisplayOrder).ToList();
     }
 
     public async Task<string?> GetMediaFilePathAsync(string feedName, string fileName)
@@ -356,7 +251,6 @@ public class PodcastFeedService
     private class EpisodeInfo
     {
         public required string FileName { get; set; }
-        public required string FilePath { get; set; }
         public string? Title { get; set; }
         public string? Description { get; set; }
         public string? VideoId { get; set; }
@@ -364,5 +258,6 @@ public class PodcastFeedService
         public long FileSize { get; set; }
         public DateTime PublishDate { get; set; }
         public TimeSpan Duration { get; set; }
+        public int DisplayOrder { get; set; }
     }
 }

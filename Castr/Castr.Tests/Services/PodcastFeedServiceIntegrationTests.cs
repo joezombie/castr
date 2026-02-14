@@ -128,8 +128,13 @@ public class PodcastFeedServiceIntegrationTests : IDisposable
     public async Task GenerateFeedAsync_WithDifferentBaseUrls_GeneratesDifferentResults()
     {
         // Arrange
-        // Create a test file so we have an episode with enclosure URL
         File.WriteAllBytes(Path.Combine(_testDirectory, "episode.mp3"), new byte[] { 0xFF, 0xFB });
+
+        _mockDataService.Setup(x => x.GetEpisodesAsync(1))
+            .ReturnsAsync(new List<Episode>
+            {
+                new Episode { Id = 1, FeedId = 1, Filename = "episode.mp3", Title = "Episode", DisplayOrder = 1, FileSize = 2, DurationSeconds = 60 }
+            });
 
         var service = CreateService();
 
@@ -157,10 +162,13 @@ public class PodcastFeedServiceIntegrationTests : IDisposable
                 Filename = "episode1.mp3",
                 VideoId = "vid1",
                 YoutubeTitle = "Episode Title from YouTube",
+                Title = "Episode Title from YouTube",
                 Description = "Description from YouTube",
                 ThumbnailUrl = "https://example.com/thumb.jpg",
                 DisplayOrder = 1,
-                PublishDate = new DateTime(2024, 6, 15)
+                PublishDate = new DateTime(2024, 6, 15),
+                FileSize = 3,
+                DurationSeconds = 120
             }
         };
 
@@ -201,10 +209,16 @@ public class PodcastFeedServiceIntegrationTests : IDisposable
     [Fact]
     public async Task GenerateFeedAsync_FiltersFileExtensions()
     {
-        // Arrange
+        // Arrange - only the mp3 file exists on disk and in DB
         File.WriteAllBytes(Path.Combine(_testDirectory, "audio.mp3"), new byte[] { 0xFF, 0xFB });
         File.WriteAllText(Path.Combine(_testDirectory, "readme.txt"), "not an audio file");
         File.WriteAllText(Path.Combine(_testDirectory, "image.jpg"), "not an audio file");
+
+        _mockDataService.Setup(x => x.GetEpisodesAsync(1))
+            .ReturnsAsync(new List<Episode>
+            {
+                new Episode { Id = 1, FeedId = 1, Filename = "audio.mp3", Title = "Audio", DisplayOrder = 1, FileSize = 2, DurationSeconds = 60 }
+            });
 
         var service = CreateService();
 
@@ -293,6 +307,13 @@ public class PodcastFeedServiceIntegrationTests : IDisposable
             CacheDurationMinutes = 5
         };
 
+        // Provide DB episode so the feed service finds it
+        _mockDataService.Setup(x => x.GetEpisodesAsync(1))
+            .ReturnsAsync(new List<Episode>
+            {
+                new Episode { Id = 1, FeedId = 1, Filename = fileName, Title = "Test", DisplayOrder = 1, FileSize = 2, DurationSeconds = 60 }
+            });
+
         var service = CreateService();
 
         // Act
@@ -307,14 +328,70 @@ public class PodcastFeedServiceIntegrationTests : IDisposable
     }
 
     [Fact]
+    public async Task GenerateFeedAsync_UsesDbMetadataForEpisodes()
+    {
+        // Arrange
+        File.WriteAllBytes(Path.Combine(_testDirectory, "ep.mp3"), new byte[] { 0xFF, 0xFB });
+
+        _mockDataService.Setup(x => x.GetEpisodesAsync(1))
+            .ReturnsAsync(new List<Episode>
+            {
+                new Episode
+                {
+                    Id = 1, FeedId = 1, Filename = "ep.mp3",
+                    Title = "DB Title",
+                    Description = "DB Description",
+                    DurationSeconds = 3661, // 1h 1m 1s
+                    FileSize = 12345,
+                    DisplayOrder = 1,
+                    PublishDate = new DateTime(2024, 3, 15)
+                }
+            });
+
+        var service = CreateService();
+
+        // Act
+        var result = await service.GenerateFeedAsync("testfeed", "https://example.com");
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Contains("<title>DB Title</title>", result);
+        Assert.Contains("DB Description", result);
+        Assert.Contains("length=\"12345\"", result);
+        Assert.Contains("1:01:01", result); // duration format
+    }
+
+    [Fact]
+    public async Task GenerateFeedAsync_FallsBackToFilenameForTitle()
+    {
+        // Arrange
+        File.WriteAllBytes(Path.Combine(_testDirectory, "my-episode.mp3"), new byte[] { 0xFF, 0xFB });
+
+        _mockDataService.Setup(x => x.GetEpisodesAsync(1))
+            .ReturnsAsync(new List<Episode>
+            {
+                new Episode { Id = 1, FeedId = 1, Filename = "my-episode.mp3", DisplayOrder = 1 }
+            });
+
+        var service = CreateService();
+
+        // Act
+        var result = await service.GenerateFeedAsync("testfeed", "https://example.com");
+
+        // Assert - should fall back to filename without extension
+        Assert.NotNull(result);
+        Assert.Contains("<title>my-episode</title>", result);
+    }
+
+    [Fact]
     public async Task GenerateFeedAsync_SortsEpisodesByDatabaseOrder()
     {
         // Arrange
         var dbEpisodes = new List<Episode>
         {
-            new Episode { Id = 1, FeedId = 1, Filename = "episode3.mp3", DisplayOrder = 3 },
-            new Episode { Id = 2, FeedId = 1, Filename = "episode1.mp3", DisplayOrder = 1 },
-            new Episode { Id = 3, FeedId = 1, Filename = "episode2.mp3", DisplayOrder = 2 }
+            new Episode { Id = 1, FeedId = 1, Filename = "episode3.mp3", Title = "Episode 3", DisplayOrder = 3, FileSize = 1, DurationSeconds = 60 },
+            new Episode { Id = 2, FeedId = 1, Filename = "episode1.mp3", Title = "Episode 1", DisplayOrder = 1, FileSize = 1, DurationSeconds = 60 },
+            new Episode { Id = 3, FeedId = 1, Filename = "episode2.mp3", Title = "Episode 2", DisplayOrder = 2, FileSize = 1, DurationSeconds = 60 }
         };
 
         _mockDataService.Setup(x => x.GetEpisodesAsync(1))

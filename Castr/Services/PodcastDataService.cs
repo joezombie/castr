@@ -3,6 +3,7 @@ using Castr.Data.Entities;
 using Castr.Data.Repositories;
 using Castr.Models;
 using Microsoft.Extensions.Logging;
+using TagLib;
 
 namespace Castr.Services;
 
@@ -115,34 +116,58 @@ public partial class PodcastDataService : IPodcastDataService
             .OrderBy(f => f)
             .ToList();
 
-        if (newFiles.Count == 0)
+        if (newFiles.Count > 0)
+        {
+            // Calculate starting display order (prepend to top, so use negative/lower numbers)
+            var minOrder = existingEpisodes.Any()
+                ? existingEpisodes.Min(e => e.DisplayOrder)
+                : 1;
+
+            // Create episodes for new files
+            var newEpisodes = new List<Episode>();
+            foreach (var filename in newFiles)
+            {
+                minOrder--;
+                var episode = new Episode
+                {
+                    FeedId = feedId,
+                    Filename = filename,
+                    DisplayOrder = minOrder,
+                    AddedAt = DateTime.UtcNow
+                };
+                ReadFileMetadata(Path.Combine(directory, filename), episode);
+                newEpisodes.Add(episode);
+            }
+
+            await _episodeRepository.AddRangeAsync(newEpisodes);
+            _logger.LogInformation("Synced {Count} new files from directory to database for feed {FeedId}",
+                newFiles.Count, feedId);
+        }
+        else
         {
             _logger.LogDebug("No new files to sync for feed {FeedId}", feedId);
-            return;
         }
 
-        // Calculate starting display order (prepend to top, so use negative/lower numbers)
-        var minOrder = existingEpisodes.Any()
-            ? existingEpisodes.Min(e => e.DisplayOrder)
-            : 1;
+        // Backfill metadata for existing episodes missing Title/DurationSeconds/FileSize
+        var episodesToBackfill = existingEpisodes
+            .Where(e => e.Title == null || e.DurationSeconds == null || e.FileSize == null)
+            .ToList();
 
-        // Create episodes for new files
-        var newEpisodes = new List<Episode>();
-        foreach (var filename in newFiles)
+        foreach (var episode in episodesToBackfill)
         {
-            minOrder--;
-            newEpisodes.Add(new Episode
-            {
-                FeedId = feedId,
-                Filename = filename,
-                DisplayOrder = minOrder,
-                AddedAt = DateTime.UtcNow
-            });
+            var filePath = Path.Combine(directory, episode.Filename);
+            if (!System.IO.File.Exists(filePath))
+                continue;
+
+            ReadFileMetadata(filePath, episode);
+            await _episodeRepository.UpdateAsync(episode);
         }
 
-        await _episodeRepository.AddRangeAsync(newEpisodes);
-        _logger.LogInformation("Synced {Count} new files from directory to database for feed {FeedId}",
-            newFiles.Count, feedId);
+        if (episodesToBackfill.Count > 0)
+        {
+            _logger.LogInformation("Backfilled metadata for {Count} existing episodes for feed {FeedId}",
+                episodesToBackfill.Count, feedId);
+        }
     }
 
     /// <summary>
@@ -226,6 +251,7 @@ public partial class PodcastDataService : IPodcastDataService
                     {
                         existingEpisode.VideoId = video.VideoId;
                         existingEpisode.YoutubeTitle = video.Title;
+                        existingEpisode.Title = video.Title;
                         existingEpisode.DisplayOrder = video.PlaylistIndex;
                         existingEpisode.MatchScore = bestScore;
 
@@ -254,6 +280,7 @@ public partial class PodcastDataService : IPodcastDataService
                         Filename = bestMatch,
                         VideoId = video.VideoId,
                         YoutubeTitle = video.Title,
+                        Title = video.Title,
                         Description = video.Description,
                         ThumbnailUrl = video.ThumbnailUrl,
                         DisplayOrder = video.PlaylistIndex,
@@ -344,6 +371,43 @@ public partial class PodcastDataService : IPodcastDataService
 
     public Task ClearActivityLogAsync()
         => _activityRepository.ClearAsync();
+
+    #endregion
+
+    #region File Metadata
+
+    private void ReadFileMetadata(string filePath, Episode episode)
+    {
+        try
+        {
+            var fileInfo = new FileInfo(filePath);
+            episode.FileSize ??= fileInfo.Length;
+            episode.PublishDate ??= fileInfo.LastWriteTimeUtc;
+
+            try
+            {
+                using var tagFile = TagLib.File.Create(filePath);
+                if (!string.IsNullOrWhiteSpace(tagFile.Tag.Title))
+                    episode.Title ??= tagFile.Tag.Title;
+                if (!string.IsNullOrWhiteSpace(tagFile.Tag.Comment))
+                    episode.Description ??= tagFile.Tag.Comment;
+                if (tagFile.Properties.Duration.TotalSeconds > 0)
+                    episode.DurationSeconds ??= tagFile.Properties.Duration.TotalSeconds;
+            }
+            catch (Exception tagEx)
+            {
+                _logger.LogDebug(tagEx, "Could not read ID3 tags from {Filename}, using file info only", episode.Filename);
+            }
+
+            // Fallback title to filename without extension
+            episode.Title ??= Path.GetFileNameWithoutExtension(episode.Filename);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not read file metadata for {Filename}", episode.Filename);
+            episode.Title ??= Path.GetFileNameWithoutExtension(episode.Filename);
+        }
+    }
 
     #endregion
 
