@@ -88,12 +88,12 @@ public partial class PodcastDataService : IPodcastDataService
     /// Scans a directory for files with matching extensions and adds any new files to the database.
     /// New files are added with DisplayOrder values below the current minimum (prepended to existing order).
     /// </summary>
-    public async Task SyncDirectoryAsync(int feedId, string directory, string[] extensions, int searchDepth = 0)
+    public async Task<int> SyncDirectoryAsync(int feedId, string directory, string[] extensions, int searchDepth = 0)
     {
         if (!Directory.Exists(directory))
         {
             _logger.LogWarning("Directory does not exist for sync: {Directory}", directory);
-            return;
+            return 0;
         }
 
         // Get all files in directory (and subdirectories up to searchDepth) with matching extensions
@@ -183,6 +183,8 @@ public partial class PodcastDataService : IPodcastDataService
             _logger.LogInformation("Backfilled metadata for {Count} existing episodes for feed {FeedId}",
                 backfilledCount, feedId);
         }
+
+        return newFiles.Count;
     }
 
     /// <summary>
