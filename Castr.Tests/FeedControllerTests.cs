@@ -243,17 +243,17 @@ public class FeedControllerTests : IDisposable
     }
 
     [Fact]
-    public async Task GetMedia_WithForwardSlash_ReturnsBadRequest()
+    public async Task GetMedia_WithSubfolderPath_ReturnsNotFound_WhenFileDoesNotExist()
     {
-        // Arrange
+        // Arrange - forward slashes are allowed for subfolder paths
         var feedName = "mypodcast";
-        var fileName = "subdir/episode.mp3";
+        var filePath = "subdir/episode.mp3";
 
         // Act
-        var result = await _controller.GetMedia(feedName, fileName);
+        var result = await _controller.GetMedia(feedName, filePath);
 
         // Assert
-        Assert.IsType<BadRequestObjectResult>(result);
+        Assert.IsType<NotFoundObjectResult>(result);
     }
 
     [Fact]
@@ -270,14 +270,14 @@ public class FeedControllerTests : IDisposable
     }
 
     [Fact]
-    public async Task GetMedia_WithTooLongFileName_ReturnsBadRequest()
+    public async Task GetMedia_WithTooLongFilePath_ReturnsBadRequest()
     {
         // Arrange
         var feedName = "mypodcast";
-        var fileName = new string('a', 256); // 256 characters
+        var filePath = new string('a', 501); // exceeds 500 char limit
 
         // Act
-        var result = await _controller.GetMedia(feedName, fileName);
+        var result = await _controller.GetMedia(feedName, filePath);
 
         // Assert
         Assert.IsType<BadRequestObjectResult>(result);
