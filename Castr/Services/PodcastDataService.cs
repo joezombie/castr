@@ -146,9 +146,10 @@ public partial class PodcastDataService : IPodcastDataService
             _logger.LogDebug("No new files to sync for feed {FeedId}", feedId);
         }
 
-        // Backfill metadata for existing episodes missing Title/DurationSeconds/FileSize
+        // Backfill metadata for existing episodes missing Title/DurationSeconds/FileSize/extended metadata
         var episodesToBackfill = existingEpisodes
-            .Where(e => e.Title == null || e.DurationSeconds == null || e.FileSize == null)
+            .Where(e => e.Title == null || e.DurationSeconds == null || e.FileSize == null
+                || e.Artist == null || e.Bitrate == null)
             .ToList();
 
         var backfilledCount = 0;
@@ -165,13 +166,17 @@ public partial class PodcastDataService : IPodcastDataService
             var prevTitle = episode.Title;
             var prevDuration = episode.DurationSeconds;
             var prevSize = episode.FileSize;
+            var prevArtist = episode.Artist;
+            var prevBitrate = episode.Bitrate;
+            var prevHasArt = episode.HasEmbeddedArt;
 
             ReadFileMetadata(filePath, episode);
 
             // Default DurationSeconds to 0 if TagLib couldn't extract it, so we don't retry every cycle
             episode.DurationSeconds ??= 0;
 
-            if (episode.Title != prevTitle || episode.DurationSeconds != prevDuration || episode.FileSize != prevSize)
+            if (episode.Title != prevTitle || episode.DurationSeconds != prevDuration || episode.FileSize != prevSize
+                || episode.Artist != prevArtist || episode.Bitrate != prevBitrate || episode.HasEmbeddedArt != prevHasArt)
             {
                 await _episodeRepository.UpdateAsync(episode);
                 backfilledCount++;
@@ -444,6 +449,21 @@ public partial class PodcastDataService : IPodcastDataService
                     episode.Description ??= tagFile.Tag.Comment;
                 if (tagFile.Properties.Duration.TotalSeconds > 0)
                     episode.DurationSeconds ??= tagFile.Properties.Duration.TotalSeconds;
+                if (!string.IsNullOrWhiteSpace(tagFile.Tag.FirstPerformer))
+                    episode.Artist ??= tagFile.Tag.FirstPerformer;
+                if (!string.IsNullOrWhiteSpace(tagFile.Tag.Album))
+                    episode.Album ??= tagFile.Tag.Album;
+                if (!string.IsNullOrWhiteSpace(tagFile.Tag.JoinedGenres))
+                    episode.Genre ??= tagFile.Tag.JoinedGenres;
+                if (tagFile.Tag.Year > 0)
+                    episode.Year ??= tagFile.Tag.Year;
+                if (tagFile.Tag.Track > 0)
+                    episode.TrackNumber ??= tagFile.Tag.Track;
+                if (tagFile.Properties.AudioBitrate > 0)
+                    episode.Bitrate ??= tagFile.Properties.AudioBitrate;
+                if (!string.IsNullOrWhiteSpace(tagFile.Tag.Subtitle))
+                    episode.Subtitle ??= tagFile.Tag.Subtitle;
+                episode.HasEmbeddedArt = tagFile.Tag.Pictures?.Length > 0;
             }
             catch (TagLib.CorruptFileException tagEx)
             {

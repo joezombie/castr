@@ -38,6 +38,26 @@ public class Episode
 
     public long? FileSize { get; set; }
 
+    [MaxLength(500)]
+    public string? Artist { get; set; }
+
+    [MaxLength(500)]
+    public string? Album { get; set; }
+
+    [MaxLength(200)]
+    public string? Genre { get; set; }
+
+    public uint? Year { get; set; }
+
+    public uint? TrackNumber { get; set; }
+
+    public int? Bitrate { get; set; }
+
+    [MaxLength(1000)]
+    public string? Subtitle { get; set; }
+
+    public bool HasEmbeddedArt { get; set; }
+
     [NotMapped]
     public TimeSpan Duration => TimeSpan.FromSeconds(DurationSeconds ?? 0);
 

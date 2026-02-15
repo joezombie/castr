@@ -55,6 +55,62 @@
                     </MudStack>
                 }
 
+                @if (!string.IsNullOrEmpty(Episode.Artist))
+                {
+                    <MudStack Row="true">
+                        <MudText Typo="Typo.body2" Color="Color.Default" Style="width: 120px;">Artist:</MudText>
+                        <MudText Typo="Typo.body1">@Episode.Artist</MudText>
+                    </MudStack>
+                }
+
+                @if (!string.IsNullOrEmpty(Episode.Album))
+                {
+                    <MudStack Row="true">
+                        <MudText Typo="Typo.body2" Color="Color.Default" Style="width: 120px;">Album:</MudText>
+                        <MudText Typo="Typo.body1">@Episode.Album</MudText>
+                    </MudStack>
+                }
+
+                @if (!string.IsNullOrEmpty(Episode.Genre))
+                {
+                    <MudStack Row="true">
+                        <MudText Typo="Typo.body2" Color="Color.Default" Style="width: 120px;">Genre:</MudText>
+                        <MudText Typo="Typo.body1">@Episode.Genre</MudText>
+                    </MudStack>
+                }
+
+                @if (Episode.Year.HasValue)
+                {
+                    <MudStack Row="true">
+                        <MudText Typo="Typo.body2" Color="Color.Default" Style="width: 120px;">Year:</MudText>
+                        <MudText Typo="Typo.body1">@Episode.Year</MudText>
+                    </MudStack>
+                }
+
+                @if (Episode.TrackNumber.HasValue)
+                {
+                    <MudStack Row="true">
+                        <MudText Typo="Typo.body2" Color="Color.Default" Style="width: 120px;">Track #:</MudText>
+                        <MudText Typo="Typo.body1">@Episode.TrackNumber</MudText>
+                    </MudStack>
+                }
+
+                @if (Episode.Bitrate.HasValue)
+                {
+                    <MudStack Row="true">
+                        <MudText Typo="Typo.body2" Color="Color.Default" Style="width: 120px;">Bitrate:</MudText>
+                        <MudText Typo="Typo.body1">@(Episode.Bitrate) kbps</MudText>
+                    </MudStack>
+                }
+
+                @if (!string.IsNullOrEmpty(Episode.Subtitle))
+                {
+                    <MudStack Row="true">
+                        <MudText Typo="Typo.body2" Color="Color.Default" Style="width: 120px;">Subtitle:</MudText>
+                        <MudText Typo="Typo.body1">@Episode.Subtitle</MudText>
+                    </MudStack>
+                }
+
                 @if (!string.IsNullOrEmpty(Episode.Description))
                 {
                     <MudDivider Class="my-2" />
