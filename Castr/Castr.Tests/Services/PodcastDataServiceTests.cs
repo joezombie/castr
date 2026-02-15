@@ -587,6 +587,39 @@ public class PodcastDataServiceTests : IDisposable
         // but HasEmbeddedArt should be false and existing values should be preserved
         Assert.Equal("Existing Title", episode.Title);
         Assert.False(episode.HasEmbeddedArt);
+        // Sentinel values should be set to prevent perpetual backfill retry
+        Assert.Equal("", episode.Artist);
+        Assert.Equal(0, episode.Bitrate);
+    }
+
+    [Fact]
+    public async Task SyncDirectoryAsync_SkipsBackfill_WhenExtendedMetadataAlreadyPopulated()
+    {
+        // Arrange
+        var feedId = await _feedRepo.AddAsync(new Feed { Name = "skipbackfill", Title = "T", Description = "D", Directory = _testDirectory });
+
+        File.WriteAllText(Path.Combine(_testDirectory, "populated.mp3"), "test content");
+        await _episodeRepo.AddAsync(new Episode
+        {
+            FeedId = feedId,
+            Filename = "populated.mp3",
+            DisplayOrder = 1,
+            Title = "Already Set",
+            DurationSeconds = 120,
+            FileSize = 5000,
+            Artist = "Known Artist",
+            Bitrate = 320
+        });
+
+        // Act
+        await _service.SyncDirectoryAsync(feedId, _testDirectory, new[] { ".mp3" });
+
+        // Assert - episode should NOT be backfilled since Artist and Bitrate are already set
+        var episode = await _episodeRepo.GetByFilenameAsync(feedId, "populated.mp3");
+        Assert.NotNull(episode);
+        Assert.Equal("Known Artist", episode.Artist);
+        Assert.Equal(320, episode.Bitrate);
+        Assert.Equal("Already Set", episode.Title);
     }
 
     #endregion

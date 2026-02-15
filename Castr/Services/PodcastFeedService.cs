@@ -155,6 +155,7 @@ public class PodcastFeedService
             {
                 var artworkUrl = $"{baseUrl.TrimEnd('/')}/feed/{feedName}/artwork/{encodedPath}";
                 item.Add(new XElement(Itunes + "image", new XAttribute("href", artworkUrl)));
+                _logger.LogDebug("Episode {FileName} using embedded artwork URL (no thumbnail available)", episode.FileName);
             }
 
             if (!string.IsNullOrWhiteSpace(episode.Artist))

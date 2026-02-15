@@ -172,8 +172,10 @@ public partial class PodcastDataService : IPodcastDataService
 
             ReadFileMetadata(filePath, episode);
 
-            // Default DurationSeconds to 0 if TagLib couldn't extract it, so we don't retry every cycle
+            // Default to sentinel values if TagLib couldn't extract them, so we don't retry every cycle
             episode.DurationSeconds ??= 0;
+            episode.Artist ??= "";
+            episode.Bitrate ??= 0;
 
             if (episode.Title != prevTitle || episode.DurationSeconds != prevDuration || episode.FileSize != prevSize
                 || episode.Artist != prevArtist || episode.Bitrate != prevBitrate || episode.HasEmbeddedArt != prevHasArt)
@@ -463,6 +465,8 @@ public partial class PodcastDataService : IPodcastDataService
                     episode.Bitrate ??= tagFile.Properties.AudioBitrate;
                 if (!string.IsNullOrWhiteSpace(tagFile.Tag.Subtitle))
                     episode.Subtitle ??= tagFile.Tag.Subtitle;
+                // Always re-evaluate art presence (not ??=) since it reflects current file state
+                // and is used to determine whether to serve artwork via the /artwork endpoint
                 episode.HasEmbeddedArt = tagFile.Tag.Pictures?.Length > 0;
             }
             catch (TagLib.CorruptFileException tagEx)

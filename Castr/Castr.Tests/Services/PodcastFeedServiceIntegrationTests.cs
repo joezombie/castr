@@ -508,8 +508,40 @@ public class PodcastFeedServiceIntegrationTests : IDisposable
 
         // Assert
         Assert.NotNull(result);
-        // Should have itunes:author within the item (there's already one at channel level)
-        Assert.Contains("John Doe", result);
+        // Should have itunes:author at item level with the artist value
+        Assert.Contains("<itunes:author>John Doe</itunes:author>", result);
+    }
+
+    [Fact]
+    public async Task GenerateFeedAsync_PrefersThumbnailUrl_OverEmbeddedArt()
+    {
+        // Arrange
+        File.WriteAllBytes(Path.Combine(_testDirectory, "both.mp3"), new byte[] { 0xFF, 0xFB });
+
+        _mockDataService.Setup(x => x.GetEpisodesAsync(1))
+            .ReturnsAsync(new List<Episode>
+            {
+                new Episode
+                {
+                    Id = 1, FeedId = 1, Filename = "both.mp3",
+                    Title = "Episode With Both",
+                    DisplayOrder = 1,
+                    FileSize = 2,
+                    DurationSeconds = 60,
+                    ThumbnailUrl = "https://yt.com/thumb.jpg",
+                    HasEmbeddedArt = true
+                }
+            });
+
+        var service = CreateService();
+
+        // Act
+        var result = await service.GenerateFeedAsync("testfeed", "https://example.com");
+
+        // Assert - ThumbnailUrl should win over embedded art
+        Assert.NotNull(result);
+        Assert.Contains("https://yt.com/thumb.jpg", result);
+        Assert.DoesNotContain("/artwork/", result);
     }
 
     [Fact]
