@@ -100,6 +100,49 @@ public class FeedController : ControllerBase
         return PhysicalFile(resolvedPath, mimeType, enableRangeProcessing: true);
     }
 
+    /// <summary>
+    /// Serve embedded album art from a media file
+    /// </summary>
+    [HttpGet("{feedName}/artwork/{**filePath}")]
+    [ResponseCache(Duration = 86400, Location = ResponseCacheLocation.Any)]
+    public async Task<IActionResult> GetArtwork(string feedName, string filePath)
+    {
+        if (string.IsNullOrWhiteSpace(feedName) || feedName.Length > 100)
+            return BadRequest("Feed name cannot be empty or exceed 100 characters");
+
+        if (string.IsNullOrWhiteSpace(filePath) || filePath.Length > 500)
+            return BadRequest("File path cannot be empty or exceed 500 characters");
+
+        if (filePath.Contains("..") || filePath.Contains("\\"))
+            return BadRequest("File path contains invalid characters or path traversal patterns");
+
+        var resolvedPath = await _feedService.GetMediaFilePathAsync(feedName, filePath);
+        if (resolvedPath == null)
+            return NotFound(new { error = "Media file not found" });
+
+        try
+        {
+            using var tagFile = TagLib.File.Create(resolvedPath);
+            if (tagFile.Tag.Pictures == null || tagFile.Tag.Pictures.Length == 0)
+                return NotFound(new { error = "No embedded artwork found" });
+
+            var picture = tagFile.Tag.Pictures[0];
+            var mimeType = !string.IsNullOrWhiteSpace(picture.MimeType)
+                ? picture.MimeType
+                : "image/jpeg";
+
+            return File(picture.Data.Data, mimeType);
+        }
+        catch (TagLib.CorruptFileException)
+        {
+            return NotFound(new { error = "Could not read media file" });
+        }
+        catch (TagLib.UnsupportedFormatException)
+        {
+            return NotFound(new { error = "Unsupported media format" });
+        }
+    }
+
     private string GetBaseUrl()
     {
         var request = HttpContext.Request;

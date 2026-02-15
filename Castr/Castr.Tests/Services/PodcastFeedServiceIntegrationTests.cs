@@ -417,4 +417,129 @@ public class PodcastFeedServiceIntegrationTests : IDisposable
         Assert.True(idx1 < idx2, "Episode 1 should come before Episode 2");
         Assert.True(idx2 < idx3, "Episode 2 should come before Episode 3");
     }
+
+    [Fact]
+    public async Task GenerateFeedAsync_FallsBackToArtworkEndpoint_WhenHasEmbeddedArt()
+    {
+        // Arrange
+        File.WriteAllBytes(Path.Combine(_testDirectory, "art-episode.mp3"), new byte[] { 0xFF, 0xFB });
+
+        _mockDataService.Setup(x => x.GetEpisodesAsync(1))
+            .ReturnsAsync(new List<Episode>
+            {
+                new Episode
+                {
+                    Id = 1, FeedId = 1, Filename = "art-episode.mp3",
+                    Title = "Episode With Art",
+                    DisplayOrder = 1,
+                    FileSize = 2,
+                    DurationSeconds = 60,
+                    ThumbnailUrl = null, // No YouTube thumbnail
+                    HasEmbeddedArt = true // But has embedded art
+                }
+            });
+
+        var service = CreateService();
+
+        // Act
+        var result = await service.GenerateFeedAsync("testfeed", "https://example.com");
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Contains("/feed/testfeed/artwork/art-episode.mp3", result);
+        Assert.Contains("itunes:image", result);
+    }
+
+    [Fact]
+    public async Task GenerateFeedAsync_DoesNotAddArtworkUrl_WhenNoArtAndNoThumbnail()
+    {
+        // Arrange
+        File.WriteAllBytes(Path.Combine(_testDirectory, "noart.mp3"), new byte[] { 0xFF, 0xFB });
+
+        _mockDataService.Setup(x => x.GetEpisodesAsync(1))
+            .ReturnsAsync(new List<Episode>
+            {
+                new Episode
+                {
+                    Id = 1, FeedId = 1, Filename = "noart.mp3",
+                    Title = "Episode Without Art",
+                    DisplayOrder = 1,
+                    FileSize = 2,
+                    DurationSeconds = 60,
+                    ThumbnailUrl = null,
+                    HasEmbeddedArt = false
+                }
+            });
+
+        var service = CreateService();
+
+        // Act
+        var result = await service.GenerateFeedAsync("testfeed", "https://example.com");
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.DoesNotContain("/artwork/", result);
+    }
+
+    [Fact]
+    public async Task GenerateFeedAsync_IncludesItunesAuthor_WhenArtistAvailable()
+    {
+        // Arrange
+        File.WriteAllBytes(Path.Combine(_testDirectory, "artist-ep.mp3"), new byte[] { 0xFF, 0xFB });
+
+        _mockDataService.Setup(x => x.GetEpisodesAsync(1))
+            .ReturnsAsync(new List<Episode>
+            {
+                new Episode
+                {
+                    Id = 1, FeedId = 1, Filename = "artist-ep.mp3",
+                    Title = "Episode With Artist",
+                    DisplayOrder = 1,
+                    FileSize = 2,
+                    DurationSeconds = 60,
+                    Artist = "John Doe"
+                }
+            });
+
+        var service = CreateService();
+
+        // Act
+        var result = await service.GenerateFeedAsync("testfeed", "https://example.com");
+
+        // Assert
+        Assert.NotNull(result);
+        // Should have itunes:author within the item (there's already one at channel level)
+        Assert.Contains("John Doe", result);
+    }
+
+    [Fact]
+    public async Task GenerateFeedAsync_IncludesItunesSubtitle_WhenSubtitleAvailable()
+    {
+        // Arrange
+        File.WriteAllBytes(Path.Combine(_testDirectory, "sub-ep.mp3"), new byte[] { 0xFF, 0xFB });
+
+        _mockDataService.Setup(x => x.GetEpisodesAsync(1))
+            .ReturnsAsync(new List<Episode>
+            {
+                new Episode
+                {
+                    Id = 1, FeedId = 1, Filename = "sub-ep.mp3",
+                    Title = "Episode With Subtitle",
+                    DisplayOrder = 1,
+                    FileSize = 2,
+                    DurationSeconds = 60,
+                    Subtitle = "A brief summary"
+                }
+            });
+
+        var service = CreateService();
+
+        // Act
+        var result = await service.GenerateFeedAsync("testfeed", "https://example.com");
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Contains("A brief summary", result);
+        Assert.Contains("itunes:subtitle", result);
+    }
 }

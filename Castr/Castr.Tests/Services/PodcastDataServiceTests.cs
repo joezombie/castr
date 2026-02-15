@@ -540,6 +540,55 @@ public class PodcastDataServiceTests : IDisposable
         Assert.Equal(Path.Combine("subdir", "episode.mp3"), episodes[0].Filename);
     }
 
+    [Fact]
+    public async Task SyncDirectoryAsync_SetsHasEmbeddedArtFalse_ForFilesWithoutArt()
+    {
+        // Arrange
+        var feedId = await _feedRepo.AddAsync(new Feed { Name = "syncart", Title = "T", Description = "D", Directory = _testDirectory });
+
+        // Create test file (non-MP3 content, TagLib will fail gracefully)
+        File.WriteAllText(Path.Combine(_testDirectory, "noart.mp3"), "test content");
+
+        // Act
+        await _service.SyncDirectoryAsync(feedId, _testDirectory, new[] { ".mp3" });
+
+        // Assert
+        var episodes = await _episodeRepo.GetByFeedIdAsync(feedId);
+        Assert.Single(episodes);
+        Assert.False(episodes[0].HasEmbeddedArt);
+    }
+
+    [Fact]
+    public async Task SyncDirectoryAsync_BackfillsExtendedMetadata()
+    {
+        // Arrange
+        var feedId = await _feedRepo.AddAsync(new Feed { Name = "syncextmeta", Title = "T", Description = "D", Directory = _testDirectory });
+
+        // Create file and add episode without extended metadata
+        File.WriteAllText(Path.Combine(_testDirectory, "extmeta.mp3"), "test content");
+        await _episodeRepo.AddAsync(new Episode
+        {
+            FeedId = feedId,
+            Filename = "extmeta.mp3",
+            DisplayOrder = 1,
+            Title = "Existing Title",
+            DurationSeconds = 60,
+            FileSize = 100
+            // Artist, Bitrate etc. are null — should trigger backfill
+        });
+
+        // Act
+        await _service.SyncDirectoryAsync(feedId, _testDirectory, new[] { ".mp3" });
+
+        // Assert - episode should have been processed for backfill (Artist/Bitrate null triggers it)
+        var episode = await _episodeRepo.GetByFilenameAsync(feedId, "extmeta.mp3");
+        Assert.NotNull(episode);
+        // The file is not a real MP3 so TagLib won't extract actual values,
+        // but HasEmbeddedArt should be false and existing values should be preserved
+        Assert.Equal("Existing Title", episode.Title);
+        Assert.False(episode.HasEmbeddedArt);
+    }
+
     #endregion
 
     #region SyncPlaylistInfoAsync

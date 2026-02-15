@@ -26,6 +26,14 @@ public class EpisodeConfiguration : IEntityTypeConfiguration<Episode>
         builder.Property(e => e.MatchScore).HasColumnName("match_score");
         builder.Property(e => e.DurationSeconds).HasColumnName("duration_seconds");
         builder.Property(e => e.FileSize).HasColumnName("file_size");
+        builder.Property(e => e.Artist).HasColumnName("artist");
+        builder.Property(e => e.Album).HasColumnName("album");
+        builder.Property(e => e.Genre).HasColumnName("genre");
+        builder.Property(e => e.Year).HasColumnName("year");
+        builder.Property(e => e.TrackNumber).HasColumnName("track_number");
+        builder.Property(e => e.Bitrate).HasColumnName("bitrate");
+        builder.Property(e => e.Subtitle).HasColumnName("subtitle");
+        builder.Property(e => e.HasEmbeddedArt).HasColumnName("has_embedded_art");
         builder.Ignore(e => e.Duration);
 
         builder.HasOne(e => e.Feed)

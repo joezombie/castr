@@ -146,10 +146,25 @@ public class PodcastFeedService
                 new XElement(Itunes + "explicit", "no")
             );
 
-            // Add episode thumbnail if available
+            // Add episode thumbnail if available, falling back to embedded artwork
             if (!string.IsNullOrWhiteSpace(episode.ThumbnailUrl))
             {
                 item.Add(new XElement(Itunes + "image", new XAttribute("href", episode.ThumbnailUrl)));
+            }
+            else if (episode.HasEmbeddedArt)
+            {
+                var artworkUrl = $"{baseUrl.TrimEnd('/')}/feed/{feedName}/artwork/{encodedPath}";
+                item.Add(new XElement(Itunes + "image", new XAttribute("href", artworkUrl)));
+            }
+
+            if (!string.IsNullOrWhiteSpace(episode.Artist))
+            {
+                item.Add(new XElement(Itunes + "author", episode.Artist));
+            }
+
+            if (!string.IsNullOrWhiteSpace(episode.Subtitle))
+            {
+                item.Add(new XElement(Itunes + "subtitle", episode.Subtitle));
             }
 
             channel.Add(item);
@@ -192,6 +207,9 @@ public class PodcastFeedService
                     Description = ep.Description,
                     VideoId = ep.VideoId,
                     ThumbnailUrl = ep.ThumbnailUrl,
+                    Artist = ep.Artist,
+                    Subtitle = ep.Subtitle,
+                    HasEmbeddedArt = ep.HasEmbeddedArt,
                     FileSize = ep.FileSize ?? fileInfo!.Length,
                     PublishDate = ep.PublishDate ?? fileInfo!.LastWriteTimeUtc,
                     Duration = ep.Duration,
@@ -266,6 +284,9 @@ public class PodcastFeedService
         public string? Description { get; set; }
         public string? VideoId { get; set; }
         public string? ThumbnailUrl { get; set; }
+        public string? Artist { get; set; }
+        public string? Subtitle { get; set; }
+        public bool HasEmbeddedArt { get; set; }
         public long FileSize { get; set; }
         public DateTime PublishDate { get; set; }
         public TimeSpan Duration { get; set; }
