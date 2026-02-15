@@ -302,4 +302,98 @@ public class FeedControllerTests : IDisposable
         Assert.Equal("audio/mpeg", fileResult.ContentType);
         Assert.True(fileResult.EnableRangeProcessing);
     }
+
+    #region GetArtwork Tests
+
+    [Fact]
+    public async Task GetArtwork_WithNullFeedName_ReturnsBadRequest()
+    {
+        var result = await _controller.GetArtwork(null!, "episode.mp3");
+        Assert.IsType<BadRequestObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task GetArtwork_WithEmptyFeedName_ReturnsBadRequest()
+    {
+        var result = await _controller.GetArtwork("", "episode.mp3");
+        Assert.IsType<BadRequestObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task GetArtwork_WithTooLongFeedName_ReturnsBadRequest()
+    {
+        var result = await _controller.GetArtwork(new string('a', 101), "episode.mp3");
+        Assert.IsType<BadRequestObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task GetArtwork_WithNullFilePath_ReturnsBadRequest()
+    {
+        var result = await _controller.GetArtwork("testfeed", null!);
+        Assert.IsType<BadRequestObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task GetArtwork_WithEmptyFilePath_ReturnsBadRequest()
+    {
+        var result = await _controller.GetArtwork("testfeed", "");
+        Assert.IsType<BadRequestObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task GetArtwork_WithTooLongFilePath_ReturnsBadRequest()
+    {
+        var result = await _controller.GetArtwork("testfeed", new string('a', 501));
+        Assert.IsType<BadRequestObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task GetArtwork_WithPathTraversal_ReturnsBadRequest()
+    {
+        var result = await _controller.GetArtwork("testfeed", "../../../etc/passwd");
+        Assert.IsType<BadRequestObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task GetArtwork_WithBackslashTraversal_ReturnsBadRequest()
+    {
+        var result = await _controller.GetArtwork("testfeed", "..\\..\\etc\\passwd");
+        Assert.IsType<BadRequestObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task GetArtwork_WithNonExistentFeed_ReturnsNotFound()
+    {
+        var result = await _controller.GetArtwork("nonexistent", "episode.mp3");
+        Assert.IsType<NotFoundObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task GetArtwork_WithNonExistentFile_ReturnsNotFound()
+    {
+        var result = await _controller.GetArtwork("testfeed", "nonexistent.mp3");
+        Assert.IsType<NotFoundObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task GetArtwork_WithFileWithoutEmbeddedArt_ReturnsNotFound()
+    {
+        // Arrange - create a file without embedded art (plain text, TagLib will throw CorruptFileException)
+        File.WriteAllText(Path.Combine(_testDirectory, "noart.mp3"), "not a real mp3");
+
+        // Act
+        var result = await _controller.GetArtwork("testfeed", "noart.mp3");
+
+        // Assert - CorruptFileException caught, returns NotFound
+        Assert.IsType<NotFoundObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task GetArtwork_WithDoubleDotInSubfolderPath_ReturnsBadRequest()
+    {
+        var result = await _controller.GetArtwork("testfeed", "season1/../../../etc/passwd");
+        Assert.IsType<BadRequestObjectResult>(result);
+    }
+
+    #endregion
 }
