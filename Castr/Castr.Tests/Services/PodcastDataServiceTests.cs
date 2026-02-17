@@ -622,6 +622,72 @@ public class PodcastDataServiceTests : IDisposable
         Assert.Equal("Already Set", episode.Title);
     }
 
+    [Fact]
+    public async Task SyncDirectoryAsync_SkipsBackfill_WhenSentinelValuesPopulated()
+    {
+        // Arrange - episode has sentinel values (Artist="" and Bitrate=0), not null.
+        // The backfill LINQ filter checks for null, so sentinels must be excluded.
+        // Use a real tagged file so TagLib would overwrite "" with a real artist if the skip is broken.
+        var feedId = await _feedRepo.AddAsync(new Feed { Name = "sentinelskip", Title = "T", Description = "D", Directory = _testDirectory });
+
+        var filePath = Path.Combine(_testDirectory, "sentinel.mp3");
+        File.WriteAllBytes(filePath, CreateMinimalId3v2WithArtistTag("Real Artist From File"));
+
+        await _episodeRepo.AddAsync(new Episode
+        {
+            FeedId = feedId,
+            Filename = "sentinel.mp3",
+            DisplayOrder = 1,
+            Title = "Sentinel Episode",
+            DurationSeconds = 0,    // sentinel
+            FileSize = 1000,
+            Artist = "",            // sentinel: TagLib couldn't extract, don't retry
+            Bitrate = 0             // sentinel: TagLib couldn't extract, don't retry
+        });
+
+        // Act
+        await _service.SyncDirectoryAsync(feedId, _testDirectory, new[] { ".mp3" });
+
+        // Assert - sentinel values prevent backfill; Artist must NOT be overwritten with file's "Real Artist From File"
+        var episode = await _episodeRepo.GetByFilenameAsync(feedId, "sentinel.mp3");
+        Assert.NotNull(episode);
+        Assert.Equal("", episode.Artist);   // sentinel preserved, not overwritten
+        Assert.Equal(0, episode.Bitrate);   // sentinel preserved, not overwritten
+    }
+
+    /// <summary>Creates a minimal ID3v2 file with an artist tag, for testing that sentinel values prevent backfill overwrites.</summary>
+    private static byte[] CreateMinimalId3v2WithArtistTag(string artist)
+    {
+        var artistBytes = System.Text.Encoding.Latin1.GetBytes(artist);
+        // TPE1 (Lead Artist) frame content: encoding(1) + artist bytes
+        var tpe1Content = new byte[1 + artistBytes.Length];
+        tpe1Content[0] = 0x00; // Latin-1
+        artistBytes.CopyTo(tpe1Content, 1);
+
+        var frameSize = tpe1Content.Length;
+        var tagSize = 10 + frameSize; // frame header (10) + content
+
+        var result = new byte[10 + 10 + frameSize];
+        // ID3v2.3 header
+        result[0] = 0x49; result[1] = 0x44; result[2] = 0x33; // "ID3"
+        result[3] = 0x03; result[4] = 0x00; // v2.3
+        result[5] = 0x00; // no flags
+        // synchsafe size encoding of tagSize
+        result[6] = (byte)((tagSize >> 21) & 0x7F);
+        result[7] = (byte)((tagSize >> 14) & 0x7F);
+        result[8] = (byte)((tagSize >> 7) & 0x7F);
+        result[9] = (byte)(tagSize & 0x7F);
+        // TPE1 frame header
+        result[10] = 0x54; result[11] = 0x50; result[12] = 0x45; result[13] = 0x31; // "TPE1"
+        result[14] = (byte)((frameSize >> 24) & 0xFF);
+        result[15] = (byte)((frameSize >> 16) & 0xFF);
+        result[16] = (byte)((frameSize >> 8) & 0xFF);
+        result[17] = (byte)(frameSize & 0xFF);
+        result[18] = 0x00; result[19] = 0x00; // no flags
+        tpe1Content.CopyTo(result, 20);
+        return result;
+    }
+
     #endregion
 
     #region SyncPlaylistInfoAsync
