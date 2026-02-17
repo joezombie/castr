@@ -545,6 +545,70 @@ public class PodcastFeedServiceIntegrationTests : IDisposable
     }
 
     [Fact]
+    public async Task GenerateFeedAsync_OmitsItunesAuthor_WhenArtistIsNull()
+    {
+        // Arrange - episode with no artist
+        File.WriteAllBytes(Path.Combine(_testDirectory, "noauthor.mp3"), new byte[] { 0xFF, 0xFB });
+
+        _mockDataService.Setup(x => x.GetEpisodesAsync(1))
+            .ReturnsAsync(new List<Episode>
+            {
+                new Episode
+                {
+                    Id = 1, FeedId = 1, Filename = "noauthor.mp3",
+                    Title = "No Author Episode",
+                    DisplayOrder = 1,
+                    FileSize = 2,
+                    DurationSeconds = 60,
+                    Artist = null
+                }
+            });
+
+        // Remove channel-level Author (and Title fallback) so there's no noise in the assertion
+        _testFeed.Author = null;
+        _testFeed.Title = null!;
+
+        var service = CreateService();
+
+        // Act
+        var result = await service.GenerateFeedAsync("testfeed", "https://example.com");
+
+        // Assert - no itunes:author element anywhere in the feed when artist is null
+        Assert.NotNull(result);
+        Assert.DoesNotContain("<itunes:author>", result);
+    }
+
+    [Fact]
+    public async Task GenerateFeedAsync_OmitsItunesAuthor_WhenArtistIsSentinelEmptyString()
+    {
+        // Arrange - episode with sentinel empty-string artist (TagLib couldn't extract)
+        File.WriteAllBytes(Path.Combine(_testDirectory, "sentinel.mp3"), new byte[] { 0xFF, 0xFB });
+
+        _mockDataService.Setup(x => x.GetEpisodesAsync(1))
+            .ReturnsAsync(new List<Episode>
+            {
+                new Episode
+                {
+                    Id = 1, FeedId = 1, Filename = "sentinel.mp3",
+                    Title = "Sentinel Artist Episode",
+                    DisplayOrder = 1,
+                    FileSize = 2,
+                    DurationSeconds = 60,
+                    Artist = ""  // sentinel value from backfill
+                }
+            });
+
+        var service = CreateService();
+
+        // Act
+        var result = await service.GenerateFeedAsync("testfeed", "https://example.com");
+
+        // Assert - empty sentinel should not produce an empty <itunes:author> element
+        Assert.NotNull(result);
+        Assert.DoesNotContain("<itunes:author></itunes:author>", result);
+    }
+
+    [Fact]
     public async Task GenerateFeedAsync_IncludesItunesSubtitle_WhenSubtitleAvailable()
     {
         // Arrange
