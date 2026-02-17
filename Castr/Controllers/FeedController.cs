@@ -121,7 +121,7 @@ public class FeedController : ControllerBase
         var resolvedPath = await _feedService.GetMediaFilePathAsync(feedName, filePath);
         if (resolvedPath == null)
         {
-            _logger.LogWarning("Artwork request for non-existent media file {FilePath} in feed {FeedName}", filePath, feedName);
+            _logger.LogWarning("Artwork request rejected for {FilePath} in feed {FeedName}: media file not found or not permitted", filePath, feedName);
             return NotFound(new { error = "Media file not found" });
         }
 
@@ -135,6 +135,12 @@ public class FeedController : ControllerBase
             }
 
             var picture = tagFile.Tag.Pictures[0];
+            if (picture.Data == null || picture.Data.IsEmpty)
+            {
+                _logger.LogDebug("Embedded artwork in {FilePath} has null or empty data", filePath);
+                return NotFound(new { error = "No embedded artwork found" });
+            }
+
             var mimeType = !string.IsNullOrWhiteSpace(picture.MimeType)
                 ? picture.MimeType
                 : "image/jpeg";
@@ -154,8 +160,13 @@ public class FeedController : ControllerBase
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            _logger.LogWarning(ex, "I/O error extracting artwork: {FeedName}/{FilePath}", feedName, filePath);
-            return NotFound(new { error = "Could not read media file" });
+            _logger.LogError(ex, "I/O error extracting artwork: {FeedName}/{FilePath}", feedName, filePath);
+            return StatusCode(500, new { error = "Could not read media file due to a server error" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error extracting artwork from {FeedName}/{FilePath}", feedName, filePath);
+            return StatusCode(500, new { error = "An unexpected error occurred reading the media file" });
         }
     }
 

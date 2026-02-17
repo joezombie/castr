@@ -376,9 +376,9 @@ public class FeedControllerTests : IDisposable
     }
 
     [Fact]
-    public async Task GetArtwork_WithFileWithoutEmbeddedArt_ReturnsNotFound()
+    public async Task GetArtwork_WithCorruptFile_ReturnsNotFound()
     {
-        // Arrange - create a file without embedded art (plain text, TagLib will throw CorruptFileException)
+        // Arrange - plain text content causes TagLib to throw CorruptFileException
         File.WriteAllText(Path.Combine(_testDirectory, "noart.mp3"), "not a real mp3");
 
         // Act
@@ -393,6 +393,122 @@ public class FeedControllerTests : IDisposable
     {
         var result = await _controller.GetArtwork("testfeed", "season1/../../../etc/passwd");
         Assert.IsType<BadRequestObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task GetArtwork_WithWhitespaceFeedName_ReturnsBadRequest()
+    {
+        var result = await _controller.GetArtwork("   ", "episode.mp3");
+        Assert.IsType<BadRequestObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task GetArtwork_WithWhitespaceFilePath_ReturnsBadRequest()
+    {
+        var result = await _controller.GetArtwork("testfeed", "   ");
+        Assert.IsType<BadRequestObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task GetArtwork_WithEmbeddedArt_ReturnsFileResult()
+    {
+        // Arrange - create a minimal ID3v2 tagged file with embedded JPEG art
+        var filePath = Path.Combine(_testDirectory, "withArt.mp3");
+        File.WriteAllBytes(filePath, CreateMinimalId3v2WithEmbeddedJpeg());
+
+        // Act
+        var result = await _controller.GetArtwork("testfeed", "withArt.mp3");
+
+        // Assert
+        var fileResult = Assert.IsType<FileContentResult>(result);
+        Assert.Equal("image/jpeg", fileResult.ContentType);
+        Assert.NotEmpty(fileResult.FileContents);
+    }
+
+    [Fact]
+    public async Task GetArtwork_WithEmbeddedArtAndEmptyMimeType_ReturnsFileResultWithJpegFallback()
+    {
+        // Arrange - APIC frame with empty MIME type; controller should fall back to "image/jpeg"
+        var filePath = Path.Combine(_testDirectory, "noMimeArt.mp3");
+        File.WriteAllBytes(filePath, CreateMinimalId3v2WithEmbeddedJpegNoMime());
+
+        // Act
+        var result = await _controller.GetArtwork("testfeed", "noMimeArt.mp3");
+
+        // Assert - MIME fallback to image/jpeg
+        var fileResult = Assert.IsType<FileContentResult>(result);
+        Assert.Equal("image/jpeg", fileResult.ContentType);
+    }
+
+    /// <summary>
+    /// Creates a minimal valid ID3v2.3 file with an embedded JPEG image in an APIC frame,
+    /// followed by a minimal MPEG audio frame so TagLib# can parse it without ReadStyle.None.
+    /// </summary>
+    private static byte[] CreateMinimalId3v2WithEmbeddedJpeg()
+    {
+        // APIC content: encoding(1) + "image/jpeg\0"(11) + pic_type(1) + desc\0(1) + minimal_JPEG(4) = 18 bytes
+        var id3Tag = new byte[]
+        {
+            // ID3v2.3 header (10 bytes)
+            0x49, 0x44, 0x33,       // "ID3"
+            0x03, 0x00,             // version 2.3, revision 0
+            0x00,                   // no flags
+            0x00, 0x00, 0x00, 0x1C, // synchsafe size = 28 (total APIC frame size)
+            // APIC frame header (10 bytes)
+            0x41, 0x50, 0x49, 0x43, // "APIC"
+            0x00, 0x00, 0x00, 0x12, // frame size = 18
+            0x00, 0x00,             // no flags
+            // APIC content (18 bytes)
+            0x00,                                                               // Latin-1 encoding
+            0x69, 0x6D, 0x61, 0x67, 0x65, 0x2F, 0x6A, 0x70, 0x65, 0x67, 0x00, // "image/jpeg\0"
+            0x03,                   // picture type: Front Cover
+            0x00,                   // empty description (null terminator)
+            0xFF, 0xD8, 0xFF, 0xD9  // minimal valid JPEG (SOI marker + EOI marker)
+        };
+        // Append a minimal MPEG1/Layer3/128kbps/44100Hz frame (417 bytes) so TagLib# can
+        // parse the audio properties without throwing CorruptFileException.
+        var mpegFrame = new byte[417];
+        mpegFrame[0] = 0xFF; mpegFrame[1] = 0xFB; mpegFrame[2] = 0x90; mpegFrame[3] = 0x00;
+        var result = new byte[id3Tag.Length + mpegFrame.Length];
+        id3Tag.CopyTo(result, 0);
+        mpegFrame.CopyTo(result, id3Tag.Length);
+        return result;
+    }
+
+    /// <summary>
+    /// Creates a minimal ID3v2.3 file with an APIC frame that has an empty MIME type string,
+    /// followed by a minimal MPEG audio frame so TagLib# can parse it without ReadStyle.None.
+    /// This exercises the fallback to "image/jpeg" in GetArtwork.
+    /// </summary>
+    private static byte[] CreateMinimalId3v2WithEmbeddedJpegNoMime()
+    {
+        // APIC content: encoding(1) + empty_MIME\0(1) + pic_type(1) + desc\0(1) + minimal_JPEG(4) = 8 bytes
+        var id3Tag = new byte[]
+        {
+            // ID3v2.3 header (10 bytes)
+            0x49, 0x44, 0x33,       // "ID3"
+            0x03, 0x00,             // version 2.3, revision 0
+            0x00,                   // no flags
+            0x00, 0x00, 0x00, 0x12, // synchsafe size = 18 (total APIC frame size)
+            // APIC frame header (10 bytes)
+            0x41, 0x50, 0x49, 0x43, // "APIC"
+            0x00, 0x00, 0x00, 0x08, // frame size = 8
+            0x00, 0x00,             // no flags
+            // APIC content (8 bytes)
+            0x00,                   // Latin-1 encoding
+            0x00,                   // empty MIME type (just null terminator)
+            0x03,                   // picture type: Front Cover
+            0x00,                   // empty description (null terminator)
+            0xFF, 0xD8, 0xFF, 0xD9  // minimal valid JPEG
+        };
+        // Append a minimal MPEG1/Layer3/128kbps/44100Hz frame (417 bytes) so TagLib# can
+        // parse the audio properties without throwing CorruptFileException.
+        var mpegFrame = new byte[417];
+        mpegFrame[0] = 0xFF; mpegFrame[1] = 0xFB; mpegFrame[2] = 0x90; mpegFrame[3] = 0x00;
+        var result = new byte[id3Tag.Length + mpegFrame.Length];
+        id3Tag.CopyTo(result, 0);
+        mpegFrame.CopyTo(result, id3Tag.Length);
+        return result;
     }
 
     #endregion
