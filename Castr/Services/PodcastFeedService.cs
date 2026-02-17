@@ -150,11 +150,13 @@ public class PodcastFeedService
             if (!string.IsNullOrWhiteSpace(episode.ThumbnailUrl))
             {
                 item.Add(new XElement(Itunes + "image", new XAttribute("href", episode.ThumbnailUrl)));
+                _logger.LogDebug("Episode {FileName} using thumbnail URL for artwork", episode.FileName);
             }
             else if (episode.HasEmbeddedArt)
             {
                 var artworkUrl = $"{baseUrl.TrimEnd('/')}/feed/{feedName}/artwork/{encodedPath}";
                 item.Add(new XElement(Itunes + "image", new XAttribute("href", artworkUrl)));
+                _logger.LogDebug("Episode {FileName} using embedded artwork URL (no thumbnail available)", episode.FileName);
             }
 
             if (!string.IsNullOrWhiteSpace(episode.Artist))
@@ -216,9 +218,13 @@ public class PodcastFeedService
                     DisplayOrder = ep.DisplayOrder
                 });
             }
-            catch (Exception ex)
+            catch (IOException ex)
             {
-                _logger.LogError(ex, "Error processing episode {Filename} for feed generation, skipping", ep.Filename);
+                _logger.LogError(ex, "I/O error reading file info for episode {Filename}, skipping from feed", ep.Filename);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                _logger.LogError(ex, "Permission denied reading file info for episode {Filename}, skipping from feed", ep.Filename);
             }
         }
 
@@ -241,16 +247,24 @@ public class PodcastFeedService
         }
 
         // Security check: ensure the resolved path is within the configured directory
-        var fullPath = Path.GetFullPath(filePath);
-        var directoryPath = Path.GetFullPath(feed.Directory);
-
-        if (!fullPath.StartsWith(directoryPath, StringComparison.OrdinalIgnoreCase))
+        try
         {
-            _logger.LogWarning("Path traversal attempt detected for feed {FeedName}: {FileName}", feedName, fileName);
+            var fullPath = Path.GetFullPath(filePath);
+            var directoryPath = Path.GetFullPath(feed.Directory);
+
+            if (!fullPath.StartsWith(directoryPath, StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogWarning("Path traversal attempt detected for feed {FeedName}: {FileName}", feedName, fileName);
+                return null;
+            }
+
+            return fullPath;
+        }
+        catch (ArgumentException ex)
+        {
+            _logger.LogError(ex, "Invalid path configuration for feed {FeedName}: directory={Directory}", feedName, feed.Directory);
             return null;
         }
-
-        return fullPath;
     }
 
     private static string GetMimeType(string fileName)

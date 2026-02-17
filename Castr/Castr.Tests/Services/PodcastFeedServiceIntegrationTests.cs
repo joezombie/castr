@@ -508,8 +508,104 @@ public class PodcastFeedServiceIntegrationTests : IDisposable
 
         // Assert
         Assert.NotNull(result);
-        // Should have itunes:author within the item (there's already one at channel level)
-        Assert.Contains("John Doe", result);
+        // Should have itunes:author at item level with the artist value
+        Assert.Contains("<itunes:author>John Doe</itunes:author>", result);
+    }
+
+    [Fact]
+    public async Task GenerateFeedAsync_PrefersThumbnailUrl_OverEmbeddedArt()
+    {
+        // Arrange
+        File.WriteAllBytes(Path.Combine(_testDirectory, "both.mp3"), new byte[] { 0xFF, 0xFB });
+
+        _mockDataService.Setup(x => x.GetEpisodesAsync(1))
+            .ReturnsAsync(new List<Episode>
+            {
+                new Episode
+                {
+                    Id = 1, FeedId = 1, Filename = "both.mp3",
+                    Title = "Episode With Both",
+                    DisplayOrder = 1,
+                    FileSize = 2,
+                    DurationSeconds = 60,
+                    ThumbnailUrl = "https://yt.com/thumb.jpg",
+                    HasEmbeddedArt = true
+                }
+            });
+
+        var service = CreateService();
+
+        // Act
+        var result = await service.GenerateFeedAsync("testfeed", "https://example.com");
+
+        // Assert - ThumbnailUrl should win over embedded art
+        Assert.NotNull(result);
+        Assert.Contains("https://yt.com/thumb.jpg", result);
+        Assert.DoesNotContain("/artwork/", result);
+    }
+
+    [Fact]
+    public async Task GenerateFeedAsync_OmitsItunesAuthor_WhenArtistIsNull()
+    {
+        // Arrange - episode with no artist
+        File.WriteAllBytes(Path.Combine(_testDirectory, "noauthor.mp3"), new byte[] { 0xFF, 0xFB });
+
+        _mockDataService.Setup(x => x.GetEpisodesAsync(1))
+            .ReturnsAsync(new List<Episode>
+            {
+                new Episode
+                {
+                    Id = 1, FeedId = 1, Filename = "noauthor.mp3",
+                    Title = "No Author Episode",
+                    DisplayOrder = 1,
+                    FileSize = 2,
+                    DurationSeconds = 60,
+                    Artist = null
+                }
+            });
+
+        // Remove channel-level Author (and Title fallback) so there's no noise in the assertion
+        _testFeed.Author = null;
+        _testFeed.Title = null!;
+
+        var service = CreateService();
+
+        // Act
+        var result = await service.GenerateFeedAsync("testfeed", "https://example.com");
+
+        // Assert - no itunes:author element anywhere in the feed when artist is null
+        Assert.NotNull(result);
+        Assert.DoesNotContain("<itunes:author>", result);
+    }
+
+    [Fact]
+    public async Task GenerateFeedAsync_OmitsItunesAuthor_WhenArtistIsSentinelEmptyString()
+    {
+        // Arrange - episode with sentinel empty-string artist (TagLib couldn't extract)
+        File.WriteAllBytes(Path.Combine(_testDirectory, "sentinel.mp3"), new byte[] { 0xFF, 0xFB });
+
+        _mockDataService.Setup(x => x.GetEpisodesAsync(1))
+            .ReturnsAsync(new List<Episode>
+            {
+                new Episode
+                {
+                    Id = 1, FeedId = 1, Filename = "sentinel.mp3",
+                    Title = "Sentinel Artist Episode",
+                    DisplayOrder = 1,
+                    FileSize = 2,
+                    DurationSeconds = 60,
+                    Artist = ""  // sentinel value from backfill
+                }
+            });
+
+        var service = CreateService();
+
+        // Act
+        var result = await service.GenerateFeedAsync("testfeed", "https://example.com");
+
+        // Assert - empty sentinel should not produce an empty <itunes:author> element
+        Assert.NotNull(result);
+        Assert.DoesNotContain("<itunes:author></itunes:author>", result);
     }
 
     [Fact]

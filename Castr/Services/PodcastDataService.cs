@@ -172,8 +172,11 @@ public partial class PodcastDataService : IPodcastDataService
 
             ReadFileMetadata(filePath, episode);
 
-            // Default DurationSeconds to 0 if TagLib couldn't extract it, so we don't retry every cycle
-            episode.DurationSeconds ??= 0;
+            // Default to sentinel values if TagLib couldn't extract them, so we don't retry every cycle.
+            // Title is always set by ReadFileMetadata (filename fallback), so no sentinel is needed here.
+            if (episode.DurationSeconds == null) { episode.DurationSeconds = 0; _logger.LogDebug("No duration tag for {Filename}; writing sentinel 0 to prevent retry", episode.Filename); }
+            if (episode.Artist == null) { episode.Artist = ""; _logger.LogDebug("No artist tag for {Filename}; writing empty sentinel to prevent retry", episode.Filename); }
+            if (episode.Bitrate == null) { episode.Bitrate = 0; _logger.LogDebug("No bitrate for {Filename}; writing sentinel 0 to prevent retry", episode.Filename); }
 
             if (episode.Title != prevTitle || episode.DurationSeconds != prevDuration || episode.FileSize != prevSize
                 || episode.Artist != prevArtist || episode.Bitrate != prevBitrate || episode.HasEmbeddedArt != prevHasArt)
@@ -463,15 +466,20 @@ public partial class PodcastDataService : IPodcastDataService
                     episode.Bitrate ??= tagFile.Properties.AudioBitrate;
                 if (!string.IsNullOrWhiteSpace(tagFile.Tag.Subtitle))
                     episode.Subtitle ??= tagFile.Tag.Subtitle;
+                // HasEmbeddedArt is a non-nullable bool and must reflect the current file state on every read.
+                // Unlike the nullable fields above (which use ??= to preserve existing non-null data), this
+                // always overwrites so the /artwork endpoint stays accurate if art is added or removed from the file.
                 episode.HasEmbeddedArt = tagFile.Tag.Pictures?.Length > 0;
             }
             catch (TagLib.CorruptFileException tagEx)
             {
                 _logger.LogWarning(tagEx, "Corrupt or unreadable audio file {Filename}, using file info only", episode.Filename);
+                episode.HasEmbeddedArt = false; // cannot confirm art presence; clear to prevent broken artwork URLs in RSS feed
             }
             catch (TagLib.UnsupportedFormatException tagEx)
             {
                 _logger.LogWarning(tagEx, "Unsupported audio format for {Filename}, using file info only", episode.Filename);
+                episode.HasEmbeddedArt = false; // cannot confirm art presence; clear to prevent broken artwork URLs in RSS feed
             }
 
             // Fallback title to filename without extension

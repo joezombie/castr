@@ -116,30 +116,57 @@ public class FeedController : ControllerBase
         if (filePath.Contains("..") || filePath.Contains("\\"))
             return BadRequest("File path contains invalid characters or path traversal patterns");
 
+        _logger.LogDebug("Extracting embedded artwork from {FilePath} for feed {FeedName}", filePath, feedName);
+
         var resolvedPath = await _feedService.GetMediaFilePathAsync(feedName, filePath);
         if (resolvedPath == null)
+        {
+            _logger.LogWarning("Artwork request rejected for {FilePath} in feed {FeedName}: media file not found or not permitted", filePath, feedName);
             return NotFound(new { error = "Media file not found" });
+        }
 
         try
         {
             using var tagFile = TagLib.File.Create(resolvedPath);
             if (tagFile.Tag.Pictures == null || tagFile.Tag.Pictures.Length == 0)
+            {
+                _logger.LogDebug("No embedded artwork in {FilePath} for feed {FeedName}", filePath, feedName);
                 return NotFound(new { error = "No embedded artwork found" });
+            }
 
             var picture = tagFile.Tag.Pictures[0];
+            if (picture.Data == null || picture.Data.IsEmpty)
+            {
+                _logger.LogDebug("Embedded artwork in {FilePath} has null or empty data", filePath);
+                return NotFound(new { error = "No embedded artwork found" });
+            }
+
             var mimeType = !string.IsNullOrWhiteSpace(picture.MimeType)
                 ? picture.MimeType
                 : "image/jpeg";
 
+            _logger.LogDebug("Serving embedded artwork ({MimeType}) from {FilePath} for feed {FeedName}", mimeType, filePath, feedName);
             return File(picture.Data.Data, mimeType);
         }
-        catch (TagLib.CorruptFileException)
+        catch (TagLib.CorruptFileException ex)
         {
+            _logger.LogWarning(ex, "Corrupt or unreadable media file when extracting artwork: {FeedName}/{FilePath}", feedName, filePath);
             return NotFound(new { error = "Could not read media file" });
         }
-        catch (TagLib.UnsupportedFormatException)
+        catch (TagLib.UnsupportedFormatException ex)
         {
+            _logger.LogWarning(ex, "Unsupported format when extracting artwork: {FeedName}/{FilePath}", feedName, filePath);
             return NotFound(new { error = "Unsupported media format" });
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _logger.LogError(ex, "I/O error extracting artwork: {FeedName}/{FilePath}", feedName, filePath);
+            return StatusCode(500, new { error = "Could not read media file due to a server error" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error extracting artwork from {FeedName}/{FilePath}", feedName, filePath);
+            return StatusCode(500, new { error = "An unexpected error occurred reading the media file" });
         }
     }
 
