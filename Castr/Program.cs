@@ -104,7 +104,10 @@ using (var scope = app.Services.CreateScope())
 
 // Log startup information
 var logger = app.Services.GetRequiredService<ILogger<Program>>();
-logger.LogInformation("Castr started");
+var version = System.Reflection.CustomAttributeExtensions
+    .GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>(typeof(Program).Assembly)
+    ?.InformationalVersion ?? "dev";
+logger.LogInformation("Castr {Version} started", version);
 
 // Configure forwarded headers (MUST be before other middleware)
 app.UseForwardedHeaders();

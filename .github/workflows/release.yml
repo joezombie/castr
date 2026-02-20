@@ -49,6 +49,7 @@ jobs:
           context: Castr/
           file: Castr/Dockerfile
           push: true
+          build-args: VERSION=${{ github.event.release.tag_name }}
           tags: |
             ghcr.io/joezombie/castr:latest
             ghcr.io/joezombie/castr:${{ github.event.release.tag_name }}

@@ -8,7 +8,8 @@ RUN dotnet restore
 
 # Copy source code and build
 COPY . .
-RUN dotnet publish -c Release -o /app/publish
+ARG VERSION=dev
+RUN dotnet publish -c Release -o /app/publish -p:InformationalVersion=${VERSION}
 
 # Runtime stage
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
