@@ -104,14 +104,40 @@ public class PodcastFeedService
             new XElement(Itunes + "explicit", "no")
         );
 
-        if (!string.IsNullOrEmpty(feed.ImageUrl))
+        // Determine effective image URL: use feed's own, or fall back to latest episode's thumbnail
+        var imageUrl = feed.ImageUrl;
+        if (string.IsNullOrEmpty(imageUrl))
+        {
+            var latestWithThumbnail = episodes.LastOrDefault(e => !string.IsNullOrWhiteSpace(e.ThumbnailUrl));
+            if (latestWithThumbnail != null)
+            {
+                imageUrl = latestWithThumbnail.ThumbnailUrl!; // non-null guaranteed by predicate
+                _logger.LogInformation("Feed {FeedName} has no image URL, using latest episode thumbnail as fallback", feedName);
+            }
+            else
+            {
+                var latestWithArt = episodes.LastOrDefault(e => e.HasEmbeddedArt);
+                if (latestWithArt != null)
+                {
+                    var encodedPath = string.Join("/", latestWithArt.FileName.Split('/').Select(Uri.EscapeDataString));
+                    imageUrl = $"{baseUrl.TrimEnd('/')}/feed/{Uri.EscapeDataString(feedName)}/artwork/{encodedPath}";
+                    _logger.LogInformation("Feed {FeedName} has no image URL, using latest episode embedded art as fallback", feedName);
+                }
+                else
+                {
+                    _logger.LogWarning("Feed {FeedName} has no configured image URL and no episodes with thumbnail or embedded art; channel will have no image", feedName);
+                }
+            }
+        }
+
+        if (!string.IsNullOrEmpty(imageUrl))
         {
             channel.Add(new XElement("image",
-                new XElement("url", feed.ImageUrl),
+                new XElement("url", imageUrl),
                 new XElement("title", feed.Title),
                 new XElement("link", feed.Link ?? baseUrl)
             ));
-            channel.Add(new XElement(Itunes + "image", new XAttribute("href", feed.ImageUrl)));
+            channel.Add(new XElement(Itunes + "image", new XAttribute("href", imageUrl)));
         }
 
         if (!string.IsNullOrEmpty(feed.Category))
