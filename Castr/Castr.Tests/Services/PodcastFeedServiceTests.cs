@@ -249,6 +249,107 @@ public class PodcastFeedServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task GenerateFeedAsync_WithFeedImageUrl_UsesFeedImage()
+    {
+        // Arrange
+        var feedWithImage = new Feed
+        {
+            Id = 3,
+            Name = "feed3",
+            Title = "Feed 3",
+            Description = "Description 3",
+            Directory = _testDirectory,
+            FileExtensions = [".mp3"],
+            CacheDurationMinutes = 5,
+            ImageUrl = "https://example.com/feed-image.jpg"
+        };
+        _mockDataService.Setup(x => x.GetFeedByNameAsync("feed3")).ReturnsAsync(feedWithImage);
+        _mockDataService.Setup(x => x.GetEpisodesAsync(3)).ReturnsAsync(new List<Episode>());
+
+        var service = CreateService();
+
+        // Act
+        var result = await service.GenerateFeedAsync("feed3", "https://example.com");
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Contains("https://example.com/feed-image.jpg", result);
+    }
+
+    [Fact]
+    public async Task GenerateFeedAsync_WithNoFeedImageUrl_FallsBackToLatestEpisodeThumbnail()
+    {
+        // Arrange
+        var testFile = "episode1.mp3";
+        File.WriteAllBytes(Path.Combine(_testDirectory, testFile), new byte[] { 0xFF, 0xFB, 0x90, 0x00 });
+
+        _mockDataService.Setup(x => x.GetEpisodesAsync(1))
+            .ReturnsAsync(new List<Episode>
+            {
+                new Episode { Id = 1, FeedId = 1, Filename = testFile, Title = "Episode 1", DisplayOrder = 1, FileSize = 4, DurationSeconds = 60, ThumbnailUrl = "https://example.com/thumb.jpg" }
+            });
+
+        var service = CreateService();
+
+        // Act
+        var result = await service.GenerateFeedAsync("feed1", "https://example.com");
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Contains("https://example.com/thumb.jpg", result);
+    }
+
+    [Fact]
+    public async Task GenerateFeedAsync_WithNoFeedImageUrl_UsesLatestEpisodeThumbnailWhenMultipleExist()
+    {
+        // Arrange
+        var file1 = "episode1.mp3";
+        var file2 = "episode2.mp3";
+        File.WriteAllBytes(Path.Combine(_testDirectory, file1), new byte[] { 0xFF, 0xFB, 0x90, 0x00 });
+        File.WriteAllBytes(Path.Combine(_testDirectory, file2), new byte[] { 0xFF, 0xFB, 0x90, 0x00 });
+
+        _mockDataService.Setup(x => x.GetEpisodesAsync(1))
+            .ReturnsAsync(new List<Episode>
+            {
+                new Episode { Id = 1, FeedId = 1, Filename = file1, Title = "Episode 1", DisplayOrder = 1, FileSize = 4, DurationSeconds = 60, ThumbnailUrl = "https://example.com/thumb1.jpg" },
+                new Episode { Id = 2, FeedId = 1, Filename = file2, Title = "Episode 2", DisplayOrder = 2, FileSize = 4, DurationSeconds = 60, ThumbnailUrl = "https://example.com/thumb2.jpg" }
+            });
+
+        var service = CreateService();
+
+        // Act
+        var result = await service.GenerateFeedAsync("feed1", "https://example.com");
+
+        // Assert - should use the latest (highest display order) episode's thumbnail
+        Assert.NotNull(result);
+        Assert.Contains("https://example.com/thumb2.jpg", result);
+        Assert.DoesNotContain("https://example.com/thumb1.jpg", result.Split("<channel>")[0] + result.Split("<item>")[0]);
+    }
+
+    [Fact]
+    public async Task GenerateFeedAsync_WithNoFeedImageAndNoThumbnailUrl_FallsBackToEmbeddedArt()
+    {
+        // Arrange
+        var testFile = "episode1.mp3";
+        File.WriteAllBytes(Path.Combine(_testDirectory, testFile), new byte[] { 0xFF, 0xFB, 0x90, 0x00 });
+
+        _mockDataService.Setup(x => x.GetEpisodesAsync(1))
+            .ReturnsAsync(new List<Episode>
+            {
+                new Episode { Id = 1, FeedId = 1, Filename = testFile, Title = "Episode 1", DisplayOrder = 1, FileSize = 4, DurationSeconds = 60, HasEmbeddedArt = true }
+            });
+
+        var service = CreateService();
+
+        // Act
+        var result = await service.GenerateFeedAsync("feed1", "https://example.com");
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Contains("/feed/feed1/artwork/episode1.mp3", result);
+    }
+
+    [Fact]
     public async Task GenerateFeedAsync_WithEpisodes_IncludesItems()
     {
         // Arrange
