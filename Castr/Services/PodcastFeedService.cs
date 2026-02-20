@@ -108,7 +108,9 @@ public class PodcastFeedService
         var imageUrl = feed.ImageUrl;
         if (string.IsNullOrEmpty(imageUrl))
         {
-            var latestWithThumbnail = episodes.LastOrDefault(e => !string.IsNullOrWhiteSpace(e.ThumbnailUrl));
+            var latestWithThumbnail = episodes
+                .OrderByDescending(e => e.PublishDate)
+                .FirstOrDefault(e => !string.IsNullOrWhiteSpace(e.ThumbnailUrl));
             if (latestWithThumbnail != null)
             {
                 imageUrl = latestWithThumbnail.ThumbnailUrl!; // non-null guaranteed by predicate
@@ -116,7 +118,9 @@ public class PodcastFeedService
             }
             else
             {
-                var latestWithArt = episodes.LastOrDefault(e => e.HasEmbeddedArt);
+                var latestWithArt = episodes
+                    .OrderByDescending(e => e.PublishDate)
+                    .FirstOrDefault(e => e.HasEmbeddedArt);
                 if (latestWithArt != null)
                 {
                     var encodedPath = string.Join("/", latestWithArt.FileName.Split('/').Select(Uri.EscapeDataString));

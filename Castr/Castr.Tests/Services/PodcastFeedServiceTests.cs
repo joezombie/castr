@@ -308,11 +308,15 @@ public class PodcastFeedServiceTests : IDisposable
         File.WriteAllBytes(Path.Combine(_testDirectory, file1), new byte[] { 0xFF, 0xFB, 0x90, 0x00 });
         File.WriteAllBytes(Path.Combine(_testDirectory, file2), new byte[] { 0xFF, 0xFB, 0x90, 0x00 });
 
+        var olderDate = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        var newerDate = new DateTime(2025, 6, 1, 0, 0, 0, DateTimeKind.Utc);
+
         _mockDataService.Setup(x => x.GetEpisodesAsync(1))
             .ReturnsAsync(new List<Episode>
             {
-                new Episode { Id = 1, FeedId = 1, Filename = file1, Title = "Episode 1", DisplayOrder = 1, FileSize = 4, DurationSeconds = 60, ThumbnailUrl = "https://example.com/thumb1.jpg" },
-                new Episode { Id = 2, FeedId = 1, Filename = file2, Title = "Episode 2", DisplayOrder = 2, FileSize = 4, DurationSeconds = 60, ThumbnailUrl = "https://example.com/thumb2.jpg" }
+                // Episode 2 has older PublishDate but higher DisplayOrder (simulates newest-first playlist)
+                new Episode { Id = 1, FeedId = 1, Filename = file1, Title = "Episode 1", DisplayOrder = 2, PublishDate = newerDate, FileSize = 4, DurationSeconds = 60, ThumbnailUrl = "https://example.com/thumb1.jpg" },
+                new Episode { Id = 2, FeedId = 1, Filename = file2, Title = "Episode 2", DisplayOrder = 1, PublishDate = olderDate, FileSize = 4, DurationSeconds = 60, ThumbnailUrl = "https://example.com/thumb2.jpg" }
             });
 
         var service = CreateService();
@@ -320,10 +324,11 @@ public class PodcastFeedServiceTests : IDisposable
         // Act
         var result = await service.GenerateFeedAsync("feed1", "https://example.com");
 
-        // Assert - should use the latest (highest display order) episode's thumbnail
+        // Assert - should use the episode with the most recent PublishDate, not highest DisplayOrder
         Assert.NotNull(result);
-        Assert.Contains("https://example.com/thumb2.jpg", result);
-        Assert.DoesNotContain("https://example.com/thumb1.jpg", result.Split("<channel>")[0] + result.Split("<item>")[0]);
+        var doc = System.Xml.Linq.XDocument.Parse(result);
+        var channelImageUrl = doc.Descendants("channel").First().Element("image")?.Element("url")?.Value;
+        Assert.Equal("https://example.com/thumb1.jpg", channelImageUrl);
     }
 
     [Fact]
