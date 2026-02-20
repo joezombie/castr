@@ -111,8 +111,8 @@ public class PodcastFeedService
             var latestWithThumbnail = episodes.LastOrDefault(e => !string.IsNullOrWhiteSpace(e.ThumbnailUrl));
             if (latestWithThumbnail != null)
             {
-                imageUrl = latestWithThumbnail.ThumbnailUrl;
-                _logger.LogDebug("Feed {FeedName} has no image URL, using latest episode thumbnail as fallback", feedName);
+                imageUrl = latestWithThumbnail.ThumbnailUrl!; // non-null guaranteed by predicate
+                _logger.LogInformation("Feed {FeedName} has no image URL, using latest episode thumbnail as fallback", feedName);
             }
             else
             {
@@ -120,8 +120,12 @@ public class PodcastFeedService
                 if (latestWithArt != null)
                 {
                     var encodedPath = string.Join("/", latestWithArt.FileName.Split('/').Select(Uri.EscapeDataString));
-                    imageUrl = $"{baseUrl.TrimEnd('/')}/feed/{feedName}/artwork/{encodedPath}";
-                    _logger.LogDebug("Feed {FeedName} has no image URL, using latest episode embedded art as fallback", feedName);
+                    imageUrl = $"{baseUrl.TrimEnd('/')}/feed/{Uri.EscapeDataString(feedName)}/artwork/{encodedPath}";
+                    _logger.LogInformation("Feed {FeedName} has no image URL, using latest episode embedded art as fallback", feedName);
+                }
+                else
+                {
+                    _logger.LogWarning("Feed {FeedName} has no configured image URL and no episodes with thumbnail or embedded art; channel will have no image", feedName);
                 }
             }
         }
