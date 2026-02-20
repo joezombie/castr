@@ -355,6 +355,37 @@ public class PodcastFeedServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task GenerateFeedAsync_WithNoFeedImageAndNoThumbnailUrl_UsesEmbeddedArtFromMostRecentlyPublishedEpisode()
+    {
+        // Arrange: episode1 has newer PublishDate but lower DisplayOrder (newest-first playlist)
+        var file1 = "episode1.mp3";
+        var file2 = "episode2.mp3";
+        File.WriteAllBytes(Path.Combine(_testDirectory, file1), new byte[] { 0xFF, 0xFB, 0x90, 0x00 });
+        File.WriteAllBytes(Path.Combine(_testDirectory, file2), new byte[] { 0xFF, 0xFB, 0x90, 0x00 });
+
+        var olderDate = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        var newerDate = new DateTime(2025, 6, 1, 0, 0, 0, DateTimeKind.Utc);
+
+        _mockDataService.Setup(x => x.GetEpisodesAsync(1))
+            .ReturnsAsync(new List<Episode>
+            {
+                new Episode { Id = 1, FeedId = 1, Filename = file1, Title = "Episode 1", DisplayOrder = 2, PublishDate = newerDate, FileSize = 4, DurationSeconds = 60, HasEmbeddedArt = true },
+                new Episode { Id = 2, FeedId = 1, Filename = file2, Title = "Episode 2", DisplayOrder = 1, PublishDate = olderDate, FileSize = 4, DurationSeconds = 60, HasEmbeddedArt = true }
+            });
+
+        var service = CreateService();
+
+        // Act
+        var result = await service.GenerateFeedAsync("feed1", "https://example.com");
+
+        // Assert: episode1 (newer PublishDate) should be used, not episode2 (higher DisplayOrder)
+        Assert.NotNull(result);
+        var doc = System.Xml.Linq.XDocument.Parse(result);
+        var channelImageUrl = doc.Descendants("channel").First().Element("image")?.Element("url")?.Value;
+        Assert.Equal("https://example.com/feed/feed1/artwork/episode1.mp3", channelImageUrl);
+    }
+
+    [Fact]
     public async Task GenerateFeedAsync_WithEpisodes_IncludesItems()
     {
         // Arrange

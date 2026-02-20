@@ -108,24 +108,23 @@ public class PodcastFeedService
         var imageUrl = feed.ImageUrl;
         if (string.IsNullOrEmpty(imageUrl))
         {
-            var latestWithThumbnail = episodes
-                .OrderByDescending(e => e.PublishDate)
-                .FirstOrDefault(e => !string.IsNullOrWhiteSpace(e.ThumbnailUrl));
+            var episodesByDate = episodes.OrderByDescending(e => e.PublishDate).ToList();
+            var latestWithThumbnail = episodesByDate.FirstOrDefault(e => !string.IsNullOrWhiteSpace(e.ThumbnailUrl));
             if (latestWithThumbnail != null)
             {
                 imageUrl = latestWithThumbnail.ThumbnailUrl!; // non-null guaranteed by predicate
-                _logger.LogInformation("Feed {FeedName} has no image URL, using latest episode thumbnail as fallback", feedName);
+                _logger.LogInformation("Feed {FeedName} has no image URL, using thumbnail from episode {FileName} (published {PublishDate:u}) as fallback",
+                    feedName, latestWithThumbnail.FileName, latestWithThumbnail.PublishDate);
             }
             else
             {
-                var latestWithArt = episodes
-                    .OrderByDescending(e => e.PublishDate)
-                    .FirstOrDefault(e => e.HasEmbeddedArt);
+                var latestWithArt = episodesByDate.FirstOrDefault(e => e.HasEmbeddedArt);
                 if (latestWithArt != null)
                 {
                     var encodedPath = string.Join("/", latestWithArt.FileName.Split('/').Select(Uri.EscapeDataString));
                     imageUrl = $"{baseUrl.TrimEnd('/')}/feed/{Uri.EscapeDataString(feedName)}/artwork/{encodedPath}";
-                    _logger.LogInformation("Feed {FeedName} has no image URL, using latest episode embedded art as fallback", feedName);
+                    _logger.LogInformation("Feed {FeedName} has no image URL, using embedded art from episode {FileName} (published {PublishDate:u}) as fallback",
+                        feedName, latestWithArt.FileName, latestWithArt.PublishDate);
                 }
                 else
                 {
