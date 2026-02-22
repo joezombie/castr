@@ -217,7 +217,9 @@ else
 
             // Load system info
             _databasePath = Configuration["Database:ConnectionString"] ?? "Data Source=/data/castr.db";
-            _appVersion = typeof(Settings).Assembly.GetName().Version?.ToString() ?? "1.0.0";
+            _appVersion = System.Reflection.CustomAttributeExtensions
+                .GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>(typeof(Settings).Assembly)
+                ?.InformationalVersion ?? "dev";
             _dotnetVersion = Environment.Version.ToString();
 
             // Load feed/episode counts
