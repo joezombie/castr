@@ -9,14 +9,19 @@
 
 <PageTitle>Episodes - @(_feed?.Title ?? FeedName) - Castr</PageTitle>
 
-<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+<div class="castr-page castr-page--tight">
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-4">
     <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" OnClick="GoBack" />
-    <MudText Typo="Typo.h3">Episodes - @(_feed?.Title ?? FeedName)</MudText>
+    <div>
+        <div class="castr-h1">Episodes</div>
+        <div class="castr-subtitle">@(_feed?.Title ?? FeedName)</div>
+    </div>
 </MudStack>
 
 @if (_loading)
 {
-    <MudProgressLinear Indeterminate="true" />
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
 }
 else if (_feed == null)
 {
@@ -24,7 +29,7 @@ else if (_feed == null)
 }
 else
 {
-    <MudPaper Elevation="2" Class="pa-4 mb-4">
+    <div class="castr-card castr-card--pad20 mb-4">
         <MudStack Row="true" Spacing="4" AlignItems="AlignItems.Center">
             <MudTextField @bind-Value="_searchText" Label="Search" Variant="Variant.Outlined" Margin="Margin.Dense"
                 Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
@@ -32,23 +37,22 @@ else
             <MudSpacer />
             @if (_selectedEpisodes.Any())
             {
-                <MudButton Variant="Variant.Outlined" Color="Color.Warning" StartIcon="@Icons.Material.Filled.Refresh"
-                    OnClick="RedownloadSelected">
-                    Redownload (@_selectedEpisodes.Count)
-                </MudButton>
-                <MudButton Variant="Variant.Outlined" Color="Color.Error" StartIcon="@Icons.Material.Filled.Delete"
-                    OnClick="DeleteSelected">
-                    Delete (@_selectedEpisodes.Count)
-                </MudButton>
+                <button type="button" class="castr-btn castr-btn--secondary" @onclick="RedownloadSelected">
+                    <MudIcon Icon="@Icons.Material.Filled.Refresh" Size="Size.Small" /> Redownload (@_selectedEpisodes.Count)
+                </button>
+                <button type="button" class="castr-btn castr-btn--danger" @onclick="DeleteSelected">
+                    <MudIcon Icon="@Icons.Material.Filled.Delete" Size="Size.Small" /> Delete (@_selectedEpisodes.Count)
+                </button>
             }
         </MudStack>
-    </MudPaper>
+    </div>
 
-    <MudDataGrid Items="@FilteredEpisodes" Hover="true" Bordered="true" Dense="true" MultiSelection="true"
-        @bind-SelectedItems="_selectedEpisodes" SortMode="SortMode.Single">
+    <MudDataGrid Items="@FilteredEpisodes" Hover="true" Dense="true" MultiSelection="true"
+        @bind-SelectedItems="_selectedEpisodes" SortMode="SortMode.Single" Class="castr-grid" Elevation="0">
         <Columns>
             <SelectColumn T="Episode" />
-            <PropertyColumn Property="x => x.DisplayOrder" Title="#" SortBy="x => x.DisplayOrder" />
+            <PropertyColumn Property="x => x.DisplayOrder" Title="#" SortBy="x => x.DisplayOrder"
+                CellClass="castr-mono" />
             <PropertyColumn Property="x => x.Filename" Title="Filename" />
             <TemplateColumn Title="YouTube Title">
                 <CellTemplate>
@@ -62,11 +66,22 @@ else
                     }
                 </CellTemplate>
             </TemplateColumn>
+            <TemplateColumn Title="Status">
+                <CellTemplate>
+                    @{
+                        var (dotColor, statusLabel) = GetStatusDisplay(context.Item);
+                    }
+                    <span class="castr-pill">
+                        <span class="castr-pill__dot" style="background:@dotColor;"></span>
+                        <span class="castr-pill__label">@statusLabel</span>
+                    </span>
+                </CellTemplate>
+            </TemplateColumn>
             <TemplateColumn Title="Publish Date" SortBy="x => x.PublishDate">
                 <CellTemplate>
                     @if (context.Item.PublishDate.HasValue)
                     {
-                        <MudText Typo="Typo.body2">@context.Item.PublishDate.Value.ToString("d")</MudText>
+                        <span class="castr-mono" style="font-size:12.5px;color:var(--text-muted);">@context.Item.PublishDate.Value.ToString("d")</span>
                     }
                     else
                     {
@@ -79,8 +94,8 @@ else
                     @if (context.Item.MatchScore.HasValue)
                     {
                         var score = context.Item.MatchScore.Value * 100;
-                        var color = score >= 90 ? Color.Success : score >= 70 ? Color.Warning : Color.Error;
-                        <MudChip T="string" Color="@color" Size="Size.Small">@score.ToString("F0")%</MudChip>
+                        var matchColor = score >= 90 ? "var(--status-success)" : score >= 70 ? "var(--status-warning)" : "var(--status-error)";
+                        <span class="castr-mono" style="font-size:12.5px;color:@matchColor;">@score.ToString("F0")%</span>
                     }
                     else
                     {
@@ -90,12 +105,12 @@ else
             </TemplateColumn>
             <TemplateColumn Title="Actions">
                 <CellTemplate>
-                    <MudStack Row="true" Spacing="1">
-                        <MudIconButton Icon="@Icons.Material.Filled.Visibility" Size="Size.Small"
+                    <MudStack Row="true" Spacing="1" Justify="Justify.FlexEnd">
+                        <MudIconButton Icon="@Icons.Material.Filled.Visibility" Size="Size.Small" Class="castr-icon-btn"
                             OnClick="() => ViewEpisode(context.Item)" title="View Details" />
-                        <MudIconButton Icon="@Icons.Material.Filled.Refresh" Size="Size.Small" Color="Color.Warning"
+                        <MudIconButton Icon="@Icons.Material.Filled.Refresh" Size="Size.Small" Class="castr-icon-btn"
                             OnClick="() => RedownloadEpisode(context.Item)" title="Redownload" />
-                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Class="castr-icon-btn"
                             OnClick="() => DeleteEpisode(context.Item)" title="Delete" />
                     </MudStack>
                 </CellTemplate>
@@ -106,6 +121,8 @@ else
         </PagerContent>
     </MudDataGrid>
 }
+
+</div>
 
 @code {
     [Parameter]
@@ -288,4 +305,17 @@ else
     }
 
     private void GoBack() => Navigation.NavigateTo($"/feeds/{FeedName}");
+
+    // Derives a status dot color + label from the data available on an episode.
+    // Episodes in this list represent downloaded files in the database.
+    private (string Color, string Label) GetStatusDisplay(Episode episode)
+    {
+        if (string.IsNullOrEmpty(episode.VideoId))
+        {
+            // No YouTube link; a plain local file present in the directory.
+            return ("var(--status-warning)", "Local");
+        }
+        // Linked to a YouTube video and present in the database = downloaded.
+        return ("var(--status-success)", "Downloaded");
+    }
 }

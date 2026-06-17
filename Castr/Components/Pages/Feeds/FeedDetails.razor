@@ -4,182 +4,309 @@
 @inject ILogger<FeedDetails> Logger
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@inject IPlaylistWatcherTrigger PlaylistWatcherTrigger
 @using Castr.Data.Entities
+@using Castr.Services
 
 <PageTitle>@(_feed?.Title ?? "Feed Details") - Castr</PageTitle>
 
-<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
-    <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" OnClick="GoToFeeds" />
-    <MudText Typo="Typo.h3">@(_feed?.Title ?? "Loading...")</MudText>
-    @if (_feed != null)
+<div class="castr-page--tight">
+    <a class="castr-back-link" @onclick="GoToFeeds" style="display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--text-label);cursor:pointer;margin-bottom:18px;">
+        <MudIcon Icon="@Icons.Material.Filled.ChevronLeft" Size="Size.Small" />
+        All feeds
+    </a>
+
+    @if (_loading)
     {
-        <MudSpacer />
-        <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Edit"
-            OnClick="GoToEdit">
-            Edit
-        </MudButton>
+        <MudProgressLinear Indeterminate="true" />
     }
-</MudStack>
+    else if (_feed == null)
+    {
+        <MudAlert Severity="Severity.Error">Feed not found</MudAlert>
+    }
+    else
+    {
+        <!-- header -->
+        <div style="display:flex;gap:20px;margin-bottom:22px;">
+            <div class="castr-avatar castr-avatar--xl" style="flex-shrink:0;display:flex;align-items:center;justify-content:center;font-weight:800;color:var(--on-accent);background:@AvatarColor(_feed.Title)">@Initials(_feed.Title)</div>
+            <div style="flex:1;min-width:0;display:flex;flex-direction:column;">
+                <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                    <h1 class="castr-h1" style="margin:0;font-size:25px;line-height:1.15;">@_feed.Title</h1>
+                    <span class="castr-pill">
+                        <span class="castr-pill__dot" style="background:@StatusColor(_feed)"></span>
+                        <span class="castr-pill__label">@StatusLabel(_feed)</span>
+                    </span>
+                </div>
+                <div style="font-size:14px;color:var(--text-label);margin-top:6px;">
+                    @(_feed.Author ?? "—") · @(_feed.Category ?? "—") · @(_feed.Language ?? "en-us")
+                </div>
+                @if (!string.IsNullOrWhiteSpace(_feed.Description))
+                {
+                    <p style="margin:10px 0 0;font-size:13.5px;line-height:1.55;color:var(--text-muted);max-width:640px;">@_feed.Description</p>
+                }
+            </div>
+        </div>
 
-@if (_loading)
-{
-    <MudProgressLinear Indeterminate="true" />
-}
-else if (_feed == null)
-{
-    <MudAlert Severity="Severity.Error">Feed not found</MudAlert>
-}
-else
-{
-    <MudGrid>
-        <MudItem xs="12" md="6">
-            <MudPaper Elevation="2" Class="pa-4">
-                <MudText Typo="Typo.h6" Class="mb-4">Feed Information</MudText>
-                <MudStack Spacing="2">
-                    <MudStack Row="true">
-                        <MudText Typo="Typo.body2" Color="Color.Default" Style="width: 120px;">Slug:</MudText>
-                        <MudText Typo="Typo.body1">@_feed.Name</MudText>
-                    </MudStack>
-                    <MudStack Row="true">
-                        <MudText Typo="Typo.body2" Color="Color.Default" Style="width: 120px;">Directory:</MudText>
-                        <MudText Typo="Typo.body1">@_feed.Directory</MudText>
-                    </MudStack>
-                    <MudStack Row="true">
-                        <MudText Typo="Typo.body2" Color="Color.Default" Style="width: 120px;">Author:</MudText>
-                        <MudText Typo="Typo.body1">@(_feed.Author ?? "—")</MudText>
-                    </MudStack>
-                    <MudStack Row="true">
-                        <MudText Typo="Typo.body2" Color="Color.Default" Style="width: 120px;">Language:</MudText>
-                        <MudText Typo="Typo.body1">@(_feed.Language ?? "en-us")</MudText>
-                    </MudStack>
-                    <MudStack Row="true">
-                        <MudText Typo="Typo.body2" Color="Color.Default" Style="width: 120px;">Category:</MudText>
-                        <MudText Typo="Typo.body1">@(_feed.Category ?? "—")</MudText>
-                    </MudStack>
-                    <MudStack Row="true">
-                        <MudText Typo="Typo.body2" Color="Color.Default" Style="width: 120px;">Extensions:</MudText>
-                        <MudText Typo="Typo.body1">@(string.Join(", ", _feed.FileExtensions))</MudText>
-                    </MudStack>
-                    <MudStack Row="true">
-                        <MudText Typo="Typo.body2" Color="Color.Default" Style="width: 120px;">Status:</MudText>
-                        @if (_feed.IsActive)
-                        {
-                            <MudChip T="string" Color="Color.Success" Size="Size.Small">Active</MudChip>
-                        }
-                        else
-                        {
-                            <MudChip T="string" Color="Color.Error" Size="Size.Small">Inactive</MudChip>
-                        }
-                    </MudStack>
-                </MudStack>
-            </MudPaper>
+        <!-- rss bar -->
+        <div class="castr-card castr-card--r11" style="display:flex;align-items:center;flex-wrap:wrap;gap:12px;padding:11px 11px 11px 15px;margin-bottom:22px;">
+            <span class="castr-section-label" style="margin:0;">RSS</span>
+            <code class="castr-code" style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">@GetFeedUrl()</code>
+            <button class="castr-btn castr-btn--secondary" style="padding:7px 12px;font-size:12.5px;" @onclick="CopyFeedUrl">
+                <MudIcon Icon="@Icons.Material.Filled.ContentCopy" Size="Size.Small" />
+                Copy
+            </button>
+            <button class="castr-btn castr-btn--secondary" style="padding:7px 12px;font-size:12.5px;" @onclick="RefreshData">
+                <MudIcon Icon="@Icons.Material.Filled.Refresh" Size="Size.Small" />
+                Refresh
+            </button>
+        </div>
 
-            @if (_feed.YouTubeEnabled)
-            {
-                <MudPaper Elevation="2" Class="pa-4 mt-4">
-                    <MudText Typo="Typo.h6" Class="mb-4">YouTube Configuration</MudText>
-                    <MudStack Spacing="2">
-                        <MudStack Row="true">
-                            <MudText Typo="Typo.body2" Color="Color.Default" Style="width: 120px;">Playlist:</MudText>
-                            <MudText Typo="Typo.body1">@(_feed.YouTubePlaylistUrl ?? "—")</MudText>
-                        </MudStack>
-                        <MudStack Row="true">
-                            <MudText Typo="Typo.body2" Color="Color.Default" Style="width: 120px;">Poll Interval:</MudText>
-                            <MudText Typo="Typo.body1">@_feed.YouTubePollIntervalMinutes minutes</MudText>
-                        </MudStack>
-                        <MudStack Row="true">
-                            <MudText Typo="Typo.body2" Color="Color.Default" Style="width: 120px;">Max Downloads:</MudText>
-                            <MudText Typo="Typo.body1">@_feed.YouTubeMaxConcurrentDownloads</MudText>
-                        </MudStack>
-                        <MudStack Row="true">
-                            <MudText Typo="Typo.body2" Color="Color.Default" Style="width: 120px;">Audio Quality:</MudText>
-                            <MudText Typo="Typo.body1">@(_feed.YouTubeAudioQuality ?? "highest")</MudText>
-                        </MudStack>
-                    </MudStack>
-                </MudPaper>
-            }
-        </MudItem>
+        <!-- detail tabs -->
+        <div class="castr-tabs">
+            <button class="castr-tab @(_activeTab == DetailTab.Episodes ? "castr-tab--active" : "")" @onclick="@(() => _activeTab = DetailTab.Episodes)">Episodes</button>
+            <button class="castr-tab @(_activeTab == DetailTab.Monitoring ? "castr-tab--active" : "")" @onclick="@(() => _activeTab = DetailTab.Monitoring)">Monitoring</button>
+            <button class="castr-tab @(_activeTab == DetailTab.Settings ? "castr-tab--active" : "")" @onclick="@(() => _activeTab = DetailTab.Settings)">Settings</button>
+        </div>
 
-        <MudItem xs="12" md="6">
-            <MudPaper Elevation="2" Class="pa-4">
-                <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-4">
-                    <MudText Typo="Typo.h6">Episodes (@_episodes.Count)</MudText>
-                    <MudButton Variant="Variant.Text" Size="Size.Small"
-                        OnClick="GoToEpisodes">
-                        View All
-                    </MudButton>
-                </MudStack>
+        @if (_activeTab == DetailTab.Episodes)
+        {
+            <div class="castr-card">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                    <div class="castr-section-label" style="margin:0;">EPISODES (@_episodes.Count)</div>
+                    <button class="castr-btn castr-btn--secondary" style="padding:7px 12px;font-size:12.5px;" @onclick="GoToEpisodes">View all episodes</button>
+                </div>
 
                 @if (_episodes.Any())
                 {
-                    <MudList T="Episode" Dense="true">
+                    <div>
                         @foreach (var episode in _episodes.Take(10))
                         {
-                            <MudListItem>
-                                <MudStack Spacing="0">
-                                    <MudText Typo="Typo.body1">@episode.Filename</MudText>
-                                    @if (!string.IsNullOrEmpty(episode.YoutubeTitle))
-                                    {
-                                        <MudText Typo="Typo.caption" Color="Color.Default">@episode.YoutubeTitle</MudText>
-                                    }
-                                </MudStack>
-                            </MudListItem>
+                            <div class="castr-row-divider" style="padding:10px 0;">
+                                <div style="font-size:14px;font-weight:600;color:var(--text-strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">@episode.Filename</div>
+                                @if (!string.IsNullOrEmpty(episode.YoutubeTitle))
+                                {
+                                    <div style="font-size:11.5px;color:var(--text-faint);margin-top:2px;">@episode.YoutubeTitle</div>
+                                }
+                            </div>
                         }
-                    </MudList>
+                    </div>
                     @if (_episodes.Count > 10)
                     {
-                        <MudText Typo="Typo.caption" Color="Color.Default" Class="mt-2">
-                            ...and @(_episodes.Count - 10) more
-                        </MudText>
+                        <div style="font-size:12px;color:var(--text-faint);margin-top:10px;">...and @(_episodes.Count - 10) more</div>
                     }
                 }
                 else
                 {
-                    <MudText Typo="Typo.body2" Color="Color.Default">No episodes yet</MudText>
+                    <div style="font-size:13.5px;color:var(--text-label);">No episodes yet</div>
                 }
-            </MudPaper>
+            </div>
 
-            <MudPaper Elevation="2" Class="pa-4 mt-4">
-                <MudText Typo="Typo.h6" Class="mb-4">Recent Activity</MudText>
-                @if (_activities.Any())
-                {
-                    <MudTimeline TimelinePosition="TimelinePosition.Start">
-                        @foreach (var activity in _activities.Take(5))
-                        {
-                            <MudTimelineItem Size="Size.Small">
-                                <ItemContent>
-                                    <MudStack Spacing="0">
-                                        <MudText Typo="Typo.body2">@activity.Message</MudText>
-                                        <MudText Typo="Typo.caption" Color="Color.Default">@activity.CreatedAt.ToString("g")</MudText>
-                                    </MudStack>
-                                </ItemContent>
-                            </MudTimelineItem>
-                        }
-                    </MudTimeline>
-                }
-                else
-                {
-                    <MudText Typo="Typo.body2" Color="Color.Default">No recent activity</MudText>
-                }
-            </MudPaper>
+            @if (_activities.Any())
+            {
+                <div class="castr-card" style="margin-top:16px;">
+                    <div class="castr-section-label" style="margin:0 0 14px;">RECENT ACTIVITY</div>
+                    @foreach (var activity in _activities.Take(5))
+                    {
+                        <div class="castr-row-divider" style="padding:10px 0;">
+                            <div style="font-size:13.5px;color:var(--text-strong);">@activity.Message</div>
+                            <div style="font-size:11.5px;color:var(--text-faint);margin-top:2px;font-family:'JetBrains Mono',monospace;">@activity.CreatedAt.ToString("g")</div>
+                        </div>
+                    }
+                </div>
+            }
+        }
+        else if (_activeTab == DetailTab.Monitoring)
+        {
+            @if (_feed.YouTubeEnabled && !string.IsNullOrWhiteSpace(_feed.YouTubePlaylistUrl))
+            {
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+                    <div class="castr-card castr-card--pad20" style="grid-column:1 / -1;display:flex;align-items:center;gap:14px;">
+                        <span class="castr-pulse-dot castr-pulse-dot--lg" style="background:var(--accent);"></span>
+                        <div style="flex:1;">
+                            <div style="font-size:14.5px;font-weight:700;color:var(--text-strong);">Playlist monitoring is active</div>
+                            <div style="font-size:13px;color:var(--text-label);margin-top:2px;">Checks every @_feed.YouTubePollIntervalMinutes minutes</div>
+                        </div>
+                    </div>
+                    <div class="castr-card castr-card--pad20" style="grid-column:1 / -1;">
+                        <div class="castr-section-label" style="margin:0 0 7px;">PLAYLIST URL</div>
+                        <code class="castr-code">@_feed.YouTubePlaylistUrl</code>
+                    </div>
+                    <div class="castr-card castr-card--pad20">
+                        <div class="castr-section-label" style="margin:0 0 6px;">POLL INTERVAL</div>
+                        <div class="castr-mono" style="font-size:20px;font-weight:700;color:var(--text-strong);">@_feed.YouTubePollIntervalMinutes min</div>
+                    </div>
+                    <div class="castr-card castr-card--pad20">
+                        <div class="castr-section-label" style="margin:0 0 6px;">AUDIO QUALITY</div>
+                        <div class="castr-mono" style="font-size:20px;font-weight:700;color:var(--text-strong);">@(_feed.YouTubeAudioQuality ?? "highest")</div>
+                    </div>
+                    <div class="castr-card castr-card--pad20">
+                        <div class="castr-section-label" style="margin:0 0 6px;">MAX DOWNLOADS</div>
+                        <div class="castr-mono" style="font-size:20px;font-weight:700;color:var(--text-strong);">@_feed.YouTubeMaxConcurrentDownloads</div>
+                    </div>
 
-            <MudPaper Elevation="2" Class="pa-4 mt-4">
-                <MudText Typo="Typo.h6" Class="mb-4">RSS Feed</MudText>
-                <MudTextField Value="@GetFeedUrl()" Label="Feed URL" ReadOnly="true" Adornment="Adornment.End"
-                    AdornmentIcon="@Icons.Material.Filled.ContentCopy" OnAdornmentClick="CopyFeedUrl" />
-            </MudPaper>
-        </MudItem>
-    </MudGrid>
-}
+                    <div style="grid-column:1 / -1;display:flex;gap:10px;margin-top:4px;">
+                        @* CLEAR & RESYNC — restyled markup only; handler/gating/state unchanged *@
+                        <button class="castr-btn castr-btn--clear-resync" @onclick="ClearAndResync" disabled="@_clearing">
+                            @if (_clearing)
+                            {
+                                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                                <span>Clearing...</span>
+                            }
+                            else
+                            {
+                                <MudIcon Icon="@Icons.Material.Filled.Sync" Size="Size.Small" />
+                                <span>Clear &amp; Resync from Playlist</span>
+                            }
+                        </button>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="castr-card" style="padding:28px;text-align:center;">
+                    <div style="font-size:15px;font-weight:700;color:var(--text-strong);margin-bottom:6px;">Local feed — no monitoring</div>
+                    <div style="font-size:13.5px;color:var(--text-label);max-width:420px;margin:0 auto 16px;">
+                        This feed is served directly from <code class="castr-code" style="color:var(--text-value);">@_feed.Directory</code>. Enable YouTube monitoring to auto-download new episodes.
+                    </div>
+                    <button class="castr-btn castr-btn--primary" @onclick="GoToEdit">Enable monitoring</button>
+                </div>
+            }
+        }
+        else if (_activeTab == DetailTab.Settings)
+        {
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+                <div class="castr-card castr-card--pad20" style="grid-column:1 / -1;">
+                    <div class="castr-section-label" style="margin:0 0 7px;">SOURCE DIRECTORY</div>
+                    <code class="castr-code">@_feed.Directory</code>
+                </div>
+                <div class="castr-card castr-card--pad20">
+                    <div class="castr-section-label" style="margin:0 0 6px;">SLUG</div>
+                    <div class="castr-mono" style="font-size:15px;font-weight:600;color:var(--text-strong);">@_feed.Name</div>
+                </div>
+                <div class="castr-card castr-card--pad20">
+                    <div class="castr-section-label" style="margin:0 0 6px;">AUTHOR</div>
+                    <div style="font-size:15px;font-weight:600;color:var(--text-strong);">@(_feed.Author ?? "—")</div>
+                </div>
+                <div class="castr-card castr-card--pad20">
+                    <div class="castr-section-label" style="margin:0 0 6px;">CATEGORY</div>
+                    <div style="font-size:15px;font-weight:600;color:var(--text-strong);">@(_feed.Category ?? "—")</div>
+                </div>
+                <div class="castr-card castr-card--pad20">
+                    <div class="castr-section-label" style="margin:0 0 6px;">LANGUAGE</div>
+                    <div style="font-size:15px;font-weight:600;color:var(--text-strong);">@(_feed.Language ?? "en-us")</div>
+                </div>
+                <div class="castr-card castr-card--pad20">
+                    <div class="castr-section-label" style="margin:0 0 6px;">EXTENSIONS</div>
+                    <div style="font-size:15px;font-weight:600;color:var(--text-strong);">@(string.Join(", ", _feed.FileExtensions))</div>
+                </div>
+                <div class="castr-card castr-card--pad20">
+                    <div class="castr-section-label" style="margin:0 0 6px;">EPISODES ON DISK</div>
+                    <div class="castr-mono" style="font-size:15px;font-weight:600;color:var(--text-strong);">@_episodes.Count</div>
+                </div>
+
+                <div style="grid-column:1 / -1;display:flex;gap:10px;margin-top:4px;flex-wrap:wrap;">
+                    <button class="castr-btn castr-btn--primary" @onclick="GoToEdit">
+                        <MudIcon Icon="@Icons.Material.Filled.Edit" Size="Size.Small" />
+                        Edit feed
+                    </button>
+                    @if (_feed.YouTubeEnabled && !string.IsNullOrWhiteSpace(_feed.YouTubePlaylistUrl))
+                    {
+                        @* CLEAR & RESYNC — restyled markup only; handler/gating/state unchanged *@
+                        <button class="castr-btn castr-btn--clear-resync" @onclick="ClearAndResync" disabled="@_clearing">
+                            @if (_clearing)
+                            {
+                                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                                <span>Clearing...</span>
+                            }
+                            else
+                            {
+                                <MudIcon Icon="@Icons.Material.Filled.Sync" Size="Size.Small" />
+                                <span>Clear &amp; Resync from Playlist</span>
+                            }
+                        </button>
+                    }
+                    <button class="castr-btn castr-btn--danger" @onclick="DeleteFeed">
+                        <MudIcon Icon="@Icons.Material.Filled.Delete" Size="Size.Small" />
+                        Delete feed
+                    </button>
+                </div>
+            </div>
+        }
+    }
+</div>
+
+<style>
+    .castr-back-link:hover { color: var(--text-strong); }
+    .castr-btn--clear-resync {
+        background: none;
+        color: #e0b04a;
+        border: 1px solid rgba(224, 176, 74, .4);
+    }
+    .castr-btn--clear-resync:hover { background: rgba(224, 176, 74, .08); }
+    .castr-btn--clear-resync:disabled { opacity: .6; cursor: default; }
+</style>
 
 @code {
     [Parameter]
     public string? Name { get; set; }
 
+    private enum DetailTab { Episodes, Monitoring, Settings }
+    private DetailTab _activeTab = DetailTab.Episodes;
+
     private Feed? _feed;
     private List<Episode> _episodes = new();
     private List<ActivityLog> _activities = new();
     private bool _loading = true;
+    private bool _clearing;
+
+    // Pure UI helpers (presentation only)
+    private static readonly string[] AvatarPalette =
+        { "#a8794a", "#b5683f", "#4f7d6e", "#8a5168", "#6a6aa3", "#4d7a99" };
+
+    private static string AvatarColor(string name)
+    {
+        if (string.IsNullOrEmpty(name))
+            return AvatarPalette[0];
+        unchecked
+        {
+            int hash = 0;
+            foreach (var c in name)
+                hash = hash * 31 + c;
+            int idx = Math.Abs(hash) % AvatarPalette.Length;
+            return AvatarPalette[idx];
+        }
+    }
+
+    private static string Initials(string title)
+    {
+        if (string.IsNullOrWhiteSpace(title))
+            return "?";
+        var words = title.Split(new[] { ' ', '-', '_', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+        if (words.Length == 0)
+            return "?";
+        if (words.Length == 1)
+            return words[0].Substring(0, Math.Min(2, words[0].Length)).ToUpperInvariant();
+        return (words[0].Substring(0, 1) + words[1].Substring(0, 1)).ToUpperInvariant();
+    }
+
+    private static string StatusColor(Feed feed)
+    {
+        if (!feed.IsActive)
+            return "#e0614f"; // error
+        if (feed.YouTubeEnabled)
+            return "#5bbf8a"; // success / monitoring
+        return "#7f8aa0"; // neutral local
+    }
+
+    private static string StatusLabel(Feed feed)
+    {
+        if (!feed.IsActive)
+            return "Inactive";
+        if (feed.YouTubeEnabled)
+            return "Monitoring";
+        return "Local only";
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -217,6 +344,12 @@ else
         }
     }
 
+    private async Task RefreshData()
+    {
+        _loading = true;
+        await LoadDataAsync();
+    }
+
     private string GetFeedUrl()
     {
         return Navigation.ToAbsoluteUri($"/feed/{Name}").ToString();
@@ -230,4 +363,76 @@ else
     private void GoToFeeds() => Navigation.NavigateTo("/feeds");
     private void GoToEdit() => Navigation.NavigateTo($"/feeds/{Name}/edit");
     private void GoToEpisodes() => Navigation.NavigateTo($"/feeds/{Name}/episodes");
+
+    private async Task DeleteFeed()
+    {
+        if (_feed == null)
+        {
+            return;
+        }
+
+        var result = await DialogService.ShowMessageBox(
+            "Delete Feed",
+            $"Are you sure you want to delete '{_feed.Title}'? This will also delete all associated episodes and download history.",
+            yesText: "Delete",
+            cancelText: "Cancel");
+
+        if (result != true)
+        {
+            return;
+        }
+
+        try
+        {
+            await DataService.DeleteFeedAsync(_feed.Id);
+            Snackbar.Add($"Feed '{_feed.Title}' deleted", Severity.Success);
+            Navigation.NavigateTo("/feeds");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to delete feed {FeedId}", _feed.Id);
+            Snackbar.Add("Failed to delete feed", Severity.Error);
+        }
+    }
+
+    private async Task ClearAndResync()
+    {
+        if (_feed == null)
+        {
+            return;
+        }
+
+        var result = await DialogService.ShowMessageBox(
+            "Clear & Resync from Playlist",
+            $"This deletes all {_episodes.Count} episode records and download history for this feed " +
+            "from the database, then re-syncs from the YouTube playlist. Your MP3 files on disk are " +
+            "not deleted. Existing files will be re-matched; only missing videos will be re-downloaded.",
+            yesText: "Clear & Resync",
+            cancelText: "Cancel");
+
+        if (result != true)
+        {
+            return;
+        }
+
+        _clearing = true;
+        try
+        {
+            var cleared = await DataService.ClearFeedEpisodeDataAsync(_feed.Id);
+            PlaylistWatcherTrigger.TriggerFeedProcessing(_feed.Name);
+            Snackbar.Add(
+                $"Cleared {cleared.EpisodesCleared} episode(s) and {cleared.TrackingRowsCleared} tracking row(s). Resync started.",
+                Severity.Success);
+            await LoadDataAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to clear and resync feed {Name}", _feed.Name);
+            Snackbar.Add("Failed to clear and resync feed", Severity.Error);
+        }
+        finally
+        {
+            _clearing = false;
+        }
+    }
 }

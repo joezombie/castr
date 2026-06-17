@@ -10,59 +10,80 @@
 
 <PageTitle>Settings - Castr</PageTitle>
 
-<MudText Typo="Typo.h3" Class="mb-4">Settings</MudText>
+<div class="castr-page--form">
+    <h1 class="castr-h1">Settings</h1>
+    <p class="castr-subtitle mb-3">Server-wide configuration for this Castr instance.</p>
 
-@if (_loading)
-{
-    <MudProgressLinear Indeterminate="true" />
-}
-else
-{
-    <MudGrid>
-        <!-- Application Settings -->
-        <MudItem xs="12" md="6">
-            <MudPaper Class="pa-4" Elevation="2">
-                <MudText Typo="Typo.h5" Class="mb-3">
-                    <MudIcon Icon="@Icons.Material.Filled.Tune" Class="mr-2" />
-                    Application Settings
-                </MudText>
+    @if (_loading)
+    {
+        <MudProgressLinear Indeterminate="true" />
+    }
+    else
+    {
+        <!-- Application defaults -->
+        <div class="castr-card castr-card--pad22 mb-4">
+            <div class="settings-section-title">Application defaults</div>
+            <div class="settings-section-sub">General behavior for this Castr instance.</div>
 
-                <MudStack Spacing="3">
+            <div class="settings-row castr-row-divider">
+                <div class="settings-row-label">
+                    <div class="settings-row-title">Dark mode</div>
+                    <div class="settings-row-desc">Use the warm-dark dashboard theme</div>
+                </div>
+                <div class="settings-row-control">
                     <MudSwitch @bind-Value="_darkMode"
-                        Label="Dark Mode"
                         Color="Color.Primary"
                         @bind-Value:after="OnDarkModeChanged" />
+                </div>
+            </div>
 
+            <div class="settings-row castr-row-divider">
+                <div class="settings-row-label">
+                    <div class="settings-row-title">Default poll interval</div>
+                    <div class="settings-row-desc">How often to check for new YouTube videos (5-1440 min)</div>
+                </div>
+                <div class="settings-row-control settings-row-control--input">
                     <MudNumericField @bind-Value="_defaultPollInterval"
-                        Label="Default Poll Interval (minutes)"
+                        Variant="Variant.Outlined"
+                        Margin="Margin.Dense"
                         Min="5"
                         Max="1440"
-                        HelperText="How often to check for new YouTube videos (5-1440 min)"
                         @bind-Value:after="OnPollIntervalChanged" />
+                </div>
+            </div>
 
+            <div class="settings-row">
+                <div class="settings-row-label">
+                    <div class="settings-row-title">Default audio quality</div>
+                    <div class="settings-row-desc">Quality setting for YouTube downloads</div>
+                </div>
+                <div class="settings-row-control settings-row-control--input">
                     <MudSelect @bind-Value="_defaultAudioQuality"
-                        Label="Default Audio Quality"
-                        HelperText="Quality setting for YouTube downloads"
+                        Variant="Variant.Outlined"
+                        Margin="Margin.Dense"
                         @bind-Value:after="OnAudioQualityChanged">
                         <MudSelectItem Value="@("highest")">Highest</MudSelectItem>
                         <MudSelectItem Value="@("medium")">Medium</MudSelectItem>
                         <MudSelectItem Value="@("lowest")">Lowest</MudSelectItem>
                     </MudSelect>
-                </MudStack>
-            </MudPaper>
-        </MudItem>
+                </div>
+            </div>
+        </div>
 
-        <!-- Feed Defaults -->
-        <MudItem xs="12" md="6">
-            <MudPaper Class="pa-4" Elevation="2">
-                <MudText Typo="Typo.h5" Class="mb-3">
-                    <MudIcon Icon="@Icons.Material.Filled.RssFeed" Class="mr-2" />
-                    Feed Defaults
-                </MudText>
+        <!-- Feed defaults -->
+        <div class="castr-card castr-card--pad22 mb-4">
+            <div class="settings-section-title">Feed defaults</div>
+            <div class="settings-section-sub">Applied to newly created RSS feeds.</div>
 
-                <MudStack Spacing="3">
+            <div class="settings-row castr-row-divider">
+                <div class="settings-row-label">
+                    <div class="settings-row-title">Default language</div>
+                    <div class="settings-row-desc">Language tag for new feeds</div>
+                </div>
+                <div class="settings-row-control settings-row-control--input">
                     <MudSelect @bind-Value="_defaultLanguage"
-                        Label="Default Language"
+                        Variant="Variant.Outlined"
+                        Margin="Margin.Dense"
                         @bind-Value:after="OnLanguageChanged">
                         <MudSelectItem Value="@("en-us")">English (US)</MudSelectItem>
                         <MudSelectItem Value="@("en-gb")">English (UK)</MudSelectItem>
@@ -70,104 +91,178 @@ else
                         <MudSelectItem Value="@("fr")">French</MudSelectItem>
                         <MudSelectItem Value="@("de")">German</MudSelectItem>
                     </MudSelect>
+                </div>
+            </div>
 
+            <div class="settings-row castr-row-divider">
+                <div class="settings-row-label">
+                    <div class="settings-row-title">Default file extensions</div>
+                    <div class="settings-row-desc">Comma-separated (e.g., .mp3,.m4a)</div>
+                </div>
+                <div class="settings-row-control settings-row-control--input">
                     <MudTextField @bind-Value="_defaultFileExtensions"
-                        Label="Default File Extensions"
-                        HelperText="Comma-separated (e.g., .mp3,.m4a)"
+                        Variant="Variant.Outlined"
+                        Margin="Margin.Dense"
                         @bind-Value:after="OnFileExtensionsChanged" />
+                </div>
+            </div>
 
+            <div class="settings-row">
+                <div class="settings-row-label">
+                    <div class="settings-row-title">Default category</div>
+                    <div class="settings-row-desc">Podcast category for RSS feeds</div>
+                </div>
+                <div class="settings-row-control settings-row-control--input">
                     <MudTextField @bind-Value="_defaultCategory"
-                        Label="Default Category"
-                        HelperText="Podcast category for RSS feeds"
+                        Variant="Variant.Outlined"
+                        Margin="Margin.Dense"
                         @bind-Value:after="OnCategoryChanged" />
-                </MudStack>
-            </MudPaper>
-        </MudItem>
+                </div>
+            </div>
+        </div>
 
-        <!-- System Information -->
-        <MudItem xs="12" md="6">
-            <MudPaper Class="pa-4" Elevation="2">
-                <MudText Typo="Typo.h5" Class="mb-3">
-                    <MudIcon Icon="@Icons.Material.Filled.Info" Class="mr-2" />
-                    System Information
-                </MudText>
+        <!-- System information -->
+        <div class="castr-card castr-card--pad22 mb-4">
+            <div class="settings-section-title">System information</div>
+            <div class="settings-section-sub">Read-only details about this server.</div>
 
-                <MudSimpleTable Dense="true" Hover="true" Bordered="false">
-                    <tbody>
-                        <tr>
-                            <td><strong>Database Path</strong></td>
-                            <td><code>@_databasePath</code></td>
-                        </tr>
-                        <tr>
-                            <td><strong>Application Version</strong></td>
-                            <td>@_appVersion</td>
-                        </tr>
-                        <tr>
-                            <td><strong>.NET Version</strong></td>
-                            <td>@_dotnetVersion</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Total Feeds</strong></td>
-                            <td>@_totalFeeds</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Total Episodes</strong></td>
-                            <td>@_totalEpisodes</td>
-                        </tr>
-                    </tbody>
-                </MudSimpleTable>
-            </MudPaper>
-        </MudItem>
+            <div class="settings-row castr-row-divider">
+                <div class="settings-row-label">
+                    <div class="settings-row-title">Database path</div>
+                </div>
+                <div class="settings-row-control">
+                    <span class="castr-mono settings-info-value">@_databasePath</span>
+                </div>
+            </div>
+            <div class="settings-row castr-row-divider">
+                <div class="settings-row-label">
+                    <div class="settings-row-title">Application version</div>
+                </div>
+                <div class="settings-row-control">
+                    <span class="castr-mono settings-info-value">@_appVersion</span>
+                </div>
+            </div>
+            <div class="settings-row castr-row-divider">
+                <div class="settings-row-label">
+                    <div class="settings-row-title">.NET version</div>
+                </div>
+                <div class="settings-row-control">
+                    <span class="castr-mono settings-info-value">@_dotnetVersion</span>
+                </div>
+            </div>
+            <div class="settings-row castr-row-divider">
+                <div class="settings-row-label">
+                    <div class="settings-row-title">Total feeds</div>
+                </div>
+                <div class="settings-row-control">
+                    <span class="castr-mono settings-info-value">@_totalFeeds</span>
+                </div>
+            </div>
+            <div class="settings-row">
+                <div class="settings-row-label">
+                    <div class="settings-row-title">Total episodes</div>
+                </div>
+                <div class="settings-row-control">
+                    <span class="castr-mono settings-info-value">@_totalEpisodes</span>
+                </div>
+            </div>
+        </div>
 
-        <!-- Danger Zone -->
-        <MudItem xs="12" md="6">
-            <MudPaper Class="pa-4" Elevation="2" Style="border: 1px solid var(--mud-palette-error);">
-                <MudText Typo="Typo.h5" Class="mb-3" Color="Color.Error">
-                    <MudIcon Icon="@Icons.Material.Filled.Warning" Class="mr-2" />
-                    Danger Zone
-                </MudText>
+        <!-- Danger zone -->
+        <div class="castr-card castr-card--pad22 mb-4">
+            <div class="settings-section-title">Danger zone</div>
+            <div class="settings-section-sub">Destructive actions. These cannot be undone.</div>
 
-                <MudStack Spacing="3">
-                    <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
-                        <MudStack Spacing="0">
-                            <MudText Typo="Typo.body1"><strong>Clear Activity Log</strong></MudText>
-                            <MudText Typo="Typo.body2" Color="Color.Secondary">Remove all activity log entries</MudText>
-                        </MudStack>
-                        <MudButton Variant="Variant.Outlined"
-                            Color="Color.Error"
-                            OnClick="ClearActivityLog"
-                            Disabled="_clearing">
-                            @if (_clearing)
-                            {
-                                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
-                            }
-                            Clear Log
-                        </MudButton>
-                    </MudStack>
+            <div class="settings-row castr-row-divider">
+                <div class="settings-row-label">
+                    <div class="settings-row-title">Clear activity log</div>
+                    <div class="settings-row-desc">Remove all activity log entries</div>
+                </div>
+                <div class="settings-row-control">
+                    <button class="castr-btn castr-btn--danger"
+                        @onclick="ClearActivityLog"
+                        disabled="@_clearing">
+                        @if (_clearing)
+                        {
+                            <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                        }
+                        Clear Log
+                    </button>
+                </div>
+            </div>
 
-                    <MudDivider />
+            <div class="settings-row">
+                <div class="settings-row-label">
+                    <div class="settings-row-title">Reset all feeds</div>
+                    <div class="settings-row-desc">Delete all feeds and episodes (cannot be undone)</div>
+                </div>
+                <div class="settings-row-control">
+                    <button class="castr-btn castr-btn--danger"
+                        @onclick="ResetAllFeeds"
+                        disabled="@_resetting">
+                        @if (_resetting)
+                        {
+                            <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                        }
+                        Reset All
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+</div>
 
-                    <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
-                        <MudStack Spacing="0">
-                            <MudText Typo="Typo.body1"><strong>Reset All Feeds</strong></MudText>
-                            <MudText Typo="Typo.body2" Color="Color.Secondary">Delete all feeds and episodes (cannot be undone)</MudText>
-                        </MudStack>
-                        <MudButton Variant="Variant.Filled"
-                            Color="Color.Error"
-                            OnClick="ResetAllFeeds"
-                            Disabled="_resetting">
-                            @if (_resetting)
-                            {
-                                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
-                            }
-                            Reset All
-                        </MudButton>
-                    </MudStack>
-                </MudStack>
-            </MudPaper>
-        </MudItem>
-    </MudGrid>
-}
+<style>
+    .settings-section-title {
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--text-primary);
+        margin-bottom: 4px;
+    }
+    .settings-section-sub {
+        font-size: 13px;
+        color: var(--text-label);
+        margin-bottom: 8px;
+    }
+    .settings-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 14px 0;
+    }
+    .settings-row-label {
+        min-width: 0;
+    }
+    .settings-row-title {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--text-strong);
+    }
+    .settings-row-desc {
+        font-size: 12.5px;
+        color: var(--text-faint);
+        margin-top: 2px;
+    }
+    .settings-row-control {
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+    }
+    .settings-row-control--input {
+        width: 220px;
+    }
+    .settings-row-control--input .mud-input-control {
+        width: 100%;
+    }
+    .settings-info-value {
+        font-size: 13px;
+        color: var(--text-value);
+        word-break: break-all;
+        text-align: right;
+    }
+</style>
 
 @code {
     private bool _loading = true;

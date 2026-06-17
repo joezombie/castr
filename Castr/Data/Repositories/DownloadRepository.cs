@@ -82,6 +82,11 @@ public class DownloadRepository : IDownloadRepository
         }
     }
 
+    public Task<int> DeleteDownloadedVideosByFeedIdAsync(int feedId)
+    {
+        return _context.DownloadedVideos.Where(d => d.FeedId == feedId).ExecuteDeleteAsync();
+    }
+
     public async Task<DownloadQueueItem> AddToQueueAsync(int feedId, string videoId, string? title)
     {
         var existing = await _context.DownloadQueue.FirstOrDefaultAsync(q => q.FeedId == feedId && q.VideoId == videoId);

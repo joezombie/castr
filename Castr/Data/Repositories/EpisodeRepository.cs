@@ -62,4 +62,9 @@ public class EpisodeRepository : IEpisodeRepository
             await _context.SaveChangesAsync();
         }
     }
+
+    public Task<int> DeleteByFeedIdAsync(int feedId)
+    {
+        return _context.Episodes.Where(e => e.FeedId == feedId).ExecuteDeleteAsync();
+    }
 }

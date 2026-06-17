@@ -29,6 +29,13 @@ public interface IPodcastDataService
     Task<int> SyncDirectoryAsync(int feedId, string directory, string[] extensions, int searchDepth = 0);
     Task SyncPlaylistInfoAsync(int feedId, IEnumerable<PlaylistVideoInfo> videos, string directory, int searchDepth = 0);
 
+    /// <summary>
+    /// Clears all episode metadata and download tracking for a feed from the database (a single
+    /// transaction), without touching MP3 files on disk, and records a "clear_resync" activity log.
+    /// Returns the number of episode rows and download-tracking rows cleared.
+    /// </summary>
+    Task<ClearFeedResult> ClearFeedEpisodeDataAsync(int feedId);
+
     // Download tracking
     Task<bool> IsVideoDownloadedAsync(int feedId, string videoId);
     Task<HashSet<string>> GetDownloadedVideoIdsAsync(int feedId);

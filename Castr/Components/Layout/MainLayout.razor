@@ -7,29 +7,86 @@
 <MudSnackbarProvider />
 
 <MudLayout>
-    <MudAppBar Elevation="1">
-        <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="@ToggleDrawer" />
-        <MudText Typo="Typo.h5" Class="ml-3">Castr</MudText>
+    <MudAppBar Elevation="0" Style="background:#16140f;border-bottom:1px solid #252118;height:62px;" Dense="true">
+        <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start"
+                       OnClick="@ToggleDrawer" Class="d-md-none" />
+        <MudHidden Breakpoint="Breakpoint.MdAndUp" Invert="true">
+            <span style="font-size:17px;font-weight:800;letter-spacing:-.02em;color:#f4f1ea;">Castr</span>
+        </MudHidden>
         <MudSpacer />
-        <MudIconButton Icon="@(_isDarkMode ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)" Color="Color.Inherit" OnClick="@ToggleDarkMode" title="@(_isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode")" />
+        <div class="castr-online-pill mr-2">
+            <span class="castr-online-pill__dot"></span>
+            <span class="castr-online-pill__label">Server online</span>
+        </div>
+        <MudIconButton Icon="@(_isDarkMode ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
+                       Color="Color.Inherit" OnClick="@ToggleDarkMode"
+                       title="@(_isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode")" />
     </MudAppBar>
-    <MudDrawer Open="_drawerOpen" OpenChanged="OnDrawerOpenChanged" ClipMode="DrawerClipMode.Always" Elevation="2" Variant="@DrawerVariant.Responsive" Breakpoint="Breakpoint.Md">
+    <MudDrawer Open="_drawerOpen" OpenChanged="OnDrawerOpenChanged" ClipMode="DrawerClipMode.Always"
+               Elevation="0" Variant="@DrawerVariant.Responsive" Breakpoint="Breakpoint.Md"
+               Style="width:236px;background:#18160f;border-right:1px solid #252118;">
         <CascadingValue Value="@CloseDrawer">
             <NavMenu />
         </CascadingValue>
     </MudDrawer>
-    <MudMainContent>
-        <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
-            @Body
-        </MudContainer>
+    <MudMainContent Style="background:#15140f;min-height:100vh;">
+        @Body
     </MudMainContent>
 </MudLayout>
 
 @code {
     private bool _drawerOpen = false;
     private bool _isDarkMode = true;
-    private MudTheme _theme = new();
     private bool _initialized = false;
+
+    private readonly MudTheme _theme = new()
+    {
+        PaletteDark = new PaletteDark
+        {
+            Primary = "#ef6b41",
+            Secondary = "#b4ad9e",
+            Tertiary = "#5bbf8a",
+            Success = "#5bbf8a",
+            Warning = "#e0b04a",
+            Error = "#e0614f",
+            Info = "#7f8aa0",
+            Background = "#15140f",
+            BackgroundGray = "#18160f",
+            Surface = "#1d1b14",
+            DrawerBackground = "#18160f",
+            DrawerText = "#9a9384",
+            DrawerIcon = "#9a9384",
+            AppbarBackground = "#16140f",
+            AppbarText = "#f4f1ea",
+            TextPrimary = "#f4f1ea",
+            TextSecondary = "#8b8475",
+            TextDisabled = "#645e52",
+            ActionDefault = "#b4ad9e",
+            ActionDisabled = "#645e52",
+            Divider = "#28241c",
+            DividerLight = "#221f18",
+            LinesDefault = "#28241c",
+            LinesInputs = "#2f2a20",
+            TableLines = "#221f18",
+            TableStriped = "#211e17",
+            TableHover = "#211e17",
+            OverlayDark = "rgba(18,16,9,0.75)"
+        },
+        PaletteLight = new PaletteLight
+        {
+            Primary = "#ef6b41",
+            Success = "#5bbf8a",
+            Warning = "#e0b04a",
+            Error = "#e0614f"
+        },
+        LayoutProperties = new LayoutProperties
+        {
+            DefaultBorderRadius = "9px",
+            DrawerWidthLeft = "236px",
+            AppbarHeight = "62px"
+        }
+        // Font family is applied globally via wwwroot/css/app.css (Hanken Grotesk override).
+    };
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {

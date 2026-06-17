@@ -12,65 +12,86 @@
 
 <PageTitle>@(_isNew ? "New Feed" : "Edit Feed") - Castr</PageTitle>
 
-<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
-    <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" OnClick="GoBack" />
-    <MudText Typo="Typo.h3">@(_isNew ? "New Feed" : "Edit Feed")</MudText>
-</MudStack>
+<div class="castr-page--form">
+    <a class="castr-back-link" @onclick="GoBack" @onclick:preventDefault="true">
+        <MudIcon Icon="@Icons.Material.Filled.ChevronLeft" Size="Size.Small" />
+        <span>All feeds</span>
+    </a>
 
-@if (_loading)
-{
-    <MudProgressLinear Indeterminate="true" />
-}
-else
-{
-    <MudForm @ref="_form" @bind-IsValid="@_formValid">
-        <MudGrid>
-            <MudItem xs="12" md="6">
-                <MudPaper Elevation="2" Class="pa-4">
-                    <MudText Typo="Typo.h6" Class="mb-4">Basic Information</MudText>
+    <h1 class="castr-h1">@(_isNew ? "New feed" : "Edit feed")</h1>
+    <p class="castr-subtitle">Point Castr at a directory of MP3s. Optionally let it watch a YouTube playlist.</p>
 
-                    <MudTextField @bind-Value="_feed.Name" Label="Slug" Required="true" Disabled="@(!_isNew)"
-                        HelperText="Unique identifier for URL (e.g., 'mypodcast')"
-                        Validation="@(new Func<string, string?>(ValidateSlug))" />
+    @if (_loading)
+    {
+        <MudProgressLinear Indeterminate="true" Class="mt-4" />
+    }
+    else
+    {
+        <MudForm @ref="_form" @bind-IsValid="@_formValid" Class="castr-feed-form">
+            <div class="castr-card castr-card--pad22">
+                <div class="castr-feed-form__section-title">Basics</div>
+                <div class="castr-feed-grid">
+                    <div class="castr-feed-grid__full">
+                        <MudTextField @bind-Value="_feed.Name" Label="Slug" Required="true" Disabled="@(!_isNew)"
+                            Variant="Variant.Outlined" Class="castr-mono"
+                            HelperText="Unique identifier for URL (e.g., 'mypodcast')"
+                            Validation="@(new Func<string, string?>(ValidateSlug))" />
+                    </div>
 
-                    <MudTextField @bind-Value="_feed.Title" Label="Title" Required="true" Class="mt-3"
-                        HelperText="Display name for the podcast" />
+                    <div class="castr-feed-grid__full">
+                        <MudTextField @bind-Value="_feed.Title" Label="Title" Required="true"
+                            Variant="Variant.Outlined"
+                            HelperText="Display name for the podcast" />
+                    </div>
 
-                    <MudTextField @bind-Value="_feed.Description" Label="Description" Required="true" Class="mt-3"
-                        Lines="3" />
+                    <div class="castr-feed-grid__full">
+                        <MudTextField @bind-Value="_feed.Description" Label="Description" Required="true"
+                            Variant="Variant.Outlined" Lines="3" />
+                    </div>
 
-                    <MudTextField @bind-Value="_feed.Directory" Label="Directory" Required="true" Class="mt-3"
-                        HelperText="Path to media files (e.g., '/Podcasts/MyPodcast')" />
+                    <div class="castr-feed-grid__full">
+                        <MudTextField @bind-Value="_feed.Directory" Label="Directory" Required="true"
+                            Variant="Variant.Outlined" Class="castr-mono"
+                            HelperText="Path to media files (e.g., '/Podcasts/MyPodcast')" />
+                    </div>
 
                     <MudNumericField @bind-Value="_feed.DirectorySearchDepth" Label="Subfolder Search Depth"
-                        Class="mt-3" Min="0" Max="4"
+                        Variant="Variant.Outlined" Class="castr-mono" Min="0" Max="4"
                         HelperText="0 = root only, 1-4 = levels of subfolders to scan" />
 
                     @if (!_isNew)
                     {
-                        <MudButton Variant="Variant.Outlined" Size="Size.Small" Class="mt-3"
-                            OnClick="ForceResync" Disabled="_syncing"
-                            StartIcon="@Icons.Material.Filled.Sync">
-                            @if (_syncing)
-                            {
-                                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
-                                <span>Syncing...</span>
-                            }
-                            else
-                            {
-                                <span>Force Resync</span>
-                            }
-                        </MudButton>
+                        <div class="castr-feed-grid__full">
+                            <button type="button" class="castr-btn castr-btn--ghost" @onclick="ForceResync" disabled="@_syncing">
+                                @if (_syncing)
+                                {
+                                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                                    <span>Syncing...</span>
+                                }
+                                else
+                                {
+                                    <MudIcon Icon="@Icons.Material.Filled.Sync" Size="Size.Small" />
+                                    <span>Force resync</span>
+                                }
+                            </button>
+                        </div>
                     }
 
-                    <MudTextField @bind-Value="_feed.Author" Label="Author" Class="mt-3" />
+                    <MudTextField @bind-Value="_feed.Author" Label="Author" Variant="Variant.Outlined" />
 
-                    <MudTextField @bind-Value="_feed.ImageUrl" Label="Image URL" Class="mt-3"
-                        HelperText="Podcast cover art URL" />
+                    <MudTextField @bind-Value="_feed.Category" Label="Category" Variant="Variant.Outlined"
+                        HelperText="iTunes category (e.g., 'Society & Culture')" />
 
-                    <MudTextField @bind-Value="_feed.Link" Label="Website URL" Class="mt-3" />
+                    <div class="castr-feed-grid__full">
+                        <MudTextField @bind-Value="_feed.ImageUrl" Label="Image URL" Variant="Variant.Outlined" Class="castr-mono"
+                            HelperText="Podcast cover art URL" />
+                    </div>
 
-                    <MudSelect @bind-Value="_feed.Language" Label="Language" Class="mt-3">
+                    <div class="castr-feed-grid__full">
+                        <MudTextField @bind-Value="_feed.Link" Label="Website URL" Variant="Variant.Outlined" Class="castr-mono" />
+                    </div>
+
+                    <MudSelect @bind-Value="_feed.Language" Label="Language" Variant="Variant.Outlined">
                         <MudSelectItem Value="@("en-us")">English (US)</MudSelectItem>
                         <MudSelectItem Value="@("en-gb")">English (UK)</MudSelectItem>
                         <MudSelectItem Value="@("es")">Spanish</MudSelectItem>
@@ -78,75 +99,129 @@ else
                         <MudSelectItem Value="@("de")">German</MudSelectItem>
                     </MudSelect>
 
-                    <MudTextField @bind-Value="_feed.Category" Label="Category" Class="mt-3"
-                        HelperText="iTunes category (e.g., 'Society & Culture')" />
-
-                    <MudTextField @bind-Value="_fileExtensionsText" Label="File Extensions" Class="mt-3"
+                    <MudTextField @bind-Value="_fileExtensionsText" Label="File Extensions"
+                        Variant="Variant.Outlined" Class="castr-mono"
                         HelperText="Comma-separated (e.g., '.mp3,.m4a')" />
 
                     <MudNumericField @bind-Value="_feed.CacheDurationMinutes" Label="RSS Cache Duration (minutes)"
-                        Class="mt-3" Min="1" Max="1440" />
+                        Variant="Variant.Outlined" Class="castr-mono" Min="1" Max="1440" />
 
-                    <MudSwitch @bind-Value="_feed.IsActive" Label="Active" Color="Color.Primary" Class="mt-3" />
-                </MudPaper>
-            </MudItem>
+                    <div class="castr-feed-grid__full">
+                        <MudSwitch @bind-Value="_feed.IsActive" Label="Active" Color="Color.Primary" />
+                    </div>
+                </div>
+            </div>
 
-            <MudItem xs="12" md="6">
-                <MudPaper Elevation="2" Class="pa-4">
-                    <MudText Typo="Typo.h6" Class="mb-4">YouTube Configuration</MudText>
+            <div class="castr-card castr-card--pad22">
+                <div class="castr-feed-form__section-header">
+                    <div class="castr-feed-form__section-title">YouTube monitoring</div>
+                    <MudSwitch @bind-Value="_feed.YouTubeEnabled" Color="Color.Primary" />
+                </div>
 
-                    <MudSwitch @bind-Value="_feed.YouTubeEnabled" Label="Enable YouTube Monitoring" Color="Color.Primary" />
-
-                    @if (_feed.YouTubeEnabled)
-                    {
-                        <MudTextField @bind-Value="_feed.YouTubePlaylistUrl" Label="Playlist URL" Class="mt-3"
-                            HelperText="YouTube playlist URL or ID" />
+                @if (_feed.YouTubeEnabled)
+                {
+                    <div class="castr-feed-grid">
+                        <div class="castr-feed-grid__full">
+                            <MudTextField @bind-Value="_feed.YouTubePlaylistUrl" Label="Playlist URL"
+                                Variant="Variant.Outlined" Class="castr-mono"
+                                HelperText="YouTube playlist URL or ID" />
+                        </div>
 
                         @if (!string.IsNullOrWhiteSpace(_feed.YouTubePlaylistUrl))
                         {
-                            <MudButton Variant="Variant.Outlined" Size="Size.Small" Class="mt-2"
-                                OnClick="FetchYouTubeMetadata" Disabled="_fetchingMetadata"
-                                StartIcon="@Icons.Material.Filled.Download">
-                                @if (_fetchingMetadata)
-                                {
-                                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
-                                    <span>Fetching...</span>
-                                }
-                                else
-                                {
-                                    <span>Fetch Metadata</span>
-                                }
-                            </MudButton>
+                            <div class="castr-feed-grid__full">
+                                <button type="button" class="castr-btn castr-btn--ghost" @onclick="FetchYouTubeMetadata" disabled="@_fetchingMetadata">
+                                    @if (_fetchingMetadata)
+                                    {
+                                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                                        <span>Fetching...</span>
+                                    }
+                                    else
+                                    {
+                                        <MudIcon Icon="@Icons.Material.Filled.Download" Size="Size.Small" />
+                                        <span>Fetch metadata</span>
+                                    }
+                                </button>
+                            </div>
                         }
 
                         <MudNumericField @bind-Value="_feed.YouTubePollIntervalMinutes" Label="Poll Interval (minutes)"
-                            Class="mt-3" Min="5" Max="1440" />
+                            Variant="Variant.Outlined" Class="castr-mono" Min="5" Max="1440" />
 
                         <MudNumericField @bind-Value="_feed.YouTubeMaxConcurrentDownloads" Label="Max Concurrent Downloads"
-                            Class="mt-3" Min="1" Max="5" />
+                            Variant="Variant.Outlined" Class="castr-mono" Min="1" Max="5" />
 
-                        <MudSelect @bind-Value="_feed.YouTubeAudioQuality" Label="Audio Quality" Class="mt-3">
+                        <MudSelect @bind-Value="_feed.YouTubeAudioQuality" Label="Audio Quality" Variant="Variant.Outlined">
                             <MudSelectItem Value="@("highest")">Highest</MudSelectItem>
                             <MudSelectItem Value="@("medium")">Medium</MudSelectItem>
                             <MudSelectItem Value="@("lowest")">Lowest</MudSelectItem>
                         </MudSelect>
-                    }
-                </MudPaper>
-            </MudItem>
-        </MudGrid>
-
-        <MudStack Row="true" Justify="Justify.FlexEnd" Class="mt-4">
-            <MudButton Variant="Variant.Text" OnClick="GoBack">Cancel</MudButton>
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveFeed" Disabled="@(!_formValid || _saving)">
-                @if (_saving)
-                {
-                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                    </div>
                 }
-                @(_isNew ? "Create Feed" : "Save Changes")
-            </MudButton>
-        </MudStack>
-    </MudForm>
-}
+            </div>
+
+            <div class="castr-feed-form__actions">
+                <button type="button" class="castr-btn castr-btn--primary" @onclick="SaveFeed" disabled="@(!_formValid || _saving)">
+                    @if (_saving)
+                    {
+                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                    }
+                    <span>@(_isNew ? "Create feed" : "Save changes")</span>
+                </button>
+                <button type="button" class="castr-btn castr-btn--ghost" @onclick="GoBack">Cancel</button>
+            </div>
+        </MudForm>
+    }
+</div>
+
+<style>
+    .castr-back-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text-label);
+        cursor: pointer;
+        margin-bottom: 16px;
+        text-decoration: none;
+    }
+    .castr-back-link:hover { color: var(--text-strong); }
+
+    .castr-feed-form { display: flex; flex-direction: column; gap: 16px; margin-top: 24px; }
+
+    .castr-feed-form__section-title {
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--text-strong);
+        margin-bottom: 16px;
+    }
+    .castr-feed-form__section-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 16px;
+    }
+    .castr-feed-form__section-header .castr-feed-form__section-title { margin-bottom: 0; }
+
+    .castr-feed-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px 18px;
+        align-items: start;
+    }
+    .castr-feed-grid__full { grid-column: 1 / -1; }
+
+    @@media (max-width: 640px) {
+        .castr-feed-grid { grid-template-columns: minmax(0, 1fr); }
+    }
+
+    .castr-feed-form__actions {
+        display: flex;
+        gap: 10px;
+        margin-top: 4px;
+    }
+</style>
 
 @code {
     [Parameter]

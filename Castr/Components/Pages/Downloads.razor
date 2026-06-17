@@ -12,128 +12,96 @@
 
 <PageTitle>Downloads - Castr</PageTitle>
 
-<MudText Typo="Typo.h3" Class="mb-4">Download Queue</MudText>
+<div class="castr-page castr-page--narrow">
+    <h1 class="castr-h1">Downloads</h1>
+    <p class="castr-subtitle" style="margin-bottom:22px;">Live queue from the playlist watcher.</p>
 
-@if (_loading)
-{
-    <MudProgressLinear Indeterminate="true" />
-}
-else
-{
-    @if (_activeDownloads.Any())
+    @if (_loading)
     {
-        <MudText Typo="Typo.h5" Class="mb-3">Active Downloads</MudText>
-        <MudPaper Elevation="2" Class="pa-4 mb-4">
-            @foreach (var item in _activeDownloads)
+        <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+    }
+    else
+    {
+        <div class="castr-tabs">
+            @foreach (var tab in _tabs)
             {
-                <MudStack Class="mb-4">
-                    <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
-                        <MudStack Spacing="0">
-                            <MudText Typo="Typo.body1">@(item.VideoTitle ?? item.VideoId)</MudText>
-                            <MudText Typo="Typo.caption" Color="Color.Default">
-                                Feed: @(_feedNames.GetValueOrDefault(item.FeedId, "Unknown"))
-                            </MudText>
-                        </MudStack>
-                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
-                            <MudChip T="string" Color="@GetStatusColor(item.Status)" Size="Size.Small">@item.Status</MudChip>
-                            <MudText Typo="Typo.body2">@item.ProgressPercent%</MudText>
-                        </MudStack>
-                    </MudStack>
-                    <MudProgressLinear Value="@item.ProgressPercent" Color="@GetStatusColor(item.Status)" Rounded="true" />
-                </MudStack>
+                <button class="castr-tab @(_selectedTab == tab.Key ? "castr-tab--active" : "")"
+                        @onclick="() => _selectedTab = tab.Key">
+                    @tab.Label
+                    <span class="castr-count-badge @(_selectedTab == tab.Key ? "" : "castr-count-badge--neutral")">@TabCount(tab.Key)</span>
+                </button>
             }
-        </MudPaper>
-    }
+        </div>
 
-    @if (_queuedDownloads.Any())
-    {
-        <MudText Typo="Typo.h5" Class="mb-3">Queued</MudText>
-        <MudPaper Elevation="2" Class="pa-4 mb-4">
-            <MudList T="DownloadQueueItemEntity" Dense="true">
-                @foreach (var item in _queuedDownloads)
+        <div class="castr-card" style="padding:0;overflow:hidden;">
+            @{
+                var shown = ShownItems();
+            }
+            @if (shown.Count == 0)
+            {
+                <div style="padding:44px;text-align:center;color:var(--text-faint);font-size:14px;">Nothing here right now.</div>
+            }
+            else
+            {
+                @foreach (var item in shown)
                 {
-                    <MudListItem>
-                        <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
-                            <MudStack Spacing="0">
-                                <MudText Typo="Typo.body1">@(item.VideoTitle ?? item.VideoId)</MudText>
-                                <MudText Typo="Typo.caption" Color="Color.Default">
-                                    Feed: @(_feedNames.GetValueOrDefault(item.FeedId, "Unknown")) |
-                                    Queued: @item.QueuedAt.ToString("g")
-                                </MudText>
-                            </MudStack>
-                            <MudIconButton Icon="@Icons.Material.Filled.Cancel" Size="Size.Small" Color="Color.Error"
-                                OnClick="() => CancelDownload(item)" title="Cancel" />
-                        </MudStack>
-                    </MudListItem>
+                    <div style="padding:16px 18px;border-bottom:1px solid var(--border-row);">
+                        <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;">
+                            <div style="display:flex;align-items:center;gap:12px;min-width:0;">
+                                <div class="castr-avatar" style="width:34px;height:34px;border-radius:8px;background:@FeedColor(_feedNames.GetValueOrDefault(item.FeedId, "?"));"></div>
+                                <div style="min-width:0;">
+                                    <div style="font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">@(item.VideoTitle ?? item.VideoId)</div>
+                                    <div style="font-size:12px;color:var(--text-label);">
+                                        @(_feedNames.GetValueOrDefault(item.FeedId, "Unknown"))
+                                        @if (item.Status == "queued")
+                                        {
+                                            <span> · queued @item.QueuedAt.ToString("g")</span>
+                                        }
+                                        else if (item.Status == "completed" && item.CompletedAt.HasValue)
+                                        {
+                                            <span> · @item.CompletedAt.Value.ToString("g")</span>
+                                        }
+                                    </div>
+                                    @if (item.Status == "failed" && !string.IsNullOrEmpty(item.ErrorMessage))
+                                    {
+                                        <div style="font-size:11.5px;color:var(--status-error);margin-top:2px;">@item.ErrorMessage</div>
+                                    }
+                                </div>
+                            </div>
+                            <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
+                                <div class="castr-mono" style="text-align:right;">
+                                    <div style="font-size:13.5px;font-weight:600;color:@MetaColor(item.Status);">@MetaMain(item)</div>
+                                    <div style="font-size:11px;color:var(--text-faint);">@MetaSub(item)</div>
+                                </div>
+                                @if (item.Status == "queued")
+                                {
+                                    <button class="castr-icon-btn" title="Cancel" @onclick="() => CancelDownload(item)">
+                                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+                                    </button>
+                                }
+                                else if (item.Status == "failed")
+                                {
+                                    <button class="castr-icon-btn" title="Retry" @onclick="() => RetryDownload(item)">
+                                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg>
+                                    </button>
+                                    <button class="castr-icon-btn" title="Remove" @onclick="() => RemoveFromQueue(item)">
+                                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 14h10l1-14"/></svg>
+                                    </button>
+                                }
+                            </div>
+                        </div>
+                        @if (item.Status == "downloading")
+                        {
+                            <div class="castr-rail castr-rail--thin" style="margin-top:11px;">
+                                <div class="castr-rail__fill" style="width:@(item.ProgressPercent)%;"></div>
+                            </div>
+                        }
+                    </div>
                 }
-            </MudList>
-        </MudPaper>
+            }
+        </div>
     }
-
-    @if (_failedDownloads.Any())
-    {
-        <MudText Typo="Typo.h5" Class="mb-3">Failed</MudText>
-        <MudPaper Elevation="2" Class="pa-4 mb-4">
-            <MudList T="DownloadQueueItemEntity" Dense="true">
-                @foreach (var item in _failedDownloads)
-                {
-                    <MudListItem>
-                        <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
-                            <MudStack Spacing="0">
-                                <MudText Typo="Typo.body1">@(item.VideoTitle ?? item.VideoId)</MudText>
-                                <MudText Typo="Typo.caption" Color="Color.Error">@item.ErrorMessage</MudText>
-                                <MudText Typo="Typo.caption" Color="Color.Default">
-                                    Feed: @(_feedNames.GetValueOrDefault(item.FeedId, "Unknown"))
-                                </MudText>
-                            </MudStack>
-                            <MudStack Row="true" Spacing="1">
-                                <MudIconButton Icon="@Icons.Material.Filled.Refresh" Size="Size.Small" Color="Color.Primary"
-                                    OnClick="() => RetryDownload(item)" title="Retry" />
-                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
-                                    OnClick="() => RemoveFromQueue(item)" title="Remove" />
-                            </MudStack>
-                        </MudStack>
-                    </MudListItem>
-                }
-            </MudList>
-        </MudPaper>
-    }
-
-    @if (_completedDownloads.Any())
-    {
-        <MudText Typo="Typo.h5" Class="mb-3">Recently Completed</MudText>
-        <MudPaper Elevation="2" Class="pa-4">
-            <MudList T="DownloadQueueItemEntity" Dense="true">
-                @foreach (var item in _completedDownloads.Take(10))
-                {
-                    <MudListItem>
-                        <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
-                            <MudStack Spacing="0">
-                                <MudText Typo="Typo.body1">@(item.VideoTitle ?? item.VideoId)</MudText>
-                                <MudText Typo="Typo.caption" Color="Color.Default">
-                                    Feed: @(_feedNames.GetValueOrDefault(item.FeedId, "Unknown")) |
-                                    Completed: @(item.CompletedAt?.ToString("g") ?? "Unknown")
-                                </MudText>
-                            </MudStack>
-                            <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" />
-                        </MudStack>
-                    </MudListItem>
-                }
-            </MudList>
-        </MudPaper>
-    }
-
-    @if (!_activeDownloads.Any() && !_queuedDownloads.Any() && !_failedDownloads.Any() && !_completedDownloads.Any())
-    {
-        <MudPaper Elevation="2" Class="pa-4">
-            <MudStack AlignItems="AlignItems.Center" Spacing="4">
-                <MudIcon Icon="@Icons.Material.Filled.Download" Size="Size.Large" Color="Color.Default" />
-                <MudText Typo="Typo.h6">No downloads in queue</MudText>
-                <MudText Typo="Typo.body2">Downloads will appear here when YouTube playlists are synced.</MudText>
-            </MudStack>
-        </MudPaper>
-    }
-}
+</div>
 
 @code {
     private List<DownloadQueueItemEntity> _activeDownloads = new();
@@ -145,6 +113,12 @@ else
     private HubConnection? _hubConnection;
     private System.Threading.Timer? _refreshTimer;
     private bool _disposed;
+
+    private string _selectedTab = "active";
+    private readonly (string Key, string Label)[] _tabs =
+    {
+        ("active", "Active"), ("queued", "Queued"), ("completed", "Completed"), ("failed", "Failed")
+    };
 
     protected override async Task OnInitializedAsync()
     {
@@ -231,14 +205,61 @@ else
         }
     }
 
-    private Color GetStatusColor(string status) => status switch
+    private int TabCount(string key) => key switch
     {
-        "downloading" => Color.Primary,
-        "queued" => Color.Default,
-        "completed" => Color.Success,
-        "failed" => Color.Error,
-        _ => Color.Default
+        "active" => _activeDownloads.Count,
+        "queued" => _queuedDownloads.Count,
+        "completed" => _completedDownloads.Count,
+        "failed" => _failedDownloads.Count,
+        _ => 0
     };
+
+    private List<DownloadQueueItemEntity> ShownItems() => _selectedTab switch
+    {
+        "active" => _activeDownloads,
+        "queued" => _queuedDownloads,
+        "completed" => _completedDownloads.Take(20).ToList(),
+        "failed" => _failedDownloads,
+        _ => new()
+    };
+
+    private static string MetaMain(DownloadQueueItemEntity item) => item.Status switch
+    {
+        "downloading" => $"{item.ProgressPercent}%",
+        "queued" => "Queued",
+        "completed" => "Done",
+        "failed" => "Failed",
+        _ => item.Status
+    };
+
+    private static string MetaSub(DownloadQueueItemEntity item) => item.Status switch
+    {
+        "downloading" => "downloading",
+        "queued" => "waiting",
+        "completed" => item.CompletedAt?.ToString("t") ?? "",
+        "failed" => "see error",
+        _ => ""
+    };
+
+    private static string MetaColor(string status) => status switch
+    {
+        "downloading" => "#ef6b41",
+        "queued" => "#e0b04a",
+        "completed" => "#5bbf8a",
+        "failed" => "#e0614f",
+        _ => "#928b7c"
+    };
+
+    private static readonly string[] AvatarPalette =
+        { "#a8794a", "#b5683f", "#4f7d6e", "#8a5168", "#6a6aa3", "#4d7a99" };
+
+    private static string FeedColor(string name)
+    {
+        if (string.IsNullOrEmpty(name)) return AvatarPalette[0];
+        int hash = 0;
+        foreach (var c in name) hash = (hash * 31 + c) & 0x7fffffff;
+        return AvatarPalette[hash % AvatarPalette.Length];
+    }
 
     private async Task CancelDownload(DownloadQueueItemEntity item)
     {
