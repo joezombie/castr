@@ -34,6 +34,7 @@ public class PodcastDataServiceTests : IDisposable
         _loggerMock = new Mock<ILogger<PodcastDataService>>();
 
         _service = new PodcastDataService(
+            _context,
             _feedRepo,
             _episodeRepo,
             _downloadRepo,

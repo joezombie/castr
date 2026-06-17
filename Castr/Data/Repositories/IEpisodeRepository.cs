@@ -12,4 +12,10 @@ public interface IEpisodeRepository
     Task AddRangeAsync(IEnumerable<Episode> episodes);
     Task UpdateAsync(Episode episode);
     Task DeleteAsync(int id);
+
+    /// <summary>
+    /// Bulk-deletes all episodes belonging to the given feed in a single database operation.
+    /// Returns the number of rows deleted.
+    /// </summary>
+    Task<int> DeleteByFeedIdAsync(int feedId);
 }

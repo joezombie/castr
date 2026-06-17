@@ -4,7 +4,10 @@
 @inject ILogger<FeedDetails> Logger
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@inject IPlaylistWatcherTrigger PlaylistWatcherTrigger
 @using Castr.Data.Entities
+@using Castr.Services
 
 <PageTitle>@(_feed?.Title ?? "Feed Details") - Castr</PageTitle>
 
@@ -14,6 +17,21 @@
     @if (_feed != null)
     {
         <MudSpacer />
+        @if (_feed.YouTubeEnabled && !string.IsNullOrWhiteSpace(_feed.YouTubePlaylistUrl))
+        {
+            <MudButton Variant="Variant.Outlined" Color="Color.Warning"
+                StartIcon="@Icons.Material.Filled.Sync" OnClick="ClearAndResync" Disabled="_clearing">
+                @if (_clearing)
+                {
+                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                    <span>Clearing...</span>
+                }
+                else
+                {
+                    <span>Clear &amp; Resync from Playlist</span>
+                }
+            </MudButton>
+        }
         <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Edit"
             OnClick="GoToEdit">
             Edit
@@ -180,6 +198,7 @@ else
     private List<Episode> _episodes = new();
     private List<ActivityLog> _activities = new();
     private bool _loading = true;
+    private bool _clearing;
 
     protected override async Task OnInitializedAsync()
     {
@@ -230,4 +249,45 @@ else
     private void GoToFeeds() => Navigation.NavigateTo("/feeds");
     private void GoToEdit() => Navigation.NavigateTo($"/feeds/{Name}/edit");
     private void GoToEpisodes() => Navigation.NavigateTo($"/feeds/{Name}/episodes");
+
+    private async Task ClearAndResync()
+    {
+        if (_feed == null)
+        {
+            return;
+        }
+
+        var result = await DialogService.ShowMessageBox(
+            "Clear & Resync from Playlist",
+            $"This deletes all {_episodes.Count} episode records and download history for this feed " +
+            "from the database, then re-syncs from the YouTube playlist. Your MP3 files on disk are " +
+            "not deleted. Existing files will be re-matched; only missing videos will be re-downloaded.",
+            yesText: "Clear & Resync",
+            cancelText: "Cancel");
+
+        if (result != true)
+        {
+            return;
+        }
+
+        _clearing = true;
+        try
+        {
+            var cleared = await DataService.ClearFeedEpisodeDataAsync(_feed.Id);
+            PlaylistWatcherTrigger.TriggerFeedProcessing(_feed.Name);
+            Snackbar.Add(
+                $"Cleared {cleared.EpisodesCleared} episode(s) and {cleared.TrackingRowsCleared} tracking row(s). Resync started.",
+                Severity.Success);
+            await LoadDataAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to clear and resync feed {Name}", _feed.Name);
+            Snackbar.Add("Failed to clear and resync feed", Severity.Error);
+        }
+        finally
+        {
+            _clearing = false;
+        }
+    }
 }

@@ -1,7 +1,9 @@
 using System.Text.RegularExpressions;
+using Castr.Data;
 using Castr.Data.Entities;
 using Castr.Data.Repositories;
 using Castr.Models;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using TagLib;
 
@@ -13,6 +15,7 @@ namespace Castr.Services;
 /// </summary>
 public partial class PodcastDataService : IPodcastDataService
 {
+    private readonly CastrDbContext _context;
     private readonly IFeedRepository _feedRepository;
     private readonly IEpisodeRepository _episodeRepository;
     private readonly IDownloadRepository _downloadRepository;
@@ -23,12 +26,14 @@ public partial class PodcastDataService : IPodcastDataService
     private static partial Regex WhitespaceRegex();
 
     public PodcastDataService(
+        CastrDbContext context,
         IFeedRepository feedRepository,
         IEpisodeRepository episodeRepository,
         IDownloadRepository downloadRepository,
         IActivityRepository activityRepository,
         ILogger<PodcastDataService> logger)
     {
+        _context = context;
         _feedRepository = feedRepository;
         _episodeRepository = episodeRepository;
         _downloadRepository = downloadRepository;
@@ -346,6 +351,51 @@ public partial class PodcastDataService : IPodcastDataService
                 _logger.LogError(ex, "Failed to write activity log for sync warning (feed {FeedId})", feedId);
             }
         }
+    }
+
+    /// <summary>
+    /// Clears all episode metadata and download tracking for a feed from the database without
+    /// deleting MP3 files on disk. Both bulk deletes and the activity-log write run inside a single
+    /// transaction so a partial failure rolls back, leaving the database in its original state.
+    /// </summary>
+    public async Task<ClearFeedResult> ClearFeedEpisodeDataAsync(int feedId)
+    {
+        // BeginTransactionAsync requires a relational provider; the InMemory provider used in some
+        // tests has no transaction support, so fall back to running without an explicit transaction.
+        if (!_context.Database.IsRelational())
+        {
+            return await ClearFeedEpisodeDataCoreAsync(feedId);
+        }
+
+        await using var transaction = await _context.Database.BeginTransactionAsync();
+        try
+        {
+            var result = await ClearFeedEpisodeDataCoreAsync(feedId);
+            await transaction.CommitAsync();
+            return result;
+        }
+        catch (Exception ex)
+        {
+            await transaction.RollbackAsync();
+            _logger.LogError(ex, "Failed to clear episode data for feed {FeedId}; rolled back", feedId);
+            throw;
+        }
+    }
+
+    private async Task<ClearFeedResult> ClearFeedEpisodeDataCoreAsync(int feedId)
+    {
+        var episodesCleared = await _episodeRepository.DeleteByFeedIdAsync(feedId);
+        var trackingRowsCleared = await _downloadRepository.DeleteDownloadedVideosByFeedIdAsync(feedId);
+
+        await _activityRepository.LogAsync(feedId, "clear_resync",
+            $"Cleared {episodesCleared} episode(s) and {trackingRowsCleared} download tracking row(s) for resync",
+            $"Episodes cleared: {episodesCleared}, Tracking rows cleared: {trackingRowsCleared}");
+
+        _logger.LogInformation(
+            "Cleared episode data for feed {FeedId}: {Episodes} episodes, {Tracking} tracking rows",
+            feedId, episodesCleared, trackingRowsCleared);
+
+        return new ClearFeedResult(episodesCleared, trackingRowsCleared);
     }
 
     #endregion
