@@ -10,96 +10,151 @@
 
 <PageTitle>Dashboard - Castr</PageTitle>
 
-<MudText Typo="Typo.h3" Class="mb-4">Dashboard</MudText>
+<div class="castr-page">
+    <div style="margin-bottom:24px;">
+        <h1 class="castr-h1">Overview</h1>
+        <p class="castr-subtitle">Everything Castr is serving and downloading, at a glance.</p>
+    </div>
 
-<MudGrid>
-    <MudItem xs="12" sm="6" md="3">
-        <MudPaper Elevation="2" Class="pa-4">
-            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
-                <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Size="Size.Large" />
-                <MudStack Spacing="0">
-                    <MudText Typo="Typo.h6">Server Status</MudText>
-                    <MudText Typo="Typo.body2" Color="Color.Success">Online</MudText>
-                    <MudText Typo="Typo.caption">Uptime: @_uptime</MudText>
-                </MudStack>
-            </MudStack>
-        </MudPaper>
-    </MudItem>
-    <MudItem xs="12" sm="6" md="3">
-        <MudPaper Elevation="2" Class="pa-4 cursor-pointer" @onclick="GoToFeeds">
-            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
-                <MudIcon Icon="@Icons.Material.Filled.RssFeed" Color="Color.Primary" Size="Size.Large" />
-                <MudStack Spacing="0">
-                    <MudText Typo="Typo.h6">Feeds</MudText>
-                    <MudText Typo="Typo.h4">@_feedCount</MudText>
-                </MudStack>
-            </MudStack>
-        </MudPaper>
-    </MudItem>
-    <MudItem xs="12" sm="6" md="3">
-        <MudPaper Elevation="2" Class="pa-4 cursor-pointer" @onclick="GoToFeeds">
-            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
-                <MudIcon Icon="@Icons.Material.Filled.Headphones" Color="Color.Secondary" Size="Size.Large" />
-                <MudStack Spacing="0">
-                    <MudText Typo="Typo.h6">Episodes</MudText>
-                    <MudText Typo="Typo.h4">@_episodeCount</MudText>
-                </MudStack>
-            </MudStack>
-        </MudPaper>
-    </MudItem>
-    <MudItem xs="12" sm="6" md="3">
-        <MudPaper Elevation="2" Class="pa-4 cursor-pointer" @onclick="GoToDownloads">
-            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
-                <MudIcon Icon="@Icons.Material.Filled.Download" Color="@(_activeDownloads > 0 ? Color.Warning : Color.Info)" Size="Size.Large" />
-                <MudStack Spacing="0">
-                    <MudText Typo="Typo.h6">Downloads</MudText>
-                    <MudText Typo="Typo.h4">@_activeDownloads</MudText>
-                </MudStack>
-            </MudStack>
-        </MudPaper>
-    </MudItem>
-</MudGrid>
+    <!-- stat cards -->
+    <div class="castr-stat-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px;">
+        <div class="castr-card cursor-pointer" @onclick="GoToFeeds">
+            <div class="castr-stat-label">Feeds</div>
+            <div class="castr-stat-number">@_feedCount</div>
+            <div class="castr-stat-sub">@_monitoredCount monitored on YouTube</div>
+        </div>
+        <div class="castr-card cursor-pointer" @onclick="GoToFeeds">
+            <div class="castr-stat-label">Episodes</div>
+            <div class="castr-stat-number">@_episodeCount</div>
+            <div class="castr-stat-sub">across all feeds</div>
+        </div>
+        <div class="castr-card">
+            <div class="castr-stat-label">Storage used</div>
+            <div class="castr-stat-number">@_storageDisplay</div>
+            <div class="castr-stat-sub">on disk</div>
+        </div>
+        <div class="castr-card cursor-pointer" @onclick="GoToDownloads">
+            <div class="castr-stat-label">Active downloads</div>
+            <div class="castr-stat-number @(_activeDownloads > 0 ? "castr-stat-number--accent" : "")">@_activeDownloads</div>
+            <div class="castr-stat-sub">@_queuedCount queued behind</div>
+        </div>
+    </div>
 
-@if (_activeDownloadItems.Any())
-{
-    <MudText Typo="Typo.h5" Class="mt-6 mb-4">Active Downloads</MudText>
-    <MudPaper Elevation="2" Class="pa-4">
-        @foreach (var item in _activeDownloadItems)
-        {
-            <MudStack Class="mb-3">
-                <MudStack Row="true" Justify="Justify.SpaceBetween">
-                    <MudText Typo="Typo.body1">@(item.VideoTitle ?? item.VideoId)</MudText>
-                    <MudText Typo="Typo.body2">@item.ProgressPercent%</MudText>
-                </MudStack>
-                <MudProgressLinear Value="@item.ProgressPercent" Color="Color.Primary" Rounded="true" Size="Size.Medium" />
-            </MudStack>
-        }
-    </MudPaper>
-}
-
-<MudText Typo="Typo.h5" Class="mt-6 mb-4">Recent Activity</MudText>
-<MudPaper Elevation="2" Class="pa-4">
-    @if (_recentActivity.Any())
+    <!-- downloading now -->
+    @if (_activeDownloadItems.Any())
     {
-        <MudTimeline TimelinePosition="TimelinePosition.Start">
-            @foreach (var activity in _recentActivity)
+        <div class="castr-card castr-card--pad20" style="margin-bottom:18px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+                <div style="display:flex;align-items:center;gap:9px;">
+                    <span class="castr-pulse-dot"></span>
+                    <h2 class="castr-h2">Downloading now</h2>
+                </div>
+                <a class="cursor-pointer" style="font-size:13px;font-weight:600;color:var(--accent);text-decoration:none;" @onclick="GoToDownloads">View queue →</a>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:16px;">
+                @foreach (var item in _activeDownloadItems)
+                {
+                    <div>
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:12px;">
+                            <div style="display:flex;align-items:center;gap:10px;min-width:0;">
+                                <div class="castr-avatar" style="width:30px;height:30px;border-radius:7px;background:@FeedColor(_feedNames.GetValueOrDefault(item.FeedId, "?"));"></div>
+                                <div style="min-width:0;">
+                                    <div style="font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">@(item.VideoTitle ?? item.VideoId)</div>
+                                    <div style="font-size:12px;color:var(--text-label);">@(_feedNames.GetValueOrDefault(item.FeedId, "Unknown"))</div>
+                                </div>
+                            </div>
+                            <div class="castr-mono" style="text-align:right;flex-shrink:0;">
+                                <div style="font-size:14px;font-weight:600;color:var(--accent);">@item.ProgressPercent%</div>
+                                <div style="font-size:11px;color:var(--text-faint);">@item.Status</div>
+                            </div>
+                        </div>
+                        <div class="castr-rail">
+                            <div class="castr-rail__fill" style="width:@(item.ProgressPercent)%;"></div>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+
+    <!-- two columns -->
+    <div class="castr-dash-cols" style="display:grid;grid-template-columns:1.5fr 1fr;gap:18px;">
+        <!-- recent activity -->
+        <div class="castr-card castr-card--pad20">
+            <h2 class="castr-h2" style="margin-bottom:16px;">Recent activity</h2>
+            @if (_recentActivity.Any())
             {
-                <MudTimelineItem Color="@GetActivityColor(activity.ActivityType)" Size="Size.Small">
-                    <ItemContent>
-                        <MudStack Spacing="0">
-                            <MudText Typo="Typo.body1">@activity.Message</MudText>
-                            <MudText Typo="Typo.caption" Color="Color.Default">@activity.CreatedAt.ToString("g")</MudText>
-                        </MudStack>
-                    </ItemContent>
-                </MudTimelineItem>
+                <div style="display:flex;flex-direction:column;">
+                    @foreach (var activity in _recentActivity)
+                    {
+                        <div style="display:flex;gap:13px;padding:9px 0;border-bottom:1px solid var(--border-row);">
+                            <span style="width:8px;height:8px;border-radius:50%;margin-top:6px;flex-shrink:0;background:@ActivityColor(activity.ActivityType);"></span>
+                            <div style="min-width:0;">
+                                <div style="font-size:13.5px;line-height:1.45;color:var(--text-strong);">@activity.Message</div>
+                                <div class="castr-mono" style="font-size:11.5px;color:var(--text-faint);margin-top:2px;">@activity.CreatedAt.ToString("g")</div>
+                            </div>
+                        </div>
+                    }
+                </div>
             }
-        </MudTimeline>
-    }
-    else
-    {
-        <MudText Typo="Typo.body1" Color="Color.Default">No recent activity</MudText>
-    }
-</MudPaper>
+            else
+            {
+                <div style="padding:24px;text-align:center;color:var(--text-faint);font-size:14px;">No recent activity</div>
+            }
+        </div>
+
+        <!-- right column -->
+        <div style="display:flex;flex-direction:column;gap:18px;">
+            <div class="castr-card castr-card--pad20">
+                <h2 class="castr-h2" style="margin-bottom:14px;">Upcoming polls</h2>
+                @if (_upcomingPolls.Any())
+                {
+                    <div style="display:flex;flex-direction:column;gap:11px;">
+                        @foreach (var f in _upcomingPolls)
+                        {
+                            <div class="cursor-pointer" style="display:flex;align-items:center;gap:11px;" @onclick="() => GoToFeed(f.Name)">
+                                <div class="castr-avatar castr-avatar--sm" style="background:@FeedColor(f.Title);">@Initials(f.Title)</div>
+                                <div style="min-width:0;flex:1;">
+                                    <div style="font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">@f.Title</div>
+                                    <div style="font-size:11.5px;color:var(--text-faint);">every @f.YouTubePollIntervalMinutes min</div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div style="font-size:13px;color:var(--text-faint);">No playlists are being monitored.</div>
+                }
+            </div>
+
+            <div class="castr-card castr-card--pad20">
+                <h2 class="castr-h2" style="margin-bottom:14px;">Storage by feed</h2>
+                @if (_storageByFeed.Any())
+                {
+                    <div style="display:flex;flex-direction:column;gap:13px;">
+                        @foreach (var f in _storageByFeed)
+                        {
+                            <div>
+                                <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:5px;">
+                                    <span style="color:var(--text-strong);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">@f.Title</span>
+                                    <span class="castr-mono" style="color:var(--text-label);flex-shrink:0;margin-left:8px;">@FormatSize(f.Bytes)</span>
+                                </div>
+                                <div class="castr-rail castr-rail--thin">
+                                    <div class="castr-rail__fill" style="width:@(StoragePct(f.Bytes))%;background:@FeedColor(f.Title);transition:none;"></div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div style="font-size:13px;color:var(--text-faint);">No stored episodes yet.</div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
 
 @code {
     private static readonly DateTime _startTime = DateTime.UtcNow;
@@ -113,6 +168,16 @@
     private HubConnection? _hubConnection;
     private System.Threading.Timer? _refreshTimer;
     private bool _disposed;
+
+    // UI display data (derived from existing DataService calls — no backend changes)
+    private int _monitoredCount;
+    private int _queuedCount;
+    private long _totalBytes;
+    private string _storageDisplay = "0 B";
+    private long _maxFeedBytes;
+    private Dictionary<int, string> _feedNames = new();
+    private List<Feed> _upcomingPolls = new();
+    private List<(string Title, long Bytes)> _storageByFeed = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -187,17 +252,36 @@
         {
             var feeds = await DataService.GetAllFeedsAsync();
             _feedCount = feeds.Count;
+            _monitoredCount = feeds.Count(f => f.YouTubeEnabled);
+            _feedNames = feeds.ToDictionary(f => f.Id, f => f.Title);
+            _upcomingPolls = feeds
+                .Where(f => f.YouTubeEnabled)
+                .OrderBy(f => f.YouTubePollIntervalMinutes)
+                .Take(4)
+                .ToList();
 
             _episodeCount = 0;
+            _totalBytes = 0;
+            var perFeed = new List<(string Title, long Bytes)>();
             foreach (var feed in feeds)
             {
                 var episodes = await DataService.GetEpisodesAsync(feed.Id);
                 _episodeCount += episodes.Count;
+                var bytes = episodes.Sum(e => e.FileSize ?? 0L);
+                _totalBytes += bytes;
+                if (bytes > 0)
+                {
+                    perFeed.Add((feed.Title, bytes));
+                }
             }
+            _storageDisplay = FormatSize(_totalBytes);
+            _storageByFeed = perFeed.OrderByDescending(f => f.Bytes).Take(4).ToList();
+            _maxFeedBytes = _storageByFeed.Count > 0 ? _storageByFeed.Max(f => f.Bytes) : 0;
 
             var queue = await DataService.GetQueueAsync();
             _activeDownloadItems = queue.Where(q => q.Status == "downloading" || q.Status == "queued").ToList();
             _activeDownloads = _activeDownloadItems.Count;
+            _queuedCount = queue.Count(q => q.Status == "queued");
 
             _recentActivity = await DataService.GetRecentActivityAsync(count: 20);
 
@@ -220,17 +304,55 @@
             _uptime = $"{uptime.Minutes}m {uptime.Seconds}s";
     }
 
-    private Color GetActivityColor(string activityType) => activityType switch
+    // --- UI helpers (presentation only) ---
+    private static readonly string[] AvatarPalette =
+        { "#a8794a", "#b5683f", "#4f7d6e", "#8a5168", "#6a6aa3", "#4d7a99" };
+
+    private static string FeedColor(string name)
     {
-        "download" => Color.Success,
-        "error" => Color.Error,
-        "warning" => Color.Warning,
-        "sync" => Color.Info,
-        _ => Color.Default
+        if (string.IsNullOrEmpty(name)) return AvatarPalette[0];
+        int hash = 0;
+        foreach (var c in name) hash = (hash * 31 + c) & 0x7fffffff;
+        return AvatarPalette[hash % AvatarPalette.Length];
+    }
+
+    private static string Initials(string title)
+    {
+        if (string.IsNullOrWhiteSpace(title)) return "?";
+        var parts = title.Split(new[] { ' ', '-', '_' }, StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 0) return "?";
+        if (parts.Length == 1) return parts[0].Substring(0, Math.Min(2, parts[0].Length)).ToUpperInvariant();
+        return ($"{parts[0][0]}{parts[1][0]}").ToUpperInvariant();
+    }
+
+    private static string FormatSize(long bytes)
+    {
+        if (bytes <= 0) return "0 B";
+        string[] units = { "B", "KB", "MB", "GB", "TB" };
+        double size = bytes;
+        int unit = 0;
+        while (size >= 1024 && unit < units.Length - 1) { size /= 1024; unit++; }
+        return size >= 100 || unit == 0 ? $"{size:0} {units[unit]}" : $"{size:0.0} {units[unit]}";
+    }
+
+    private int StoragePct(long bytes)
+    {
+        if (_maxFeedBytes <= 0) return 0;
+        return (int)Math.Round(bytes * 100.0 / _maxFeedBytes);
+    }
+
+    private static string ActivityColor(string activityType) => activityType switch
+    {
+        "download" => "#5bbf8a",
+        "error" => "#e0614f",
+        "warning" => "#e0b04a",
+        "sync" => "#7f8aa0",
+        _ => "#ef6b41"
     };
 
     private void GoToFeeds() => Navigation.NavigateTo("/feeds");
     private void GoToDownloads() => Navigation.NavigateTo("/downloads");
+    private void GoToFeed(string name) => Navigation.NavigateTo($"/feeds/{name}");
 
     public async ValueTask DisposeAsync()
     {

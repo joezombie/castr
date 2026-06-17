@@ -5,134 +5,103 @@
     <DialogContent>
         @if (Episode != null)
         {
-            <MudStack Spacing="3">
-                <MudStack Row="true">
-                    <MudText Typo="Typo.body2" Color="Color.Default" Style="width: 120px;">Filename:</MudText>
-                    <MudText Typo="Typo.body1">@Episode.Filename</MudText>
-                </MudStack>
+            <div style="display:flex;flex-direction:column;gap:16px;">
+
+                @if (!string.IsNullOrEmpty(Episode.ThumbnailUrl))
+                {
+                    <img src="@Episode.ThumbnailUrl" alt="Thumbnail"
+                        style="width:100%;max-width:360px;border-radius:11px;border:1px solid var(--border-card);object-fit:contain;" />
+                }
+
+                @MetaRow("Filename", Episode.Filename, mono: true)
 
                 @if (!string.IsNullOrEmpty(Episode.YoutubeTitle))
                 {
-                    <MudStack Row="true">
-                        <MudText Typo="Typo.body2" Color="Color.Default" Style="width: 120px;">YouTube Title:</MudText>
-                        <MudText Typo="Typo.body1">@Episode.YoutubeTitle</MudText>
-                    </MudStack>
+                    @MetaRow("YouTube Title", Episode.YoutubeTitle!)
                 }
 
                 @if (!string.IsNullOrEmpty(Episode.VideoId))
                 {
-                    <MudStack Row="true">
-                        <MudText Typo="Typo.body2" Color="Color.Default" Style="width: 120px;">Video ID:</MudText>
-                        <MudLink Href="@($"https://youtube.com/watch?v={Episode.VideoId}")" Target="_blank">
+                    <div>
+                        <div class="castr-section-label">YouTube Video</div>
+                        <a href="@($"https://youtube.com/watch?v={Episode.VideoId}")" target="_blank"
+                            class="castr-mono" style="color:var(--accent);text-decoration:none;font-size:13.5px;">
                             @Episode.VideoId
-                        </MudLink>
-                    </MudStack>
+                        </a>
+                    </div>
                 }
 
-                <MudStack Row="true">
-                    <MudText Typo="Typo.body2" Color="Color.Default" Style="width: 120px;">Display Order:</MudText>
-                    <MudText Typo="Typo.body1">@Episode.DisplayOrder</MudText>
-                </MudStack>
+                @MetaRow("Display Order", Episode.DisplayOrder.ToString(), mono: true)
 
                 @if (Episode.PublishDate.HasValue)
                 {
-                    <MudStack Row="true">
-                        <MudText Typo="Typo.body2" Color="Color.Default" Style="width: 120px;">Publish Date:</MudText>
-                        <MudText Typo="Typo.body1">@Episode.PublishDate.Value.ToString("f")</MudText>
-                    </MudStack>
+                    @MetaRow("Publish Date", Episode.PublishDate.Value.ToString("f"), mono: true)
                 }
 
-                <MudStack Row="true">
-                    <MudText Typo="Typo.body2" Color="Color.Default" Style="width: 120px;">Added:</MudText>
-                    <MudText Typo="Typo.body1">@Episode.AddedAt.ToString("f")</MudText>
-                </MudStack>
+                @MetaRow("Added", Episode.AddedAt.ToString("f"), mono: true)
 
                 @if (Episode.MatchScore.HasValue)
                 {
-                    <MudStack Row="true">
-                        <MudText Typo="Typo.body2" Color="Color.Default" Style="width: 120px;">Match Score:</MudText>
-                        <MudText Typo="Typo.body1">@((Episode.MatchScore.Value * 100).ToString("F1"))%</MudText>
-                    </MudStack>
+                    @MetaRow("Match Score", $"{(Episode.MatchScore.Value * 100).ToString("F1")}%", mono: true)
                 }
 
                 @if (!string.IsNullOrEmpty(Episode.Artist))
                 {
-                    <MudStack Row="true">
-                        <MudText Typo="Typo.body2" Color="Color.Default" Style="width: 120px;">Artist:</MudText>
-                        <MudText Typo="Typo.body1">@Episode.Artist</MudText>
-                    </MudStack>
+                    @MetaRow("Artist", Episode.Artist!)
                 }
 
                 @if (!string.IsNullOrEmpty(Episode.Album))
                 {
-                    <MudStack Row="true">
-                        <MudText Typo="Typo.body2" Color="Color.Default" Style="width: 120px;">Album:</MudText>
-                        <MudText Typo="Typo.body1">@Episode.Album</MudText>
-                    </MudStack>
+                    @MetaRow("Album", Episode.Album!)
                 }
 
                 @if (!string.IsNullOrEmpty(Episode.Genre))
                 {
-                    <MudStack Row="true">
-                        <MudText Typo="Typo.body2" Color="Color.Default" Style="width: 120px;">Genre:</MudText>
-                        <MudText Typo="Typo.body1">@Episode.Genre</MudText>
-                    </MudStack>
+                    @MetaRow("Genre", Episode.Genre!)
                 }
 
                 @if (Episode.Year.HasValue)
                 {
-                    <MudStack Row="true">
-                        <MudText Typo="Typo.body2" Color="Color.Default" Style="width: 120px;">Year:</MudText>
-                        <MudText Typo="Typo.body1">@Episode.Year</MudText>
-                    </MudStack>
+                    @MetaRow("Year", Episode.Year!.ToString()!, mono: true)
                 }
 
                 @if (Episode.TrackNumber.HasValue)
                 {
-                    <MudStack Row="true">
-                        <MudText Typo="Typo.body2" Color="Color.Default" Style="width: 120px;">Track #:</MudText>
-                        <MudText Typo="Typo.body1">@Episode.TrackNumber</MudText>
-                    </MudStack>
+                    @MetaRow("Track #", Episode.TrackNumber!.ToString()!, mono: true)
                 }
 
                 @if (Episode.Bitrate.HasValue)
                 {
-                    <MudStack Row="true">
-                        <MudText Typo="Typo.body2" Color="Color.Default" Style="width: 120px;">Bitrate:</MudText>
-                        <MudText Typo="Typo.body1">@(Episode.Bitrate) kbps</MudText>
-                    </MudStack>
+                    @MetaRow("Bitrate", $"{Episode.Bitrate} kbps", mono: true)
                 }
 
                 @if (!string.IsNullOrEmpty(Episode.Subtitle))
                 {
-                    <MudStack Row="true">
-                        <MudText Typo="Typo.body2" Color="Color.Default" Style="width: 120px;">Subtitle:</MudText>
-                        <MudText Typo="Typo.body1">@Episode.Subtitle</MudText>
-                    </MudStack>
+                    @MetaRow("Subtitle", Episode.Subtitle!)
                 }
 
                 @if (!string.IsNullOrEmpty(Episode.Description))
                 {
-                    <MudDivider Class="my-2" />
-                    <MudText Typo="Typo.subtitle2">Description</MudText>
-                    <MudText Typo="Typo.body2" Style="white-space: pre-wrap; max-height: 200px; overflow-y: auto;">
-                        @Episode.Description
-                    </MudText>
+                    <div>
+                        <div class="castr-section-label">Description</div>
+                        <div style="white-space:pre-wrap;max-height:200px;overflow-y:auto;font-size:13.5px;color:var(--text-value);line-height:1.5;">@Episode.Description</div>
+                    </div>
                 }
-
-                @if (!string.IsNullOrEmpty(Episode.ThumbnailUrl))
-                {
-                    <MudDivider Class="my-2" />
-                    <MudText Typo="Typo.subtitle2">Thumbnail</MudText>
-                    <MudImage Src="@Episode.ThumbnailUrl" Alt="Thumbnail" Width="320" ObjectFit="ObjectFit.Contain" />
-                }
-            </MudStack>
+            </div>
         }
     </DialogContent>
     <DialogActions>
-        <MudButton OnClick="Close">Close</MudButton>
+        <button type="button" class="castr-btn castr-btn--secondary" @onclick="Close">Close</button>
     </DialogActions>
 </MudDialog>
+
+@{
+    RenderFragment MetaRow(string label, string value, bool mono = false) =>
+        @<div>
+            <div class="castr-section-label">@label</div>
+            <div class="@(mono ? "castr-mono" : "")" style="font-size:13.5px;color:var(--text-value);">@value</div>
+        </div>;
+}
 
 @code {
     [CascadingParameter]

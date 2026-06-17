@@ -1,28 +1,363 @@
-/* Custom styles for Castr dashboard */
+/* ============================================================
+   Castr dashboard — warm-dark restyle
+   ============================================================ */
 
+:root {
+    --accent: #ef6b41;
+    --bg-app: #15140f;
+    --bg-topbar: #16140f;
+    --bg-sidebar: #18160f;
+    --bg-surface: #1d1b14;
+    --bg-input: #15140f;
+    --bg-track: #0f0e0a;
+    --bg-row-hover: #211e17;
+    --bg-active-nav: #26221a;
+    --bg-secondary: #2a261d;
+    --on-accent: #1a120d;
+    --border-divider: #252118;
+    --border-card: #28241c;
+    --border-row: #221f18;
+    --border-input: #2f2a20;
+    --border-card-hover: #3a342a;
+    --text-primary: #f4f1ea;
+    --text-strong: #dcd6c8;
+    --text-value: #b4ad9e;
+    --text-muted: #928b7c;
+    --text-inactive: #9a9384;
+    --text-label: #8b8475;
+    --text-faint: #645e52;
+    --text-placeholder: #5e584c;
+    --status-success: #5bbf8a;
+    --status-warning: #e0b04a;
+    --status-error: #e0614f;
+    --status-sync: #7f8aa0;
+}
+
+/* ---------- base typography ---------- */
 html, body {
-    font-family: 'Roboto', sans-serif;
+    font-family: 'Hanken Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background: var(--bg-app);
 }
 
-.mud-main-content {
-    margin-top: 64px; /* AppBar height */
+/* Force MudBlazor's default font stack to Hanken Grotesk */
+.mud-typography,
+.mud-input,
+.mud-input-control,
+.mud-button-root,
+.mud-nav-link,
+.mud-table,
+.mud-dialog,
+.mud-chip {
+    font-family: 'Hanken Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
 }
 
-/* Login page styling */
-.pa-8 {
-    padding: 2rem;
+/* ---------- scrollbar (9px) ---------- */
+::-webkit-scrollbar { width: 9px; height: 9px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #322e24; border-radius: 8px; }
+::-webkit-scrollbar-thumb:hover { background: #403a2d; }
+
+input::placeholder, textarea::placeholder { color: var(--text-placeholder); }
+
+/* ---------- keyframes ---------- */
+@keyframes onair { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
+@keyframes barshine { 0% { transform: translateX(-100%); } 100% { transform: translateX(300%); } }
+
+/* ---------- cursor helper ---------- */
+.cursor-pointer { cursor: pointer; }
+
+/* ============================================================
+   Utility classes for the restyle
+   ============================================================ */
+
+/* mono numbers / metrics / paths / timestamps */
+.castr-mono {
+    font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace !important;
 }
 
-.mt-8 {
-    margin-top: 2rem;
+/* page scaffolding */
+.castr-page {
+    padding: 30px 32px;
+    max-width: 1280px;
+}
+.castr-page--tight { padding: 24px 32px 40px; max-width: 1100px; }
+.castr-page--form { padding: 24px 32px 50px; max-width: 760px; }
+.castr-page--narrow { max-width: 1100px; }
+
+.castr-h1 {
+    margin: 0;
+    font-size: 27px;
+    font-weight: 800;
+    letter-spacing: -.02em;
+    color: var(--text-primary);
+    line-height: 1.15;
+}
+.castr-subtitle {
+    margin: 5px 0 0;
+    font-size: 14.5px;
+    color: var(--text-label);
+}
+.castr-h2 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+.castr-section-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .05em;
+    color: var(--text-faint);
+    text-transform: uppercase;
 }
 
-/* Ensure smooth transitions */
-* {
-    transition: background-color 0.3s ease;
+@media (max-width: 760px) {
+    .castr-page { padding: 18px 15px 84px; }
+    .castr-page--tight, .castr-page--form { padding: 16px 15px 84px; }
+    .castr-h1 { font-size: 22px; }
+    .castr-stat-grid { grid-template-columns: repeat(2, 1fr) !important; }
+    .castr-dash-cols { grid-template-columns: 1fr !important; }
 }
 
-/* Cursor pointer for clickable elements */
-.cursor-pointer {
+/* surface card r14 */
+.castr-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-card);
+    border-radius: 14px;
+    padding: 18px;
+}
+.castr-card--pad20 { padding: 20px; }
+.castr-card--pad22 { padding: 22px; }
+.castr-card--r11 { border-radius: 11px; }
+
+/* hoverable card */
+.castr-card-hover {
+    transition: border-color .15s, transform .15s;
+}
+.castr-card-hover:hover {
+    border-color: var(--border-card-hover);
+}
+
+/* stat cards */
+.castr-stat-label {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--text-label);
+    margin-bottom: 10px;
+}
+.castr-stat-number {
+    font-size: 30px;
+    font-weight: 800;
+    letter-spacing: -.02em;
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    color: var(--text-primary);
+    line-height: 1.1;
+}
+.castr-stat-number--accent { color: var(--accent); }
+.castr-stat-sub {
+    font-size: 12px;
+    color: var(--text-faint);
+    margin-top: 4px;
+}
+
+/* status pills */
+.castr-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, .04);
+    border: 1px solid var(--bg-secondary);
+}
+.castr-pill__dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.castr-pill__label {
+    font-size: 11.5px;
+    font-weight: 500;
+    color: var(--text-value);
+}
+
+/* "Server online" green pill */
+.castr-online-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 11px;
+    border-radius: 8px;
+    background: rgba(91, 191, 138, .1);
+    border: 1px solid rgba(91, 191, 138, .2);
+}
+.castr-online-pill__dot {
+    width: 7px; height: 7px; border-radius: 50%; background: var(--status-success);
+}
+.castr-online-pill__label {
+    font-size: 12.5px; font-weight: 500; color: #83cda4;
+}
+
+/* count badge (accent) */
+.castr-count-badge {
+    font-size: 11px;
+    font-weight: 600;
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    background: var(--accent);
+    color: #18160f;
+    border-radius: 999px;
+    padding: 1px 7px;
+}
+.castr-count-badge--neutral {
+    background: var(--bg-secondary);
+    color: var(--text-value);
+}
+
+/* progress rails */
+.castr-rail {
+    height: 6px;
+    border-radius: 999px;
+    background: var(--bg-track);
+    overflow: hidden;
+}
+.castr-rail--thin { height: 5px; }
+.castr-rail__fill {
+    height: 100%;
+    border-radius: 999px;
+    background: var(--accent);
+    transition: width .5s ease;
+}
+
+/* ON AIR indicator */
+.castr-onair {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: .08em;
+    color: var(--accent);
+}
+.castr-onair__dot,
+.castr-pulse-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: onair 1.6s ease-in-out infinite;
+    flex-shrink: 0;
+}
+.castr-pulse-dot--lg { width: 9px; height: 9px; }
+
+/* feed avatar tiles */
+.castr-avatar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    color: #15140f;
+    flex-shrink: 0;
+}
+.castr-avatar--lg { width: 58px; height: 58px; border-radius: 11px; font-size: 20px; }
+.castr-avatar--xl { width: 96px; height: 96px; border-radius: 16px; font-size: 34px; }
+.castr-avatar--sm { width: 30px; height: 30px; border-radius: 7px; font-size: 11px; font-weight: 700; }
+
+/* tabs (text + 2px underline) */
+.castr-tabs {
+    display: flex;
+    gap: 4px;
+    border-bottom: 1px solid var(--border-card);
+    margin-bottom: 20px;
+}
+.castr-tab {
+    background: none;
+    border: none;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 10px 14px;
     cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-label);
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+}
+.castr-tab--active {
+    color: #f6f3ec;
+    border-bottom-color: var(--accent);
+}
+
+/* buttons */
+.castr-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    border-radius: 9px;
+    padding: 9px 15px;
+    font-size: 13.5px;
+    font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+    border: none;
+    text-decoration: none;
+}
+.castr-btn--primary { background: var(--accent); color: var(--on-accent); }
+.castr-btn--primary:hover { filter: brightness(1.07); }
+.castr-btn--secondary { background: var(--bg-secondary); color: var(--text-strong); border: none; }
+.castr-btn--secondary:hover { background: #332e24; }
+.castr-btn--ghost { background: none; color: var(--text-value); border: 1px solid var(--border-input); }
+.castr-btn--ghost:hover { background: var(--bg-row-hover); }
+.castr-btn--danger { background: none; color: var(--status-error); border: 1px solid #4a2a26; }
+.castr-btn--danger:hover { background: rgba(224, 97, 79, .08); }
+
+/* small icon buttons (r7) */
+.castr-icon-btn {
+    width: 30px;
+    height: 30px;
+    border-radius: 7px;
+    border: 1px solid var(--border-input);
+    background: var(--bg-input);
+    color: var(--text-value);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.castr-icon-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+/* RSS bar code */
+.castr-code {
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 13px;
+    color: var(--text-strong);
+}
+
+/* rows */
+.castr-row-divider { border-bottom: 1px solid var(--border-row); }
+
+/* ============================================================
+   MudBlazor theme nudges (radii / surfaces)
+   ============================================================ */
+.mud-paper { background-color: var(--bg-surface); }
+
+/* DataGrid theming for episodes */
+.castr-grid.mud-table {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-card);
+    border-radius: 14px;
+}
+.castr-grid .mud-table-head th {
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+    color: var(--text-faint) !important;
+}
+.castr-grid .mud-table-row:hover {
+    background: var(--bg-row-hover) !important;
 }
