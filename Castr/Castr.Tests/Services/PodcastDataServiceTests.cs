@@ -787,6 +787,37 @@ public class PodcastDataServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task SyncPlaylistInfoAsync_RefreshesDisplayOrder_WhenVideoIdUnchangedAndMetadataNull()
+    {
+        // Arrange: episode already linked to its video, but with a stale DisplayOrder.
+        // The watcher now syncs titles only (null metadata), so the update must still refresh order.
+        var feedId = await _feedRepo.AddAsync(new Feed { Name = "syncorder", Title = "T", Description = "D", Directory = _testDirectory });
+        File.WriteAllText(Path.Combine(_testDirectory, "Ordered Episode.mp3"), "test");
+        await _episodeRepo.AddAsync(new Episode { FeedId = feedId, Filename = "Ordered Episode.mp3", VideoId = "vidX", DisplayOrder = 0 });
+
+        var videos = new List<PlaylistVideoInfo>
+        {
+            new PlaylistVideoInfo
+            {
+                VideoId = "vidX", // unchanged
+                Title = "Ordered Episode",
+                Description = null, // titles-only sync, no metadata
+                ThumbnailUrl = null,
+                UploadDate = null,
+                PlaylistIndex = 42 // new position in the playlist
+            }
+        };
+
+        // Act
+        await _service.SyncPlaylistInfoAsync(feedId, videos, _testDirectory);
+
+        // Assert: DisplayOrder refreshed despite unchanged VideoId and null metadata
+        var episode = await _episodeRepo.GetByFilenameAsync(feedId, "Ordered Episode.mp3");
+        Assert.NotNull(episode);
+        Assert.Equal(42, episode.DisplayOrder);
+    }
+
+    [Fact]
     public async Task SyncPlaylistInfoAsync_HandlesEmptyVideoList()
     {
         // Arrange
