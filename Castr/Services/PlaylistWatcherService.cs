@@ -210,6 +210,28 @@ public class PlaylistWatcherService : BackgroundService
         return dueFeeds;
     }
 
+    // Maximum number of new videos to download in a single poll cycle. Bounding this keeps each
+    // cycle short so it completes (and persists progress) before the process is restarted; the
+    // backlog drains across subsequent polls.
+    internal const int MaxDownloadsPerPoll = 5;
+
+    /// <summary>
+    /// Selects the videos to download this poll cycle: drops already-downloaded videos, orders
+    /// oldest-first (playlists arrive newest-first), and caps the result at <paramref name="maxPerPoll"/>.
+    /// </summary>
+    internal static List<T> SelectNewVideosToDownload<T>(
+        IReadOnlyList<T> playlistVideos,
+        Func<T, string> getVideoId,
+        ISet<string> downloadedVideoIds,
+        int maxPerPoll)
+    {
+        return playlistVideos
+            .Where(v => !downloadedVideoIds.Contains(getVideoId(v)))
+            .Reverse() // Download oldest first (playlists are typically newest-first)
+            .Take(maxPerPoll)
+            .ToList();
+    }
+
     private async Task ProcessFeedAsync(
         Feed feed,
         CancellationToken stoppingToken)
@@ -235,84 +257,37 @@ public class PlaylistWatcherService : BackgroundService
             videos.Count,
             feed.Name);
 
-        // Step 2: Check which videos are already tracked and fetch details only for new ones
-        _logger.LogDebug("Checking which videos are already tracked in database to optimize metadata fetch");
+        // Step 2: Build lightweight playlist info (title only) for fuzzy matching.
+        // We deliberately do NOT fetch per-video details here: with a large backlog that meant
+        // hundreds of sequential YouTube calls before any download could start, so the cycle never
+        // finished. SyncPlaylistInfoAsync only needs the title to match files and preserves existing
+        // metadata when details are null; full details are fetched in Step 4 for videos we download.
         var downloadedIds = await dataService.GetDownloadedVideoIdsAsync(feedId);
         _logger.LogDebug("Found {Count} already downloaded videos in database", downloadedIds.Count);
 
-        _logger.LogInformation("Fetching detailed metadata for videos (skipping {SkipCount} already downloaded)",
-            downloadedIds.Count);
-        var playlistInfos = new List<PlaylistVideoInfo>();
-        var detailsFetchStart = DateTime.UtcNow;
-        var skippedCount = 0;
-        var fetchedCount = 0;
-
-        foreach (var (v, index) in videos.Select((v, i) => (v, i)))
-        {
-            if (stoppingToken.IsCancellationRequested)
+        var playlistInfos = videos
+            .Select((v, index) => new PlaylistVideoInfo
             {
-                _logger.LogWarning("Cancellation requested while fetching video details");
-                break;
-            }
-
-            // On the first poll after deployment, pre-existing files won't have DownloadedVideo rows yet
-            // (SyncPlaylistInfoAsync populates them in Step 3), so metadata will be fetched for all videos once.
-            var isDownloaded = downloadedIds.Contains(v.Id.Value);
-
-            if (isDownloaded)
-            {
-                // Skip fetching details for videos already tracked in DownloadedVideo table
-                _logger.LogTrace("Skipping metadata fetch for video {Index}/{Total}: '{Title}' (already tracked)",
-                    index + 1, videos.Count, v.Title);
-
-                playlistInfos.Add(new PlaylistVideoInfo
-                {
-                    VideoId = v.Id.Value,
-                    Title = v.Title,
-                    Description = null, // Will be preserved from existing DB record
-                    ThumbnailUrl = null, // Will be preserved from existing DB record
-                    UploadDate = null, // Will be preserved from existing DB record
-                    PlaylistIndex = index + 1
-                });
-                skippedCount++;
-            }
-            else
-            {
-                // Fetch full details for new videos
-                _logger.LogDebug("Fetching details for video {Index}/{Total}: {VideoId} - '{Title}'",
-                    index + 1, videos.Count, v.Id.Value, v.Title);
-
-                var details = await youtubeService.GetVideoDetailsAsync(v.Id.Value, stoppingToken);
-                playlistInfos.Add(new PlaylistVideoInfo
-                {
-                    VideoId = v.Id.Value,
-                    Title = v.Title,
-                    Description = details?.Description,
-                    ThumbnailUrl = details?.ThumbnailUrl,
-                    UploadDate = details?.UploadDate,
-                    PlaylistIndex = index + 1
-                });
-                fetchedCount++;
-            }
-        }
-
-        var detailsFetchElapsed = DateTime.UtcNow - detailsFetchStart;
-        _logger.LogInformation("Fetched details for {Fetched} videos, skipped {Skipped} existing videos in {ElapsedSec:N1}s",
-            fetchedCount, skippedCount, detailsFetchElapsed.TotalSeconds);
+                VideoId = v.Id.Value,
+                Title = v.Title,
+                Description = null, // Fetched on download; preserved from existing DB record otherwise
+                ThumbnailUrl = null,
+                UploadDate = null,
+                PlaylistIndex = index + 1
+            })
+            .ToList();
 
         // Step 3: Sync playlist info with database using fuzzy matching
         _logger.LogInformation("Syncing {Count} playlist videos to database with fuzzy matching", playlistInfos.Count);
         await dataService.SyncPlaylistInfoAsync(feedId, playlistInfos, feed.Directory, feed.DirectorySearchDepth);
 
-        // Step 4: Check for new videos to download
+        // Step 4: Check for new videos to download (capped per poll so the cycle completes promptly)
         _logger.LogDebug("Re-checking downloaded video list after sync");
         downloadedIds = await dataService.GetDownloadedVideoIdsAsync(feedId);
         _logger.LogDebug("Found {Count} downloaded videos in database after sync", downloadedIds.Count);
 
-        var newVideos = videos
-            .Where(v => !downloadedIds.Contains(v.Id.Value))
-            .Reverse() // Download oldest first (playlists are typically newest-first)
-            .ToList();
+        var newVideos = SelectNewVideosToDownload(
+            videos, v => v.Id.Value, downloadedIds, MaxDownloadsPerPoll);
 
         if (newVideos.Count == 0)
         {

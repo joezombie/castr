@@ -269,8 +269,9 @@ public partial class PodcastDataService : IPodcastDataService
                 {
                     // Update existing episode with YouTube info
                     var hasNewMetadata = video.Description != null || video.ThumbnailUrl != null || video.UploadDate.HasValue;
+                    var orderChanged = existingEpisode.DisplayOrder != video.PlaylistIndex;
 
-                    if (existingEpisode.VideoId != video.VideoId || hasNewMetadata)
+                    if (existingEpisode.VideoId != video.VideoId || hasNewMetadata || orderChanged)
                     {
                         existingEpisode.VideoId = video.VideoId;
                         existingEpisode.YoutubeTitle = video.Title;
