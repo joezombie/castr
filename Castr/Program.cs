@@ -6,6 +6,7 @@ using Castr.Data.Repositories;
 using Castr.Services;
 using Castr.Components;
 using Castr.Hubs;
+using Microsoft.AspNetCore.SignalR;
 using MudBlazor.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -38,6 +39,12 @@ builder.Services.AddScoped<ISettingsService, SettingsService>();
 
 // SignalR for real-time updates
 builder.Services.AddSignalR();
+
+// In-memory ring buffer log sink feeding the dashboard Logs panel.
+// Minimum level is Information to keep the noisy EF Core Debug SQL out of the buffer.
+var logBuffer = new LogBufferService();
+builder.Services.AddSingleton(logBuffer);
+builder.Logging.AddProvider(new LogBufferProvider(logBuffer, LogLevel.Information));
 
 // Add authentication
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
@@ -176,6 +183,11 @@ app.MapRazorComponents<App>()
 
 // Map SignalR hub for real-time updates
 app.MapHub<DownloadProgressHub>("/hubs/download-progress");
+
+// Map SignalR hub for streaming live log lines to the dashboard, and wire the
+// ring-buffer sink to it so newly captured entries are pushed to clients.
+app.MapHub<LogStreamHub>("/hubs/logs");
+logBuffer.AttachHub(app.Services.GetRequiredService<IHubContext<LogStreamHub>>());
 
 // Add health check endpoint for monitoring and container orchestration
 app.MapHealthChecks("/health");

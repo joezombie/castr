@@ -17,6 +17,12 @@
     <Routes @rendermode="InteractiveServer" />
     <script src="_framework/blazor.server.js"></script>
     <script src="_content/MudBlazor/MudBlazor.min.js"></script>
+    <script>
+        window.castrScrollToBottom = function (id) {
+            var el = document.getElementById(id);
+            if (el) { el.scrollTop = el.scrollHeight; }
+        };
+    </script>
 </body>
 
 </html>
