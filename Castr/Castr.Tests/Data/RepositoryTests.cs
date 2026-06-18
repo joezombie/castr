@@ -1,6 +1,7 @@
 using Castr.Data;
 using Castr.Data.Entities;
 using Castr.Data.Repositories;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -161,6 +162,89 @@ public class RepositoryTests : IDisposable
         var episode = await _episodeRepo.GetByVideoIdAsync(feedId, "nonexistent");
 
         Assert.Null(episode);
+    }
+
+    // Helper: builds a context backed by a REAL SQLite in-memory database so that the
+    // UNIQUE index on (feed_id, filename) is actually enforced (the EF InMemory provider
+    // does not enforce indexes). The caller owns the returned connection's lifetime.
+    private static (CastrDbContext context, SqliteConnection connection) CreateSqliteContext()
+    {
+        var connection = new SqliteConnection("DataSource=:memory:");
+        connection.Open();
+        var options = new DbContextOptionsBuilder<CastrDbContext>()
+            .UseSqlite(connection)
+            .Options;
+        var context = new CastrDbContext(options);
+        context.Database.EnsureCreated();
+        return (context, connection);
+    }
+
+    [Fact]
+    public async Task EpisodeRepository_AddRange_InBatchDuplicate_DoesNotThrow_AndInsertsOnePerFilename()
+    {
+        var (context, connection) = CreateSqliteContext();
+        try
+        {
+            var feedRepo = new FeedRepository(context);
+            var episodeRepo = new EpisodeRepository(context);
+            var feedId = await feedRepo.AddAsync(new Feed { Name = "inbatch", Title = "T", Description = "D", Directory = "/d" });
+
+            var episodes = new List<Episode>
+            {
+                new Episode { FeedId = feedId, Filename = "dup.mp3", DisplayOrder = 1 },
+                new Episode { FeedId = feedId, Filename = "dup.mp3", DisplayOrder = 2 }, // in-batch duplicate
+                new Episode { FeedId = feedId, Filename = "unique.mp3", DisplayOrder = 3 }
+            };
+
+            // Must NOT throw a UNIQUE constraint violation.
+            await episodeRepo.AddRangeAsync(episodes);
+
+            var result = await episodeRepo.GetByFeedIdAsync(feedId);
+            Assert.Equal(2, result.Count);
+            Assert.Single(result, e => e.Filename == "dup.mp3");
+            Assert.Single(result, e => e.Filename == "unique.mp3");
+        }
+        finally
+        {
+            context.Dispose();
+            connection.Dispose();
+        }
+    }
+
+    [Fact]
+    public async Task EpisodeRepository_AddRange_DuplicateVsExistingRow_DoesNotThrow_AndIsNoOpForExisting()
+    {
+        var (context, connection) = CreateSqliteContext();
+        try
+        {
+            var feedRepo = new FeedRepository(context);
+            var episodeRepo = new EpisodeRepository(context);
+            var feedId = await feedRepo.AddAsync(new Feed { Name = "vsexisting", Title = "T", Description = "D", Directory = "/d" });
+
+            // Pre-existing row in the DB.
+            await episodeRepo.AddAsync(new Episode { FeedId = feedId, Filename = "exists.mp3", DisplayOrder = 1 });
+
+            var episodes = new List<Episode>
+            {
+                new Episode { FeedId = feedId, Filename = "exists.mp3", DisplayOrder = 2 }, // duplicate vs existing row
+                new Episode { FeedId = feedId, Filename = "new.mp3", DisplayOrder = 3 }
+            };
+
+            // Must NOT throw a UNIQUE constraint violation.
+            await episodeRepo.AddRangeAsync(episodes);
+
+            var result = await episodeRepo.GetByFeedIdAsync(feedId);
+            Assert.Equal(2, result.Count);
+            Assert.Single(result, e => e.Filename == "exists.mp3");
+            Assert.Single(result, e => e.Filename == "new.mp3");
+            // Existing row preserved (DisplayOrder from the original AddAsync, not the duplicate).
+            Assert.Equal(1, result.Single(e => e.Filename == "exists.mp3").DisplayOrder);
+        }
+        finally
+        {
+            context.Dispose();
+            connection.Dispose();
+        }
     }
 
     #endregion

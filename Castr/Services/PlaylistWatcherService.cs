@@ -308,6 +308,18 @@ public class PlaylistWatcherService : BackgroundService
         using var semaphore = new SemaphoreSlim(feed.YouTubeMaxConcurrentDownloads);
         var newEpisodes = new ConcurrentBag<Episode>();
 
+        // Track filenames already claimed as episodes during this poll cycle, seeded with
+        // every filename Step 3 (SyncPlaylistInfoAsync) already turned into an episode. The
+        // matcher used below (GetExistingFilePath) is independent of Step 3's matcher and can
+        // resolve to a file Step 3 already claimed; without this guard two videos produce two
+        // Episode rows with the same (feed_id, filename), violating the unique index. Concurrent
+        // because the download loop may run with parallelism (newEpisodes is a ConcurrentBag).
+        var claimedFilenames = new ConcurrentDictionary<string, byte>(StringComparer.OrdinalIgnoreCase);
+        foreach (var existingEpisode in await dataService.GetEpisodesAsync(feedId))
+        {
+            claimedFilenames.TryAdd(existingEpisode.Filename, 0);
+        }
+
         _logger.LogDebug("Starting downloads with max concurrency: {MaxConcurrent}",
             feed.YouTubeMaxConcurrentDownloads);
 
@@ -334,7 +346,18 @@ public class PlaylistWatcherService : BackgroundService
                     video.Title,
                     existingPath);
 
-                await dataService.MarkVideoDownloadedAsync(feedId, video.Id.Value, Path.GetFileName(existingPath));
+                var existingFilename = Path.GetFileName(existingPath);
+                await dataService.MarkVideoDownloadedAsync(feedId, video.Id.Value, existingFilename);
+
+                // Skip if another video (or Step 3) already claimed this filename this cycle:
+                // adding a second episode for the same (feed_id, filename) would violate the unique index.
+                if (!claimedFilenames.TryAdd(existingFilename, 0))
+                {
+                    _logger.LogInformation(
+                        "Filename '{Filename}' already claimed this cycle, skipping duplicate episode for '{Title}'",
+                        existingFilename, video.Title);
+                    continue;
+                }
 
                 // Get video details for existing file
                 _logger.LogDebug("Fetching metadata for existing file");
@@ -343,7 +366,7 @@ public class PlaylistWatcherService : BackgroundService
                 newEpisodes.Add(new Episode
                 {
                     FeedId = feedId,
-                    Filename = Path.GetFileName(existingPath),
+                    Filename = existingFilename,
                     VideoId = video.Id.Value,
                     YoutubeTitle = video.Title,
                     Title = details?.Title ?? video.Title,
@@ -382,6 +405,17 @@ public class PlaylistWatcherService : BackgroundService
                         downloadElapsed.TotalSeconds, filename);
 
                     await dataService.MarkVideoDownloadedAsync(feedId, video.Id.Value, filename);
+
+                    // Skip if this filename was already claimed this cycle (e.g. Step 3 matched it
+                    // or another download resolved to the same file), to avoid a duplicate episode.
+                    if (!claimedFilenames.TryAdd(filename, 0))
+                    {
+                        _logger.LogInformation(
+                            "Filename '{Filename}' already claimed this cycle, skipping duplicate episode for '{Title}'",
+                            filename, video.Title);
+                        continue;
+                    }
+
                     newEpisodes.Add(new Episode
                     {
                         FeedId = feedId,

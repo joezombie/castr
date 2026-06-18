@@ -41,9 +41,34 @@ public class EpisodeRepository : IEpisodeRepository
 
     public async Task AddRangeAsync(IEnumerable<Episode> episodes)
     {
+        var incoming = episodes as IList<Episode> ?? episodes.ToList();
+        if (incoming.Count == 0) return;
+
+        var feedIds = incoming.Select(e => e.FeedId).Distinct().ToList();
+
+        // Existing (FeedId, Filename) pairs already in the DB for the affected feeds.
+        var existing = await _context.Episodes
+            .Where(e => feedIds.Contains(e.FeedId))
+            .Select(e => new { e.FeedId, e.Filename })
+            .ToListAsync();
+
+        // Track (FeedId, Filename) already seen, seeded with existing DB rows, so we
+        // skip both in-batch duplicates and duplicates of rows already persisted.
+        // This makes the insert idempotent w.r.t. the unique (feed_id, filename) index.
+        var seen = new HashSet<(int FeedId, string Filename)>(
+            existing.Select(e => (e.FeedId, e.Filename)));
+
         var now = DateTime.UtcNow;
-        foreach (var ep in episodes) ep.AddedAt = now;
-        _context.Episodes.AddRange(episodes);
+        var toInsert = new List<Episode>();
+        foreach (var ep in incoming)
+        {
+            if (!seen.Add((ep.FeedId, ep.Filename))) continue; // duplicate (existing or in-batch) -> no-op
+            ep.AddedAt = now;
+            toInsert.Add(ep);
+        }
+
+        if (toInsert.Count == 0) return;
+        _context.Episodes.AddRange(toInsert);
         await _context.SaveChangesAsync();
     }
 
