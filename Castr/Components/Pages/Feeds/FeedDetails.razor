@@ -419,7 +419,9 @@
         try
         {
             var cleared = await DataService.ClearFeedEpisodeDataAsync(_feed.Id);
-            PlaylistWatcherTrigger.TriggerFeedProcessing(_feed.Name);
+            // Resync from scratch should restore real upload dates (rows were wiped, nothing to
+            // preserve), so request a metadata-enriching run.
+            PlaylistWatcherTrigger.TriggerFeedProcessing(_feed.Name, enrichMetadata: true);
             Snackbar.Add(
                 $"Cleared {cleared.EpisodesCleared} episode(s) and {cleared.TrackingRowsCleared} tracking row(s). Resync started.",
                 Severity.Success);

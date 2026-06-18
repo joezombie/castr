@@ -10,6 +10,9 @@ public class PlaylistWatcherService : BackgroundService
     private readonly ILogger<PlaylistWatcherService> _logger;
     private readonly IPlaylistWatcherTrigger _trigger;
     private readonly ConcurrentDictionary<string, DateTime> _lastPollTimes = new();
+    // Feeds that requested a metadata-enriching run (e.g. Clear & Resync). The flag is consumed
+    // once when the feed is next processed, so subsequent interval polls stay fast.
+    private readonly ConcurrentDictionary<string, byte> _pendingEnrichFeeds = new();
 
     public PlaylistWatcherService(
         IServiceProvider serviceProvider,
@@ -69,9 +72,16 @@ public class PlaylistWatcherService : BackgroundService
     {
         try
         {
-            await foreach (var feedName in _trigger.ReadTriggersAsync(delayCts.Token))
+            await foreach (var trigger in _trigger.ReadTriggersAsync(delayCts.Token))
             {
-                _logger.LogInformation("Received immediate processing trigger for feed: {FeedName}", feedName);
+                var feedName = trigger.FeedName;
+                _logger.LogInformation(
+                    "Received immediate processing trigger for feed: {FeedName} (enrichMetadata: {Enrich})",
+                    feedName, trigger.EnrichMetadata);
+                if (trigger.EnrichMetadata)
+                {
+                    _pendingEnrichFeeds[feedName] = 0;
+                }
                 // Clear last poll time so the feed is picked up in the next cycle
                 _lastPollTimes.TryRemove(feedName, out _);
                 // Cancel the delay to process immediately
@@ -119,10 +129,14 @@ public class PlaylistWatcherService : BackgroundService
 
             try
             {
-                _logger.LogInformation("Processing feed: {FeedName}", feed.Name);
+                // Consume any pending enrich request for this feed (so only this run enriches).
+                var enrichMetadata = _pendingEnrichFeeds.TryRemove(feed.Name, out _);
+
+                _logger.LogInformation("Processing feed: {FeedName} (enrichMetadata: {Enrich})",
+                    feed.Name, enrichMetadata);
                 var processingStart = DateTime.UtcNow;
 
-                await ProcessFeedAsync(feed, stoppingToken);
+                await ProcessFeedAsync(feed, enrichMetadata, stoppingToken);
 
                 var elapsed = DateTime.UtcNow - processingStart;
                 _lastPollTimes[feed.Name] = DateTime.UtcNow;
@@ -232,8 +246,71 @@ public class PlaylistWatcherService : BackgroundService
             .ToList();
     }
 
+    // Delay between per-video metadata fetches during an enriching resync, to be polite to YouTube.
+    // Lighter than the 5s download cap since these are cheap metadata-only calls.
+    private static readonly TimeSpan MetadataEnrichDelay = TimeSpan.FromMilliseconds(500);
+
+    /// <summary>
+    /// Fetches the real upload date for each playlist video (one network call per video) and writes
+    /// it onto the corresponding <see cref="PlaylistVideoInfo"/>. Used only during Clear &amp; Resync,
+    /// where the DB rows were wiped and there is no existing publish_date to preserve.
+    /// Failures for an individual video are logged and skipped (that one's date stays null) rather
+    /// than aborting the whole resync. Respects cancellation.
+    /// </summary>
+    private async Task EnrichUploadDatesAsync(
+        Feed feed,
+        IReadOnlyList<PlaylistVideoInfo> playlistInfos,
+        IYouTubeDownloadService youtubeService,
+        CancellationToken stoppingToken)
+    {
+        var total = playlistInfos.Count;
+        _logger.LogInformation(
+            "Enriching upload dates for {Count} videos in {FeedName} (resync)", total, feed.Name);
+
+        var enriched = 0;
+        var index = 0;
+        foreach (var info in playlistInfos)
+        {
+            stoppingToken.ThrowIfCancellationRequested();
+            index++;
+
+            try
+            {
+                var uploadDate = await youtubeService.GetVideoUploadDateAsync(info.VideoId, stoppingToken);
+                if (uploadDate.HasValue)
+                {
+                    info.UploadDate = uploadDate;
+                    enriched++;
+                }
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogWarning(ex,
+                    "Failed to fetch upload date for video {VideoId} ('{Title}') during resync; leaving date null",
+                    info.VideoId, info.Title);
+            }
+
+            if (index % 25 == 0 || index == total)
+            {
+                _logger.LogInformation(
+                    "Enriching metadata {Index}/{Total} for {FeedName}", index, total, feed.Name);
+            }
+
+            // Rate-limit between metadata fetches (skip the trailing delay after the last one).
+            if (index < total)
+            {
+                await Task.Delay(MetadataEnrichDelay, stoppingToken);
+            }
+        }
+
+        _logger.LogInformation(
+            "Upload date enrichment complete for {FeedName}: {Enriched}/{Total} dates resolved",
+            feed.Name, enriched, total);
+    }
+
     private async Task ProcessFeedAsync(
         Feed feed,
+        bool enrichMetadata,
         CancellationToken stoppingToken)
     {
         _logger.LogInformation("Checking playlist for feed: {FeedName}", feed.Name);
@@ -271,11 +348,22 @@ public class PlaylistWatcherService : BackgroundService
                 VideoId = v.Id.Value,
                 Title = v.Title,
                 Description = null, // Fetched on download; preserved from existing DB record otherwise
-                ThumbnailUrl = null,
+                // Thumbnails come free with the playlist fetch (no extra network call), so always
+                // populate them. This restores thumbnails after Clear & Resync wipes the rows.
+                ThumbnailUrl = v.Thumbnails
+                    .OrderByDescending(t => t.Resolution.Width)
+                    .FirstOrDefault()?.Url,
                 UploadDate = null,
                 PlaylistIndex = index + 1
             })
             .ToList();
+
+        // Step 2b (resync only): enrich real upload dates via per-video fetches. Normal interval
+        // polls skip this entirely to stay fast — only an explicit Clear & Resync sets enrichMetadata.
+        if (enrichMetadata)
+        {
+            await EnrichUploadDatesAsync(feed, playlistInfos, youtubeService, stoppingToken);
+        }
 
         // Step 3: Sync playlist info with database using fuzzy matching
         _logger.LogInformation("Syncing {Count} playlist videos to database with fuzzy matching", playlistInfos.Count);
