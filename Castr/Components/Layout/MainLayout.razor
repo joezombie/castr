@@ -1,5 +1,6 @@
 @inherits LayoutComponentBase
 @inject ISettingsService SettingsService
+@inject IBrowserViewportService BrowserViewportService
 
 <MudThemeProvider Theme="_theme" @bind-IsDarkMode="_isDarkMode" />
 <MudPopoverProvider />
@@ -35,7 +36,7 @@
 </MudLayout>
 
 @code {
-    private bool _drawerOpen = false;
+    private bool _drawerOpen = true;
     private bool _isDarkMode = true;
     private bool _initialized = false;
 
@@ -108,9 +109,20 @@
         _drawerOpen = value;
     }
 
+    // Cascaded to NavMenu and invoked on every nav link click. We only want to
+    // auto-close the responsive drawer on mobile (below the Md breakpoint). On
+    // desktop the drawer must stay open after selecting a page.
     private void CloseDrawer()
     {
-        _drawerOpen = false;
+        _ = InvokeAsync(async () =>
+        {
+            var breakpoint = await BrowserViewportService.GetCurrentBreakpointAsync();
+            if (breakpoint == Breakpoint.Xs || breakpoint == Breakpoint.Sm)
+            {
+                _drawerOpen = false;
+                StateHasChanged();
+            }
+        });
     }
 
     private async Task ToggleDarkMode()
