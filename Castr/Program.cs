@@ -7,6 +7,7 @@ using Castr.Services;
 using Castr.Components;
 using Castr.Hubs;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.AspNetCore.DataProtection;
 using MudBlazor.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -45,6 +46,16 @@ builder.Services.AddSignalR();
 var logBuffer = new LogBufferService();
 builder.Services.AddSingleton(logBuffer);
 builder.Logging.AddProvider(new LogBufferProvider(logBuffer, LogLevel.Information));
+
+// Persist DataProtection keys to the mounted /data volume so auth cookies and
+// antiforgery tokens survive container recreates (otherwise every deploy logs
+// out all dashboard users). Override the path via DataProtection:KeysPath.
+var keysPath = builder.Configuration["DataProtection:KeysPath"]
+    ?? Path.Combine(builder.Environment.ContentRootPath, "keys");
+Directory.CreateDirectory(keysPath);
+builder.Services.AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo(keysPath))
+    .SetApplicationName("Castr");
 
 // Add authentication
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)

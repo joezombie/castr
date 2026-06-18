@@ -483,3 +483,6 @@ $RECYCLE.BIN/
 
 # Claude Code plans (generated implementation plans)
 **/docs/plans/
+
+# Local DataProtection keys (dev)
+Castr/keys/
