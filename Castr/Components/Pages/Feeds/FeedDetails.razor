@@ -1,4 +1,4 @@
-@page "/feeds/{Name}"
+@page "/ui/feeds/{Name}"
 @attribute [Authorize]
 @inject IPodcastDataService DataService
 @inject ILogger<FeedDetails> Logger
@@ -317,7 +317,7 @@
     {
         if (string.IsNullOrEmpty(Name))
         {
-            Navigation.NavigateTo("/feeds");
+            Navigation.NavigateTo("/ui/feeds");
             return;
         }
 
@@ -360,9 +360,9 @@
         Snackbar.Add("Feed URL copied to clipboard", Severity.Info);
     }
 
-    private void GoToFeeds() => Navigation.NavigateTo("/feeds");
-    private void GoToEdit() => Navigation.NavigateTo($"/feeds/{Name}/edit");
-    private void GoToEpisodes() => Navigation.NavigateTo($"/feeds/{Name}/episodes");
+    private void GoToFeeds() => Navigation.NavigateTo("/ui/feeds");
+    private void GoToEdit() => Navigation.NavigateTo($"/ui/feeds/{Name}/edit");
+    private void GoToEpisodes() => Navigation.NavigateTo($"/ui/feeds/{Name}/episodes");
 
     private async Task DeleteFeed()
     {
@@ -386,7 +386,7 @@
         {
             await DataService.DeleteFeedAsync(_feed.Id);
             Snackbar.Add($"Feed '{_feed.Title}' deleted", Severity.Success);
-            Navigation.NavigateTo("/feeds");
+            Navigation.NavigateTo("/ui/feeds");
         }
         catch (Exception ex)
         {

@@ -1,5 +1,5 @@
-@page "/feeds/new"
-@page "/feeds/{Name}/edit"
+@page "/ui/feeds/new"
+@page "/ui/feeds/{Name}/edit"
 @attribute [Authorize]
 @inject IPodcastDataService DataService
 @inject ILogger<FeedEdit> Logger
@@ -278,7 +278,7 @@
             if (feed == null)
             {
                 Snackbar.Add("Feed not found", Severity.Error);
-                Navigation.NavigateTo("/feeds");
+                Navigation.NavigateTo("/ui/feeds");
                 return;
             }
             _feed = feed;
@@ -287,7 +287,7 @@
         {
             Logger.LogError(ex, "Failed to load feed {Name}", Name);
             Snackbar.Add("Failed to load feed", Severity.Error);
-            Navigation.NavigateTo("/feeds");
+            Navigation.NavigateTo("/ui/feeds");
         }
         finally
         {
@@ -344,7 +344,7 @@
                 await DataService.UpdateFeedAsync(_feed);
                 Snackbar.Add("Feed updated successfully", Severity.Success);
             }
-            Navigation.NavigateTo("/feeds");
+            Navigation.NavigateTo("/ui/feeds");
         }
         catch (Exception ex)
         {
@@ -455,6 +455,6 @@
 
     private void GoBack()
     {
-        Navigation.NavigateTo("/feeds");
+        Navigation.NavigateTo("/ui/feeds");
     }
 }

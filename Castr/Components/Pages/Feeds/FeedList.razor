@@ -1,4 +1,4 @@
-@page "/feeds"
+@page "/ui/feeds"
 @attribute [Authorize]
 @inject IPodcastDataService DataService
 @inject ILogger<FeedList> Logger
@@ -182,17 +182,17 @@
 
     private void CreateNewFeed()
     {
-        Navigation.NavigateTo("/feeds/new");
+        Navigation.NavigateTo("/ui/feeds/new");
     }
 
     private void ViewFeed(Feed feed)
     {
-        Navigation.NavigateTo($"/feeds/{feed.Name}");
+        Navigation.NavigateTo($"/ui/feeds/{feed.Name}");
     }
 
     private void EditFeed(Feed feed)
     {
-        Navigation.NavigateTo($"/feeds/{feed.Name}/edit");
+        Navigation.NavigateTo($"/ui/feeds/{feed.Name}/edit");
     }
 
     private async Task DeleteFeed(Feed feed)

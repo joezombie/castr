@@ -1,4 +1,4 @@
-@page "/logout"
+@page "/ui/logout"
 @using Microsoft.AspNetCore.Authentication
 @using Microsoft.AspNetCore.Authentication.Cookies
 @inject NavigationManager Navigation
@@ -18,6 +18,6 @@
             Logger.LogInformation("User signed out successfully");
         }
 
-        Navigation.NavigateTo("/login", forceLoad: true);
+        Navigation.NavigateTo("/ui/login", forceLoad: true);
     }
 }
