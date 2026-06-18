@@ -1,4 +1,4 @@
-@page "/"
+@page "/ui"
 @attribute [Authorize]
 @inject IPodcastDataService DataService
 @inject ILogger<Dashboard> Logger
@@ -350,9 +350,9 @@
         _ => "#ef6b41"
     };
 
-    private void GoToFeeds() => Navigation.NavigateTo("/feeds");
-    private void GoToDownloads() => Navigation.NavigateTo("/downloads");
-    private void GoToFeed(string name) => Navigation.NavigateTo($"/feeds/{name}");
+    private void GoToFeeds() => Navigation.NavigateTo("/ui/feeds");
+    private void GoToDownloads() => Navigation.NavigateTo("/ui/downloads");
+    private void GoToFeed(string name) => Navigation.NavigateTo($"/ui/feeds/{name}");
 
     public async ValueTask DisposeAsync()
     {

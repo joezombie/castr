@@ -1,4 +1,4 @@
-@page "/feeds/{FeedName}/episodes"
+@page "/ui/feeds/{FeedName}/episodes"
 @attribute [Authorize]
 @inject IPodcastDataService DataService
 @inject ILogger<EpisodeList> Logger
@@ -149,7 +149,7 @@ else
     {
         if (string.IsNullOrEmpty(FeedName))
         {
-            Navigation.NavigateTo("/feeds");
+            Navigation.NavigateTo("/ui/feeds");
             return;
         }
 
@@ -304,7 +304,7 @@ else
         }
     }
 
-    private void GoBack() => Navigation.NavigateTo($"/feeds/{FeedName}");
+    private void GoBack() => Navigation.NavigateTo($"/ui/feeds/{FeedName}");
 
     // Derives a status dot color + label from the data available on an episode.
     // Episodes in this list represent downloaded files in the database.

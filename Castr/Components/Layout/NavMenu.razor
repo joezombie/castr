@@ -14,13 +14,13 @@
     <div style="font-size:10.5px;font-weight:600;letter-spacing:.1em;color:#5e584c;padding:6px 11px 8px;">MANAGE</div>
 
     <nav style="display:flex;flex-direction:column;gap:3px;">
-        @NavItem("/", true, "Overview",
+        @NavItem("/ui", true, "Overview",
             "<rect x=\"3\" y=\"3\" width=\"7\" height=\"7\" rx=\"1.6\"/><rect x=\"14\" y=\"3\" width=\"7\" height=\"7\" rx=\"1.6\"/><rect x=\"3\" y=\"14\" width=\"7\" height=\"7\" rx=\"1.6\"/><rect x=\"14\" y=\"14\" width=\"7\" height=\"7\" rx=\"1.6\"/>")
-        @NavItem("/feeds", false, "Feeds",
+        @NavItem("/ui/feeds", false, "Feeds",
             "<circle cx=\"5\" cy=\"19\" r=\"1.6\"/><path d=\"M4 11a9 9 0 0 1 9 9\"/><path d=\"M4 4a16 16 0 0 1 16 16\"/>")
-        @NavItem("/downloads", false, "Downloads",
+        @NavItem("/ui/downloads", false, "Downloads",
             "<path d=\"M12 3v12\"/><path d=\"M8 11l4 4 4-4\"/><path d=\"M5 21h14\"/>")
-        @NavItem("/settings", false, "Settings",
+        @NavItem("/ui/settings", false, "Settings",
             "<line x1=\"4\" y1=\"7\" x2=\"20\" y2=\"7\"/><line x1=\"4\" y1=\"12\" x2=\"20\" y2=\"12\"/><line x1=\"4\" y1=\"17\" x2=\"20\" y2=\"17\"/><circle cx=\"9\" cy=\"7\" r=\"2.3\" fill=\"#18160f\"/><circle cx=\"15\" cy=\"12\" r=\"2.3\" fill=\"#18160f\"/><circle cx=\"8\" cy=\"17\" r=\"2.3\" fill=\"#18160f\"/>")
     </nav>
 
@@ -32,7 +32,7 @@
                 <div style="font-size:13px;font-weight:600;color:#f4f1ea;">admin</div>
                 <div style="font-size:11px;color:#645e52;">Administrator</div>
             </div>
-            <a href="/logout" title="Logout" @onclick="OnNavLinkClick"
+            <a href="/ui/logout" title="Logout" @onclick="OnNavLinkClick"
                style="margin-left:auto;cursor:pointer;color:#645e52;display:flex;">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
             </a>
@@ -59,7 +59,7 @@
         var path = "/" + Navigation.ToBaseRelativePath(Navigation.Uri).Split('?')[0].TrimEnd('/');
         if (path == "/") path = "/";
         if (exact)
-            return path == "/" || string.IsNullOrEmpty(path.TrimStart('/'));
+            return string.Equals(path, href, StringComparison.OrdinalIgnoreCase);
         return path.StartsWith(href, StringComparison.OrdinalIgnoreCase);
     }
 

@@ -43,8 +43,8 @@ builder.Services.AddSignalR();
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
     {
-        options.LoginPath = "/login";
-        options.LogoutPath = "/logout";
+        options.LoginPath = "/ui/login";
+        options.LogoutPath = "/ui/logout";
         options.ExpireTimeSpan = TimeSpan.FromDays(7);
         options.SlidingExpiration = true;
         options.Cookie.HttpOnly = true;
@@ -160,6 +160,9 @@ app.UseAntiforgery();
 // Authentication & Authorization
 app.UseAuthentication();
 app.UseAuthorization();
+
+// Redirect bare root to the dashboard UI
+app.MapGet("/", () => Results.Redirect("/ui"));
 
 // Map API controllers (feed endpoints remain public)
 app.MapControllers();
