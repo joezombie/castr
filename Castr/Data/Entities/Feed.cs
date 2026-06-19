@@ -52,6 +52,14 @@ public class Feed
     [MaxLength(20)]
     public string YouTubeAudioQuality { get; set; } = "highest";
 
+    public DateTime? YouTubeDownloadAfterDate { get; set; }
+
+    [MaxLength(1000)]
+    public string? YouTubeIncludeKeywords { get; set; }
+
+    [MaxLength(1000)]
+    public string? YouTubeExcludeKeywords { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
@@ -62,4 +70,5 @@ public class Feed
     public ICollection<DownloadedVideo> DownloadedVideos { get; set; } = new List<DownloadedVideo>();
     public ICollection<ActivityLog> ActivityLogs { get; set; } = new List<ActivityLog>();
     public ICollection<DownloadQueueItem> DownloadQueue { get; set; } = new List<DownloadQueueItem>();
+    public ICollection<SkippedVideo> SkippedVideos { get; set; } = new List<SkippedVideo>();
 }

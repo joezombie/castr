@@ -36,10 +36,11 @@ public class PodcastDataServiceSyncPlaylistInfoTests : IDisposable
         var feedRepo = new FeedRepository(_context);
         var episodeRepo = new EpisodeRepository(_context);
         var downloadRepo = new DownloadRepository(_context, NullLogger<DownloadRepository>.Instance);
+        var skippedRepo = new SkippedVideoRepository(_context, NullLogger<SkippedVideoRepository>.Instance);
         var activityRepo = new ActivityRepository(_context);
 
         _service = new PodcastDataService(
-            _context, feedRepo, episodeRepo, downloadRepo, activityRepo,
+            _context, feedRepo, episodeRepo, downloadRepo, skippedRepo, activityRepo,
             NullLogger<PodcastDataService>.Instance);
     }
 

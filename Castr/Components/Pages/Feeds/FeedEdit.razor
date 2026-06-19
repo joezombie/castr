@@ -156,6 +156,24 @@
                             <MudSelectItem Value="@("medium")">Medium</MudSelectItem>
                             <MudSelectItem Value="@("lowest")">Lowest</MudSelectItem>
                         </MudSelect>
+
+                        <div class="castr-feed-grid__full">
+                            <MudDatePicker @bind-Date="_feed.YouTubeDownloadAfterDate"
+                                Label="Download videos uploaded after" Variant="Variant.Outlined" Clearable="true"
+                                HelperText="Only download videos uploaded on or after this date. Requires a per-video date fetch. Leave blank for no date filter." />
+                        </div>
+
+                        <div class="castr-feed-grid__full">
+                            <MudTextField @bind-Value="_feed.YouTubeIncludeKeywords" Label="Include keywords"
+                                Variant="Variant.Outlined"
+                                HelperText="Comma-separated. Title must match at least one (whole word, case-insensitive). Leave blank to allow all." />
+                        </div>
+
+                        <div class="castr-feed-grid__full">
+                            <MudTextField @bind-Value="_feed.YouTubeExcludeKeywords" Label="Exclude keywords"
+                                Variant="Variant.Outlined"
+                                HelperText="Comma-separated. Title matching any of these is skipped. Takes priority over include." />
+                        </div>
                     </div>
                 }
             </div>

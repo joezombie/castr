@@ -19,6 +19,7 @@ public partial class PodcastDataService : IPodcastDataService
     private readonly IFeedRepository _feedRepository;
     private readonly IEpisodeRepository _episodeRepository;
     private readonly IDownloadRepository _downloadRepository;
+    private readonly ISkippedVideoRepository _skippedVideoRepository;
     private readonly IActivityRepository _activityRepository;
     private readonly ILogger<PodcastDataService> _logger;
 
@@ -30,6 +31,7 @@ public partial class PodcastDataService : IPodcastDataService
         IFeedRepository feedRepository,
         IEpisodeRepository episodeRepository,
         IDownloadRepository downloadRepository,
+        ISkippedVideoRepository skippedVideoRepository,
         IActivityRepository activityRepository,
         ILogger<PodcastDataService> logger)
     {
@@ -37,6 +39,7 @@ public partial class PodcastDataService : IPodcastDataService
         _feedRepository = feedRepository;
         _episodeRepository = episodeRepository;
         _downloadRepository = downloadRepository;
+        _skippedVideoRepository = skippedVideoRepository;
         _activityRepository = activityRepository;
         _logger = logger;
     }
@@ -386,16 +389,17 @@ public partial class PodcastDataService : IPodcastDataService
     {
         var episodesCleared = await _episodeRepository.DeleteByFeedIdAsync(feedId);
         var trackingRowsCleared = await _downloadRepository.DeleteDownloadedVideosByFeedIdAsync(feedId);
+        var skipRowsCleared = await _skippedVideoRepository.DeleteSkippedVideosByFeedIdAsync(feedId);
 
         await _activityRepository.LogAsync(feedId, "clear_resync",
-            $"Cleared {episodesCleared} episode(s) and {trackingRowsCleared} download tracking row(s) for resync",
-            $"Episodes cleared: {episodesCleared}, Tracking rows cleared: {trackingRowsCleared}");
+            $"Cleared {episodesCleared} episode(s), {trackingRowsCleared} download tracking row(s), and {skipRowsCleared} skip row(s) for resync",
+            $"Episodes cleared: {episodesCleared}, Tracking rows cleared: {trackingRowsCleared}, Skip rows cleared: {skipRowsCleared}");
 
         _logger.LogInformation(
-            "Cleared episode data for feed {FeedId}: {Episodes} episodes, {Tracking} tracking rows",
-            feedId, episodesCleared, trackingRowsCleared);
+            "Cleared episode data for feed {FeedId}: {Episodes} episodes, {Tracking} tracking rows, {Skips} skip rows",
+            feedId, episodesCleared, trackingRowsCleared, skipRowsCleared);
 
-        return new ClearFeedResult(episodesCleared, trackingRowsCleared);
+        return new ClearFeedResult(episodesCleared, trackingRowsCleared, skipRowsCleared);
     }
 
     #endregion
@@ -413,6 +417,22 @@ public partial class PodcastDataService : IPodcastDataService
 
     public Task RemoveDownloadedVideoAsync(int feedId, string videoId)
         => _downloadRepository.RemoveDownloadedVideoAsync(feedId, videoId);
+
+    #endregion
+
+    #region Skip Tracking
+
+    public Task<HashSet<string>> GetSkippedVideoIdsAsync(int feedId)
+        => _skippedVideoRepository.GetSkippedVideoIdsAsync(feedId);
+
+    public Task MarkVideoSkippedAsync(int feedId, string videoId, string skipReason, string filterHash)
+        => _skippedVideoRepository.MarkVideoSkippedAsync(feedId, videoId, skipReason, filterHash);
+
+    public Task<int> MarkVideosSkippedAsync(int feedId, IEnumerable<(string videoId, string reason)> skips, string filterHash)
+        => _skippedVideoRepository.MarkVideosSkippedAsync(feedId, skips, filterHash);
+
+    public Task<int> DeleteStaleSkipsAsync(int feedId, string currentFilterHash)
+        => _skippedVideoRepository.DeleteStaleSkipsAsync(feedId, currentFilterHash);
 
     #endregion
 

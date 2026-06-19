@@ -79,6 +79,7 @@ builder.Services.AddCastrDatabase(builder.Configuration);
 builder.Services.AddScoped<IFeedRepository, FeedRepository>();
 builder.Services.AddScoped<IEpisodeRepository, EpisodeRepository>();
 builder.Services.AddScoped<IDownloadRepository, DownloadRepository>();
+builder.Services.AddScoped<ISkippedVideoRepository, SkippedVideoRepository>();
 builder.Services.AddScoped<IActivityRepository, ActivityRepository>();
 
 // Add data service layer

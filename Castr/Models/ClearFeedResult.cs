@@ -5,4 +5,5 @@ namespace Castr.Models;
 /// </summary>
 /// <param name="EpisodesCleared">Number of episode rows deleted.</param>
 /// <param name="TrackingRowsCleared">Number of downloaded-video tracking rows deleted.</param>
-public record ClearFeedResult(int EpisodesCleared, int TrackingRowsCleared);
+/// <param name="SkipRowsCleared">Number of skipped-video rows deleted.</param>
+public record ClearFeedResult(int EpisodesCleared, int TrackingRowsCleared, int SkipRowsCleared = 0);

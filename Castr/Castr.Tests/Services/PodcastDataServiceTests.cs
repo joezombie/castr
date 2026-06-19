@@ -38,6 +38,7 @@ public class PodcastDataServiceTests : IDisposable
             _feedRepo,
             _episodeRepo,
             _downloadRepo,
+            new SkippedVideoRepository(_context, new NullLogger<SkippedVideoRepository>()),
             _activityRepo,
             _loggerMock.Object);
 

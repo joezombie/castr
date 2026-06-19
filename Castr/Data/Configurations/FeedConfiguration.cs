@@ -45,6 +45,9 @@ public class FeedConfiguration : IEntityTypeConfiguration<Feed>
         builder.Property(f => f.YouTubeEnabled).HasColumnName("youtube_enabled").HasDefaultValue(false);
         builder.Property(f => f.YouTubeMaxConcurrentDownloads).HasColumnName("youtube_max_concurrent_downloads").HasDefaultValue(1);
         builder.Property(f => f.YouTubeAudioQuality).HasColumnName("youtube_audio_quality").HasDefaultValue("highest");
+        builder.Property(f => f.YouTubeDownloadAfterDate).HasColumnName("youtube_download_after_date");
+        builder.Property(f => f.YouTubeIncludeKeywords).HasColumnName("youtube_include_keywords");
+        builder.Property(f => f.YouTubeExcludeKeywords).HasColumnName("youtube_exclude_keywords");
 
         builder.Property(f => f.CreatedAt).HasColumnName("created_at").IsRequired();
         builder.Property(f => f.UpdatedAt).HasColumnName("updated_at").IsRequired();

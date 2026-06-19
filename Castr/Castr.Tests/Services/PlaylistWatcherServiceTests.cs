@@ -53,4 +53,17 @@ public class PlaylistWatcherServiceTests
 
         Assert.Equal(new[] { "v1", "v2", "v3", "v4", "v5" }, result);
     }
+
+    [Fact]
+    public void SelectNewVideosToDownload_ExcludesSkippedIds()
+    {
+        // "skip" is recorded as skipped, "old" as downloaded; both must be excluded from selection.
+        var playlist = new List<string> { "new2", "skip", "new1", "old" };
+        var handled = new HashSet<string> { "old", "skip" };
+
+        var result = PlaylistWatcherService.SelectNewVideosToDownload(
+            playlist, Id, handled, maxPerPoll: 5);
+
+        Assert.Equal(new[] { "new1", "new2" }, result);
+    }
 }

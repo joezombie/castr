@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using Castr.Data.Entities;
 using Castr.Models;
+using YoutubeExplode.Playlists;
 
 namespace Castr.Services;
 
@@ -369,13 +370,59 @@ public class PlaylistWatcherService : BackgroundService
         _logger.LogInformation("Syncing {Count} playlist videos to database with fuzzy matching", playlistInfos.Count);
         await dataService.SyncPlaylistInfoAsync(feedId, playlistInfos, feed.Directory, feed.DirectorySearchDepth);
 
+        // Step 3b: Invalidate stale skip memory. If any filter changed since a video was skipped,
+        // its FilterHash no longer matches the current one, so delete that row to re-admit the video
+        // for re-evaluation (title-skips re-check for free; date-skips re-fetch once).
+        var filterHash = YouTubeFilterEvaluator.ComputeFilterHash(feed);
+        var staleSkipsCleared = await dataService.DeleteStaleSkipsAsync(feedId, filterHash);
+        if (staleSkipsCleared > 0)
+        {
+            _logger.LogInformation(
+                "Filters changed for {FeedName}; cleared {Count} stale skip row(s) for re-evaluation",
+                feed.Name, staleSkipsCleared);
+        }
+
+        var filterEvaluator = new YouTubeFilterEvaluator(feed);
+
         // Step 4: Check for new videos to download (capped per poll so the cycle completes promptly)
         _logger.LogDebug("Re-checking downloaded video list after sync");
         downloadedIds = await dataService.GetDownloadedVideoIdsAsync(feedId);
         _logger.LogDebug("Found {Count} downloaded videos in database after sync", downloadedIds.Count);
 
+        // Stage A — title keyword filters (zero API cost; title is already available). Videos failing
+        // the title filters are recorded as skipped (reason = keyword) and excluded from candidates so
+        // we never fetch per-video details for them.
+        var skippedIds = await dataService.GetSkippedVideoIdsAsync(feedId);
+        var titleFilteredVideos = new List<PlaylistVideo>();
+        // Accumulate keyword skips and write them in a single batch after the loop, rather than one
+        // SELECT+INSERT+SaveChanges per video (hundreds of round-trips on a large playlist's first poll).
+        var keywordSkips = new List<(string videoId, string reason)>();
+        foreach (var video in videos)
+        {
+            // Already recorded as skipped (with the current filter hash) — leave it skipped.
+            if (skippedIds.Contains(video.Id.Value))
+                continue;
+
+            if (!filterEvaluator.PassesTitleFilters(video.Title))
+            {
+                _logger.LogDebug("Video '{Title}' (ID: {VideoId}) failed title filters; recording keyword skip",
+                    video.Title, video.Id.Value);
+                keywordSkips.Add((video.Id.Value, "keyword"));
+                continue;
+            }
+
+            titleFilteredVideos.Add(video);
+        }
+
+        if (keywordSkips.Count > 0)
+        {
+            await dataService.MarkVideosSkippedAsync(feedId, keywordSkips, filterHash);
+            _logger.LogInformation("Skipped {Count} video(s) for {FeedName} on keyword filters",
+                keywordSkips.Count, feed.Name);
+        }
+
         var newVideos = SelectNewVideosToDownload(
-            videos, v => v.Id.Value, downloadedIds, MaxDownloadsPerPoll);
+            titleFilteredVideos, v => v.Id.Value, downloadedIds, MaxDownloadsPerPoll);
 
         if (newVideos.Count == 0)
         {
@@ -429,6 +476,23 @@ public class PlaylistWatcherService : BackgroundService
             var existingPath = youtubeService.GetExistingFilePath(video.Title, feed.Directory);
             if (existingPath != null)
             {
+                // Fetch details first so Stage B's date filter applies here too. Without this, a
+                // pre-cutoff video that happens to already have a local file would be adopted as an
+                // episode, defeating the date filter (which otherwise only runs in the download branch).
+                _logger.LogDebug("Fetching metadata for existing file");
+                var details = await youtubeService.GetVideoDetailsAsync(video.Id.Value, stoppingToken);
+
+                // Stage B — date filter. A video uploaded before the cutoff is recorded as skipped
+                // (reason = date) instead of adopted as an episode. Unknown upload dates pass.
+                if (!filterEvaluator.PassesDateFilter(details?.UploadDate))
+                {
+                    _logger.LogInformation(
+                        "Existing file for '{Title}' (ID: {VideoId}, uploaded {UploadDate}) is before the cutoff; recording date skip",
+                        video.Title, video.Id.Value, details?.UploadDate);
+                    await dataService.MarkVideoSkippedAsync(feedId, video.Id.Value, "date", filterHash);
+                    continue;
+                }
+
                 _logger.LogInformation(
                     "File already exists for '{Title}', marking as downloaded: {Path}",
                     video.Title,
@@ -446,10 +510,6 @@ public class PlaylistWatcherService : BackgroundService
                         existingFilename, video.Title);
                     continue;
                 }
-
-                // Get video details for existing file
-                _logger.LogDebug("Fetching metadata for existing file");
-                var details = await youtubeService.GetVideoDetailsAsync(video.Id.Value, stoppingToken);
 
                 newEpisodes.Add(new Episode
                 {
@@ -474,6 +534,18 @@ public class PlaylistWatcherService : BackgroundService
                 // Get video details before downloading
                 _logger.LogDebug("Fetching video metadata before download");
                 var details = await youtubeService.GetVideoDetailsAsync(video.Id.Value, stoppingToken);
+
+                // Stage B — date filter. Upload date is only available after the details fetch above.
+                // A video uploaded before the cutoff is recorded as skipped (reason = date) instead of
+                // downloaded. Unknown upload dates pass (see PassesDateFilter).
+                if (!filterEvaluator.PassesDateFilter(details?.UploadDate))
+                {
+                    _logger.LogInformation(
+                        "Video '{Title}' (ID: {VideoId}, uploaded {UploadDate}) is before the cutoff; recording date skip",
+                        video.Title, video.Id.Value, details?.UploadDate);
+                    await dataService.MarkVideoSkippedAsync(feedId, video.Id.Value, "date", filterHash);
+                    continue;
+                }
 
                 _logger.LogInformation("Downloading video '{Title}'", video.Title);
                 var downloadStart = DateTime.UtcNow;

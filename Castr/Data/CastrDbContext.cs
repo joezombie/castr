@@ -15,6 +15,7 @@ public class CastrDbContext : DbContext
     public DbSet<DownloadedVideo> DownloadedVideos => Set<DownloadedVideo>();
     public DbSet<ActivityLog> ActivityLogs => Set<ActivityLog>();
     public DbSet<DownloadQueueItem> DownloadQueue => Set<DownloadQueueItem>();
+    public DbSet<SkippedVideo> SkippedVideos => Set<SkippedVideo>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

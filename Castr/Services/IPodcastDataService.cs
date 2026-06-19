@@ -42,6 +42,12 @@ public interface IPodcastDataService
     Task MarkVideoDownloadedAsync(int feedId, string videoId, string? filename);
     Task RemoveDownloadedVideoAsync(int feedId, string videoId);
 
+    // Skip tracking
+    Task<HashSet<string>> GetSkippedVideoIdsAsync(int feedId);
+    Task MarkVideoSkippedAsync(int feedId, string videoId, string skipReason, string filterHash);
+    Task<int> MarkVideosSkippedAsync(int feedId, IEnumerable<(string videoId, string reason)> skips, string filterHash);
+    Task<int> DeleteStaleSkipsAsync(int feedId, string currentFilterHash);
+
     // Download queue
     Task<Data.Entities.DownloadQueueItem> AddToQueueAsync(int feedId, string videoId, string? title);
     Task UpdateQueueProgressAsync(int queueItemId, string status, int progressPercent, string? errorMessage);

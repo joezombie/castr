@@ -61,6 +61,7 @@ public class PodcastDataServiceTransactionTests : IDisposable
             _feedRepo,
             _episodeRepo,
             downloadRepoMock.Object,
+            new SkippedVideoRepository(_context, NullLogger<SkippedVideoRepository>.Instance),
             _activityRepo,
             NullLogger<PodcastDataService>.Instance);
 
@@ -151,6 +152,7 @@ public class PodcastDataServiceTransactionTests : IDisposable
         _feedRepo,
         _episodeRepo,
         downloadRepo,
+        new SkippedVideoRepository(_context, NullLogger<SkippedVideoRepository>.Instance),
         _activityRepo,
         NullLogger<PodcastDataService>.Instance);
 
@@ -168,6 +170,7 @@ public class PodcastDataServiceTransactionTests : IDisposable
             _feedRepo,
             _episodeRepo,
             downloadRepo,
+            new SkippedVideoRepository(_context, NullLogger<SkippedVideoRepository>.Instance),
             _activityRepo,
             NullLogger<PodcastDataService>.Instance);
 

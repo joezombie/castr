@@ -351,6 +351,95 @@ public class RepositoryTests : IDisposable
 
     #endregion
 
+    #region SkippedVideo Repository Tests
+
+    [Fact]
+    public async Task SkippedVideoRepository_MarkAndGetIds_Works()
+    {
+        var feedId = await _feedRepo.AddAsync(new Feed { Name = "skip", Title = "T", Description = "D", Directory = "/d" });
+        var repo = new SkippedVideoRepository(_context, new NullLogger<SkippedVideoRepository>());
+
+        await repo.MarkVideoSkippedAsync(feedId, "vid1", "keyword", "hashA");
+        await repo.MarkVideoSkippedAsync(feedId, "vid2", "date", "hashA");
+
+        var ids = await repo.GetSkippedVideoIdsAsync(feedId);
+
+        Assert.Equal(2, ids.Count);
+        Assert.Contains("vid1", ids);
+        Assert.Contains("vid2", ids);
+    }
+
+    [Fact]
+    public async Task SkippedVideoRepository_Mark_IsIdempotentUpsert()
+    {
+        var feedId = await _feedRepo.AddAsync(new Feed { Name = "skipups", Title = "T", Description = "D", Directory = "/d" });
+        var repo = new SkippedVideoRepository(_context, new NullLogger<SkippedVideoRepository>());
+
+        await repo.MarkVideoSkippedAsync(feedId, "vid1", "keyword", "hashA");
+        await repo.MarkVideoSkippedAsync(feedId, "vid1", "date", "hashB");
+
+        var ids = await repo.GetSkippedVideoIdsAsync(feedId);
+        Assert.Single(ids);
+        var row = _context.SkippedVideos.Single(s => s.FeedId == feedId && s.VideoId == "vid1");
+        Assert.Equal("date", row.SkipReason);
+        Assert.Equal("hashB", row.FilterHash);
+    }
+
+    [Fact]
+    public async Task SkippedVideoRepository_DeleteStaleSkips_RemovesOnlyDifferentHash()
+    {
+        var (context, connection) = CreateSqliteContext();
+        try
+        {
+            var feedRepo = new FeedRepository(context);
+            var repo = new SkippedVideoRepository(context, new NullLogger<SkippedVideoRepository>());
+            var feedId = await feedRepo.AddAsync(new Feed { Name = "stale", Title = "T", Description = "D", Directory = "/d" });
+
+            await repo.MarkVideoSkippedAsync(feedId, "current", "keyword", "hashCurrent");
+            await repo.MarkVideoSkippedAsync(feedId, "stale1", "keyword", "hashOld");
+            await repo.MarkVideoSkippedAsync(feedId, "stale2", "date", "hashOlder");
+
+            var deleted = await repo.DeleteStaleSkipsAsync(feedId, "hashCurrent");
+
+            Assert.Equal(2, deleted);
+            var remaining = await repo.GetSkippedVideoIdsAsync(feedId);
+            Assert.Single(remaining);
+            Assert.Contains("current", remaining);
+        }
+        finally
+        {
+            context.Dispose();
+            connection.Dispose();
+        }
+    }
+
+    [Fact]
+    public async Task SkippedVideoRepository_DeleteByFeedId_RemovesAll()
+    {
+        var (context, connection) = CreateSqliteContext();
+        try
+        {
+            var feedRepo = new FeedRepository(context);
+            var repo = new SkippedVideoRepository(context, new NullLogger<SkippedVideoRepository>());
+            var feedId = await feedRepo.AddAsync(new Feed { Name = "delall", Title = "T", Description = "D", Directory = "/d" });
+
+            await repo.MarkVideoSkippedAsync(feedId, "a", "keyword", "h");
+            await repo.MarkVideoSkippedAsync(feedId, "b", "date", "h");
+
+            var deleted = await repo.DeleteSkippedVideosByFeedIdAsync(feedId);
+
+            Assert.Equal(2, deleted);
+            Assert.Empty(await repo.GetSkippedVideoIdsAsync(feedId));
+        }
+        finally
+        {
+            context.Dispose();
+            connection.Dispose();
+        }
+    }
+
+    #endregion
+
     #region Activity Repository Tests
 
     [Fact]
