@@ -1,6 +1,8 @@
 using System.Collections.Concurrent;
 using Castr.Data.Entities;
+using Castr.Hubs;
 using Castr.Models;
+using Microsoft.AspNetCore.SignalR;
 using YoutubeExplode.Playlists;
 
 namespace Castr.Services;
@@ -10,19 +12,27 @@ public class PlaylistWatcherService : BackgroundService
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<PlaylistWatcherService> _logger;
     private readonly IPlaylistWatcherTrigger _trigger;
+    private readonly IHubContext<DownloadProgressHub> _hubContext;
     private readonly ConcurrentDictionary<string, DateTime> _lastPollTimes = new();
     // Feeds that requested a metadata-enriching run (e.g. Clear & Resync). The flag is consumed
     // once when the feed is next processed, so subsequent interval polls stay fast.
     private readonly ConcurrentDictionary<string, byte> _pendingEnrichFeeds = new();
 
+    // Retention windows for terminal queue rows, applied once per poll cycle so the /downloads panel
+    // keeps recent history without growing unbounded.
+    private static readonly TimeSpan CompletedQueueRetention = TimeSpan.FromDays(7);
+    private static readonly TimeSpan FailedQueueRetention = TimeSpan.FromDays(30);
+
     public PlaylistWatcherService(
         IServiceProvider serviceProvider,
         ILogger<PlaylistWatcherService> logger,
-        IPlaylistWatcherTrigger trigger)
+        IPlaylistWatcherTrigger trigger,
+        IHubContext<DownloadProgressHub> hubContext)
     {
         _serviceProvider = serviceProvider;
         _logger = logger;
         _trigger = trigger;
+        _hubContext = hubContext;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -106,6 +116,22 @@ public class PlaylistWatcherService : BackgroundService
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             _logger.LogError(ex, "Failed to sync feed directories. Continuing with feed polling.");
+        }
+
+        // Prune old terminal queue rows so the download history doesn't grow without bound.
+        try
+        {
+            using var scope = _serviceProvider.CreateScope();
+            var dataService = scope.ServiceProvider.GetRequiredService<IPodcastDataService>();
+            var removed = await dataService.CleanupOldQueueItemsAsync(CompletedQueueRetention, FailedQueueRetention);
+            if (removed > 0)
+            {
+                _logger.LogDebug("Cleaned up {Count} old download queue item(s)", removed);
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError(ex, "Failed to clean up old download queue items. Continuing.");
         }
 
         var feedsToProcess = await GetFeedsDueForPollingAsync();
@@ -440,6 +466,23 @@ public class PlaylistWatcherService : BackgroundService
         _logger.LogDebug("New videos: {VideoIds}",
             string.Join(", ", newVideos.Select(v => $"{v.Id.Value} ({v.Title})")));
 
+        // Enqueue each selected video as "queued" so the /downloads panel reflects pending work.
+        // Each insert uses its own scope (see EnqueueAsync). AddToQueue dedups by (feedId, videoId).
+        var queueItemIdByVideoId = new Dictionary<string, int>();
+        foreach (var video in newVideos)
+        {
+            try
+            {
+                queueItemIdByVideoId[video.Id.Value] =
+                    await EnqueueAsync(feedId, video.Id.Value, video.Title);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogWarning(ex, "Failed to enqueue video {VideoId} for {FeedName}; download still proceeds",
+                    video.Id.Value, feed.Name);
+            }
+        }
+
         using var semaphore = new SemaphoreSlim(feed.YouTubeMaxConcurrentDownloads);
         var newEpisodes = new ConcurrentBag<Episode>();
 
@@ -472,114 +515,62 @@ public class PlaylistWatcherService : BackgroundService
             _logger.LogInformation("Processing video {Index}/{Total}: '{Title}' (ID: {VideoId})",
                 processedCount, newVideos.Count, video.Title, video.Id.Value);
 
-            // Check if file already exists on disk before downloading
-            var existingPath = youtubeService.GetExistingFilePath(video.Title, feed.Directory);
-            if (existingPath != null)
-            {
-                // Fetch details first so Stage B's date filter applies here too. Without this, a
-                // pre-cutoff video that happens to already have a local file would be adopted as an
-                // episode, defeating the date filter (which otherwise only runs in the download branch).
-                _logger.LogDebug("Fetching metadata for existing file");
-                var details = await youtubeService.GetVideoDetailsAsync(video.Id.Value, stoppingToken);
+            queueItemIdByVideoId.TryGetValue(video.Id.Value, out var queueItemId);
 
-                // Stage B — date filter. A video uploaded before the cutoff is recorded as skipped
-                // (reason = date) instead of adopted as an episode. Unknown upload dates pass.
-                if (!filterEvaluator.PassesDateFilter(details?.UploadDate))
-                {
-                    _logger.LogInformation(
-                        "Existing file for '{Title}' (ID: {VideoId}, uploaded {UploadDate}) is before the cutoff; recording date skip",
-                        video.Title, video.Id.Value, details?.UploadDate);
-                    await dataService.MarkVideoSkippedAsync(feedId, video.Id.Value, "date", filterHash);
-                    continue;
-                }
-
-                _logger.LogInformation(
-                    "File already exists for '{Title}', marking as downloaded: {Path}",
-                    video.Title,
-                    existingPath);
-
-                var existingFilename = Path.GetFileName(existingPath);
-                await dataService.MarkVideoDownloadedAsync(feedId, video.Id.Value, existingFilename);
-
-                // Skip if another video (or Step 3) already claimed this filename this cycle:
-                // adding a second episode for the same (feed_id, filename) would violate the unique index.
-                if (!claimedFilenames.TryAdd(existingFilename, 0))
-                {
-                    _logger.LogInformation(
-                        "Filename '{Filename}' already claimed this cycle, skipping duplicate episode for '{Title}'",
-                        existingFilename, video.Title);
-                    continue;
-                }
-
-                newEpisodes.Add(new Episode
-                {
-                    FeedId = feedId,
-                    Filename = existingFilename,
-                    VideoId = video.Id.Value,
-                    YoutubeTitle = video.Title,
-                    Title = details?.Title ?? video.Title,
-                    Description = details?.Description,
-                    ThumbnailUrl = details?.ThumbnailUrl,
-                    PublishDate = details?.UploadDate,
-                    DisplayOrder = 0,
-                    AddedAt = DateTime.UtcNow
-                });
-                continue;
-            }
-
-            _logger.LogDebug("Waiting for download slot (max concurrent: {Max})", feed.YouTubeMaxConcurrentDownloads);
-            await semaphore.WaitAsync(stoppingToken);
             try
             {
-                // Get video details before downloading
-                _logger.LogDebug("Fetching video metadata before download");
-                var details = await youtubeService.GetVideoDetailsAsync(video.Id.Value, stoppingToken);
-
-                // Stage B — date filter. Upload date is only available after the details fetch above.
-                // A video uploaded before the cutoff is recorded as skipped (reason = date) instead of
-                // downloaded. Unknown upload dates pass (see PassesDateFilter).
-                if (!filterEvaluator.PassesDateFilter(details?.UploadDate))
+                // Check if file already exists on disk before downloading
+                var existingPath = youtubeService.GetExistingFilePath(video.Title, feed.Directory);
+                if (existingPath != null)
                 {
+                    // Fetch details first so Stage B's date filter applies here too. Without this, a
+                    // pre-cutoff video that happens to already have a local file would be adopted as an
+                    // episode, defeating the date filter (which otherwise only runs in the download branch).
+                    _logger.LogDebug("Fetching metadata for existing file");
+                    var details = await youtubeService.GetVideoDetailsAsync(video.Id.Value, stoppingToken);
+
+                    // Stage B — date filter. A video uploaded before the cutoff is recorded as skipped
+                    // (reason = date) instead of adopted as an episode. Unknown upload dates pass.
+                    if (!filterEvaluator.PassesDateFilter(details?.UploadDate))
+                    {
+                        _logger.LogInformation(
+                            "Existing file for '{Title}' (ID: {VideoId}, uploaded {UploadDate}) is before the cutoff; recording date skip",
+                            video.Title, video.Id.Value, details?.UploadDate);
+                        await dataService.MarkVideoSkippedAsync(feedId, video.Id.Value, "date", filterHash);
+                        // The video won't be downloaded, so drop its queue placeholder.
+                        if (queueItemId != 0) await RemoveFromQueueAsync(queueItemId);
+                        continue;
+                    }
+
                     _logger.LogInformation(
-                        "Video '{Title}' (ID: {VideoId}, uploaded {UploadDate}) is before the cutoff; recording date skip",
-                        video.Title, video.Id.Value, details?.UploadDate);
-                    await dataService.MarkVideoSkippedAsync(feedId, video.Id.Value, "date", filterHash);
-                    continue;
-                }
+                        "File already exists for '{Title}', marking as downloaded: {Path}",
+                        video.Title,
+                        existingPath);
 
-                _logger.LogInformation("Downloading video '{Title}'", video.Title);
-                var downloadStart = DateTime.UtcNow;
+                    var existingFilename = Path.GetFileName(existingPath);
+                    await dataService.MarkVideoDownloadedAsync(feedId, video.Id.Value, existingFilename);
 
-                var outputPath = await youtubeService.DownloadAudioAsync(
-                    video.Id.Value,
-                    feed.Directory,
-                    feed.YouTubeAudioQuality,
-                    stoppingToken);
+                    // The file is already present — treat as a completed download for the queue.
+                    if (queueItemId != 0)
+                    {
+                        await UpdateQueueProgressAsync(queueItemId, "completed", 100, null);
+                        await BroadcastDownloadCompletedAsync(feedId, video.Id.Value, existingFilename);
+                    }
 
-                if (outputPath != null)
-                {
-                    var downloadElapsed = DateTime.UtcNow - downloadStart;
-                    var filename = Path.GetFileName(outputPath);
-
-                    _logger.LogInformation("Download completed in {ElapsedSec:N1}s: {Filename}",
-                        downloadElapsed.TotalSeconds, filename);
-
-                    await dataService.MarkVideoDownloadedAsync(feedId, video.Id.Value, filename);
-
-                    // Skip if this filename was already claimed this cycle (e.g. Step 3 matched it
-                    // or another download resolved to the same file), to avoid a duplicate episode.
-                    if (!claimedFilenames.TryAdd(filename, 0))
+                    // Skip if another video (or Step 3) already claimed this filename this cycle:
+                    // adding a second episode for the same (feed_id, filename) would violate the unique index.
+                    if (!claimedFilenames.TryAdd(existingFilename, 0))
                     {
                         _logger.LogInformation(
                             "Filename '{Filename}' already claimed this cycle, skipping duplicate episode for '{Title}'",
-                            filename, video.Title);
+                            existingFilename, video.Title);
                         continue;
                     }
 
                     newEpisodes.Add(new Episode
                     {
                         FeedId = feedId,
-                        Filename = filename,
+                        Filename = existingFilename,
                         VideoId = video.Id.Value,
                         YoutubeTitle = video.Title,
                         Title = details?.Title ?? video.Title,
@@ -589,19 +580,37 @@ public class PlaylistWatcherService : BackgroundService
                         DisplayOrder = 0,
                         AddedAt = DateTime.UtcNow
                     });
-                }
-                else
-                {
-                    _logger.LogWarning("Download failed for '{Title}' (ID: {VideoId})", video.Title, video.Id.Value);
+                    continue;
                 }
 
-                // Rate limiting delay between downloads
-                _logger.LogDebug("Rate limiting: waiting 5 seconds before next download");
-                await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
+                _logger.LogDebug("Waiting for download slot (max concurrent: {Max})", feed.YouTubeMaxConcurrentDownloads);
+                await semaphore.WaitAsync(stoppingToken);
+                try
+                {
+                    var episode = await ProcessVideoDownloadAsync(
+                        dataService, youtubeService, filterEvaluator,
+                        feed, feedId, video.Id.Value, video.Title, queueItemId, filterHash,
+                        claimedFilenames, stoppingToken);
+                    if (episode != null)
+                    {
+                        newEpisodes.Add(episode);
+                    }
+                }
+                finally
+                {
+                    semaphore.Release();
+                }
             }
-            finally
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                semaphore.Release();
+                // Record the failure (with the real cause) and move on to the next video rather than
+                // aborting the whole feed. OperationCanceledException (shutdown) is allowed to propagate.
+                _logger.LogError(ex, "Failed to download '{Title}' (ID: {VideoId})", video.Title, video.Id.Value);
+                if (queueItemId != 0)
+                {
+                    await UpdateQueueProgressAsync(queueItemId, "failed", 0, ex.Message);
+                    await BroadcastDownloadFailedAsync(feedId, video.Id.Value, ex.Message);
+                }
             }
         }
 
@@ -627,4 +636,177 @@ public class PlaylistWatcherService : BackgroundService
             processedCount,
             newEpisodes.Count);
     }
+
+    /// <summary>
+    /// Runs the download branch for a single selected video: fetches details, applies the date filter,
+    /// drives the queue row through queued->downloading->completed/failed (broadcasting each transition),
+    /// downloads the audio, and returns the <see cref="Episode"/> to persist (or null if the video was
+    /// date-skipped, produced no new file, or resolved to an already-claimed filename). Extracted from the
+    /// per-video loop so the queue state transitions can be exercised in isolation; callers must hold the
+    /// download semaphore and wrap the call so a thrown exception marks the row failed and continues.
+    /// </summary>
+    internal async Task<Episode?> ProcessVideoDownloadAsync(
+        IPodcastDataService dataService,
+        IYouTubeDownloadService youtubeService,
+        YouTubeFilterEvaluator filterEvaluator,
+        Feed feed,
+        int feedId,
+        string videoId,
+        string title,
+        int queueItemId,
+        string filterHash,
+        ConcurrentDictionary<string, byte> claimedFilenames,
+        CancellationToken stoppingToken)
+    {
+        // Get video details before downloading
+        _logger.LogDebug("Fetching video metadata before download");
+        var details = await youtubeService.GetVideoDetailsAsync(videoId, stoppingToken);
+
+        // Stage B — date filter. Upload date is only available after the details fetch above.
+        // A video uploaded before the cutoff is recorded as skipped (reason = date) instead of
+        // downloaded. Unknown upload dates pass (see PassesDateFilter).
+        if (!filterEvaluator.PassesDateFilter(details?.UploadDate))
+        {
+            _logger.LogInformation(
+                "Video '{Title}' (ID: {VideoId}, uploaded {UploadDate}) is before the cutoff; recording date skip",
+                title, videoId, details?.UploadDate);
+            await dataService.MarkVideoSkippedAsync(feedId, videoId, "date", filterHash);
+            // Won't be downloaded — drop the queue placeholder.
+            if (queueItemId != 0) await RemoveFromQueueAsync(queueItemId);
+            return null;
+        }
+
+        // Transition to "downloading" and announce the start.
+        if (queueItemId != 0)
+        {
+            await UpdateQueueProgressAsync(queueItemId, "downloading", 0, null);
+            await BroadcastDownloadProgressAsync(feedId, videoId, 0);
+        }
+
+        _logger.LogInformation("Downloading video '{Title}'", title);
+        var downloadStart = DateTime.UtcNow;
+
+        // Throttle DB writes (only on integer-percent change, persisted every ~10%) while
+        // broadcasting every tick. lastPersistedPercent is captured per-video.
+        var lastReportedPercent = -1;
+        var lastPersistedPercent = 0;
+        var progress = new Progress<double>(fraction =>
+        {
+            var percent = (int)Math.Clamp(fraction * 100, 0, 100);
+            if (percent == lastReportedPercent) return;
+            lastReportedPercent = percent;
+
+            // Fire-and-forget broadcasts/persists; failures here must not abort the download.
+            _ = BroadcastDownloadProgressAsync(feedId, videoId, percent);
+            if (queueItemId != 0 && percent - lastPersistedPercent >= 10 && percent < 100)
+            {
+                lastPersistedPercent = percent;
+                _ = UpdateQueueProgressAsync(queueItemId, "downloading", percent, null);
+            }
+        });
+
+        var outputPath = await youtubeService.DownloadAudioAsync(
+            videoId,
+            feed.Directory,
+            feed.YouTubeAudioQuality,
+            progress,
+            stoppingToken);
+
+        Episode? newEpisode = null;
+        if (outputPath != null)
+        {
+            var downloadElapsed = DateTime.UtcNow - downloadStart;
+            var filename = Path.GetFileName(outputPath);
+
+            _logger.LogInformation("Download completed in {ElapsedSec:N1}s: {Filename}",
+                downloadElapsed.TotalSeconds, filename);
+
+            await dataService.MarkVideoDownloadedAsync(feedId, videoId, filename);
+
+            if (queueItemId != 0)
+            {
+                await UpdateQueueProgressAsync(queueItemId, "completed", 100, null);
+                await BroadcastDownloadCompletedAsync(feedId, videoId, filename);
+            }
+
+            // Skip if this filename was already claimed this cycle (e.g. Step 3 matched it
+            // or another download resolved to the same file), to avoid a duplicate episode.
+            // Matches the original loop's `continue`: no episode AND no trailing rate-limit delay.
+            if (!claimedFilenames.TryAdd(filename, 0))
+            {
+                _logger.LogInformation(
+                    "Filename '{Filename}' already claimed this cycle, skipping duplicate episode for '{Title}'",
+                    filename, title);
+                return null;
+            }
+
+            newEpisode = new Episode
+            {
+                FeedId = feedId,
+                Filename = filename,
+                VideoId = videoId,
+                YoutubeTitle = title,
+                Title = details?.Title ?? title,
+                Description = details?.Description,
+                ThumbnailUrl = details?.ThumbnailUrl,
+                PublishDate = details?.UploadDate,
+                DisplayOrder = 0,
+                AddedAt = DateTime.UtcNow
+            };
+        }
+        else
+        {
+            // DownloadAudioAsync now throws on real failure; a null result means the file
+            // was already present (resolved by the service's own existence check).
+            _logger.LogWarning("Download returned no new file for '{Title}' (ID: {VideoId})",
+                title, videoId);
+            if (queueItemId != 0)
+            {
+                await UpdateQueueProgressAsync(queueItemId, "completed", 100, null);
+                await BroadcastDownloadCompletedAsync(feedId, videoId, title);
+            }
+        }
+
+        // Rate limiting delay between downloads
+        _logger.LogDebug("Rate limiting: waiting 5 seconds before next download");
+        await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
+
+        return newEpisode;
+    }
+
+    // --- Download queue helpers -------------------------------------------------------------------
+    // Each queue DB write uses its OWN scope/DbContext because the download loop can run with
+    // YouTubeMaxConcurrentDownloads > 1 and DbContext is not thread-safe. IHubContext IS thread-safe,
+    // so it is injected once via the constructor and reused here.
+
+    private async Task<int> EnqueueAsync(int feedId, string videoId, string? title)
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var dataService = scope.ServiceProvider.GetRequiredService<IPodcastDataService>();
+        var item = await dataService.AddToQueueAsync(feedId, videoId, title);
+        return item.Id;
+    }
+
+    private async Task UpdateQueueProgressAsync(int queueItemId, string status, int progressPercent, string? errorMessage)
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var dataService = scope.ServiceProvider.GetRequiredService<IPodcastDataService>();
+        await dataService.UpdateQueueProgressAsync(queueItemId, status, progressPercent, errorMessage);
+    }
+
+    private async Task RemoveFromQueueAsync(int queueItemId)
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var dataService = scope.ServiceProvider.GetRequiredService<IPodcastDataService>();
+        await dataService.RemoveFromQueueAsync(queueItemId);
+    }
+
+    private Task BroadcastDownloadProgressAsync(int feedId, string videoId, int percent)
+        => _hubContext.Clients.All.SendAsync("DownloadProgress", feedId, videoId, percent);
+
+    private Task BroadcastDownloadCompletedAsync(int feedId, string videoId, string filename)
+        => _hubContext.Clients.All.SendAsync("DownloadCompleted", feedId, videoId, filename);
+
+    private Task BroadcastDownloadFailedAsync(int feedId, string videoId, string error)
+        => _hubContext.Clients.All.SendAsync("DownloadFailed", feedId, videoId, error);
 }

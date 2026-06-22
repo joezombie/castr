@@ -17,6 +17,7 @@ public interface IYouTubeDownloadService
         string videoId,
         string outputDirectory,
         string? preferredQuality = null,
+        IProgress<double>? progress = null,
         CancellationToken cancellationToken = default);
 
     Task<DateTime?> GetVideoUploadDateAsync(
@@ -95,6 +96,7 @@ public partial class YouTubeDownloadService : IYouTubeDownloadService
         string videoId,
         string outputDirectory,
         string? preferredQuality = null,
+        IProgress<double>? progress = null,
         CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Starting download for video: {VideoId}", videoId);
@@ -130,7 +132,8 @@ public partial class YouTubeDownloadService : IYouTubeDownloadService
                 videoId,
                 outputPath,
                 o => o.SetContainer("mp3").SetPreset(ConversionPreset.Medium),
-                cancellationToken: cts.Token);
+                progress,
+                cts.Token);
 
             var downloadElapsed = DateTime.UtcNow - downloadStart;
             var fileInfo = new FileInfo(outputPath);
@@ -138,10 +141,25 @@ public partial class YouTubeDownloadService : IYouTubeDownloadService
                 video.Title, fileInfo.Length, downloadElapsed.TotalSeconds);
             return outputPath;
         }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            // The linked CTS fired without the caller's token being cancelled, so this is the 30-minute
+            // download timeout rather than a real shutdown. Surface it as a failure with a clear cause
+            // (the caller records the message) instead of swallowing it or aborting the whole feed loop.
+            _logger.LogError("Download timed out after 30 minutes for video: {VideoId}", videoId);
+            throw new TimeoutException($"Download timed out after 30 minutes for video {videoId}");
+        }
+        catch (OperationCanceledException)
+        {
+            // Caller-requested cancellation (app shutdown) — let it propagate untouched.
+            throw;
+        }
         catch (Exception ex)
         {
+            // Surface the real cause so the caller can record it as the failure reason, instead of
+            // swallowing it behind a generic null return.
             _logger.LogError(ex, "Failed to download audio for video: {VideoId}", videoId);
-            return null;
+            throw;
         }
     }
 

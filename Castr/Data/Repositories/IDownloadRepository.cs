@@ -20,4 +20,12 @@ public interface IDownloadRepository
     Task<List<DownloadQueueItem>> GetQueueAsync(int? feedId = null);
     Task<DownloadQueueItem?> GetQueueItemAsync(int feedId, string videoId);
     Task RemoveFromQueueAsync(int queueItemId);
+
+    /// <summary>
+    /// Bulk-deletes terminal queue rows older than their retention window: "completed" rows whose
+    /// CompletedAt is older than <paramref name="completedRetention"/>, and "failed" rows older than
+    /// <paramref name="failedRetention"/>. "queued"/"downloading" rows are never removed. Cutoffs are
+    /// computed from DateTime.UtcNow. Returns the number of rows deleted.
+    /// </summary>
+    Task<int> CleanupOldQueueItemsAsync(TimeSpan completedRetention, TimeSpan failedRetention);
 }

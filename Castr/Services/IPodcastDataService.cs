@@ -54,6 +54,7 @@ public interface IPodcastDataService
     Task<List<Data.Entities.DownloadQueueItem>> GetQueueAsync(int? feedId = null);
     Task<Data.Entities.DownloadQueueItem?> GetQueueItemAsync(int feedId, string videoId);
     Task RemoveFromQueueAsync(int queueItemId);
+    Task<int> CleanupOldQueueItemsAsync(TimeSpan completedRetention, TimeSpan failedRetention);
 
     // Activity logging
     Task LogActivityAsync(int? feedId, string activityType, string message, string? details = null);

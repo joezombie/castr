@@ -453,6 +453,9 @@ public partial class PodcastDataService : IPodcastDataService
     public Task RemoveFromQueueAsync(int queueItemId)
         => _downloadRepository.RemoveFromQueueAsync(queueItemId);
 
+    public Task<int> CleanupOldQueueItemsAsync(TimeSpan completedRetention, TimeSpan failedRetention)
+        => _downloadRepository.CleanupOldQueueItemsAsync(completedRetention, failedRetention);
+
     #endregion
 
     #region Activity Logging

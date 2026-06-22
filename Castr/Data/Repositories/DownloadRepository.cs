@@ -133,4 +133,17 @@ public class DownloadRepository : IDownloadRepository
             await _context.SaveChangesAsync();
         }
     }
+
+    public async Task<int> CleanupOldQueueItemsAsync(TimeSpan completedRetention, TimeSpan failedRetention)
+    {
+        var now = DateTime.UtcNow;
+        var completedCutoff = now - completedRetention;
+        var failedCutoff = now - failedRetention;
+
+        return await _context.DownloadQueue
+            .Where(q =>
+                (q.Status == "completed" && q.CompletedAt != null && q.CompletedAt < completedCutoff) ||
+                (q.Status == "failed" && q.CompletedAt != null && q.CompletedAt < failedCutoff))
+            .ExecuteDeleteAsync();
+    }
 }
