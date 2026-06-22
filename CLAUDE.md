@@ -60,6 +60,13 @@ cd Castr
 ~/.dotnet/dotnet run
 ```
 
+### Deployment
+
+Production runs as a Docker container on `superstore.ht2.io`. Deploy by pushing
+to `main`, publishing a GitHub release (which triggers the image build), then
+`docker compose pull && up -d` on the host. See `DEPLOYMENT.md` for the full
+procedure, host paths, and verification steps.
+
 ### API Endpoints
 
 - `GET /feed` - List all available feeds
