@@ -1,3 +1,4 @@
+@using System.Reflection
 <!DOCTYPE html>
 <html lang="en">
 
@@ -9,7 +10,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
     <link href="_content/MudBlazor/MudBlazor.min.css" rel="stylesheet" />
-    <link href="css/app.css" rel="stylesheet" />
+    <link href="css/app.css?v=@AppVersion" rel="stylesheet" />
     <HeadOutlet />
 </head>
 
@@ -26,3 +27,12 @@
 </body>
 
 </html>
+
+@code {
+    // Cache-busting token for the app stylesheet; changes every release so
+    // browsers reload css/app.css after a deploy instead of serving a stale copy.
+    private static readonly string AppVersion =
+        Assembly.GetExecutingAssembly()
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()
+            ?.InformationalVersion ?? "dev";
+}
